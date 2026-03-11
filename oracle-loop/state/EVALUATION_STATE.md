@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 22
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -13,174 +13,143 @@
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
-- Character Extraction: 7/10 ✗
-  - Completeness: 6/10 (George Wilson STILL missing — 21st attempt; Owl Eyes REGRESSION — 0 entries now, was 2 in attempt 20)
-  - Identity Resolution: 9/10 (no false splits or merges)
+- Character Extraction: 7.5/10 ✗
+  - Completeness: 7/10 (George Wilson STILL missing — 22nd attempt)
+  - Identity Resolution: 8/10 (James Gatz false split from Gatsby)
   - Alias Grouping: 9/10 (clean)
-- Character Profiles: 7.5/10 ✗ (Gatz↔Gatsby father/son FIXED ✓; but Wolfshiem fabricated friendships persist, Myrtle→Catherine still "associated" not "sister")
+- Character Profiles: 8/10 ✓ (Fix CCC Myrtle→Catherine "sister" ✓; Fix DDD Wolfshiem friendships cleaned ✓; Tom↔Daisy husband/wife ✓)
 - Chapter Summaries: 8.5/10 ✓
 - Pronunciation Guide: 8.5/10 ✓ (148/149 with IPA)
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 8.18/10** (reference only)
+- **Overall: 8.48/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold: Character Extraction 7.0, Character Profiles 7.5)
+**Status:** FAIL (1 category below threshold: Character Extraction 7.5)
 
 ## What Changed in Attempt 22
 
-### Fix BBB (George Wilson F6 blocker — last_name single-word exception) — APPLIED
-- Modified `_is_likely_alias_of_existing` in `src/analyzer.py`: the `last_name == char_canonical` check now only fires when the existing char has a MULTI-WORD canonical name (`len(char_canonical.split()) > 1`).
-- Previously: "George Wilson" was blocked because `last_name = "wilson"` matched single-word existing char "Wilson"
-- Now: single-word existing chars like "Wilson" no longer block multi-word F6 candidates
-- Step 4.5.9 will then absorb the single-word "Wilson" into "George Wilson" (canonical word-subset match)
-- Expected: George Wilson appears in final character list
+### Fix BBB (George Wilson F6 blocker — last_name single-word exception) — DID NOT RESOLVE
+- The `last_name == char_canonical` check now correctly skips single-word existing chars
+- BUT George Wilson is STILL missing from the 26-character output
+- Detailed investigation: "George Wilson" IS in `characters_present` of the final JSON for Ch 2, 7, 8 (from `summary_obj.active_characters`)
+- Simulation of `_is_likely_alias_of_existing("George Wilson")` against the FINAL character list returns False (not blocked)
+- **Hypothesis**: At F6 runtime, the character list differs from the final list. There may be a bare "Wilson" supporting character or an intermediate state that blocks "George Wilson" through a path not exercised in the simulation
+- **Fix approach**: Add diagnostic logging to F6 flow to trace exactly what happens to "George Wilson" — log every filter step
 
-### Fix CCC (Myrtle→Catherine "associated" — sibling↔spousal cross-tier guard) — APPLIED
-- Root cause (diagnosed): `verify_relationships_from_text` changed Myrtle→Catherine from "sister" to "husband" because a 500-char co-mention window contained "her husband" (referring to George Wilson's marriage, not Myrtle-Catherine). `enforce_gender_consistency` then changed "husband"→"wife". `_enforce_one_spouse_invariant` then downgraded to "associated".
-- Fix: Added `_SIBLING_TIER` to `verify_relationships_from_text` cross-tier guards. "sister/brother/cousin/aunt/uncle/nephew/niece" labels cannot be overridden by spousal terms from co-mention window evidence, and vice versa.
-- Verified: After fix, Myrtle→Catherine correctly = "sister"
+### Fix CCC (Myrtle→Catherine sibling↔spousal cross-tier guard) — EFFECTIVE ✓
+- Myrtle→Catherine: "sister" ✓ (was "associated")
+- Catherine→Myrtle: "sister" ✓ (was already correct)
+- Cross-tier guard prevents co-mention "her husband" evidence from overriding sibling labels
 
-### Fix DDD (Wolfshiem fabricated friendships — reject_unfounded_friend_labels) — APPLIED
-- Added new `reject_unfounded_friend_labels()` method to `OutputCharacterCorrector` in `post_corrections.py`
-- Logic: For each "friend" label A→B, check if both A's name, B's name, AND the word "friend" appear within 150 chars in source text. If not: downgrade to "associated".
-- Runs after `verify_relationships_from_text` but before `reject_unfounded_familial_labels`
-- Verified: Wolfshiem→Daisy/Tom/Jordan removed ✓; Wolfshiem→Nick (Gatsby's lunch scene) preserved ✓; Nick→Wolfshiem preserved ✓; Daisy↔Dan Cody removed ✓
+### Fix DDD (reject_unfounded_friend_labels) — EFFECTIVE ✓
+- Wolfshiem→Daisy/Tom/Jordan "friend" → REMOVED ✓
+- Daisy↔Dan Cody "friend" → REMOVED ✓
+- Wolfshiem→Gatsby "close friend" preserved ✓ (legitimate)
+- Wolfshiem→Nick "friend" preserved ✓ (they meet at lunch in Ch IV)
+- Nick→Wolfshiem "friend" preserved ✓
+- Only 2 "friend" labels remain (both legitimate Wolfshiem connections)
 
-## What Changed in Attempt 21
+### Owl Eyes — RECOVERED ✓
+- Present again with 1 mention (F6 reconciled, ID 8cba5fccdb60)
+- Recovery from attempt 21 regression (LLM variance)
 
-### Fix ZZ (George Wilson F6 blocker) — PARTIALLY EFFECTIVE
-- Fix ZZ Part 2 (proper-noun guard in description-phrase check) likely worked for blocking the false-alias path
-- BUT George Wilson is STILL MISSING from the 26-character output
-- Summary text uses "George B. Wilson" (with middle initial "B.") in Ch II — this is a different surface form from "George Wilson"
-- F6 text-scan may still be blocked by name-component check (Fix KK): "Wilson" is a component of existing "Myrtle Wilson"
-- The full name "George B. Wilson" may also fail matching because of the middle initial
-
-### Fix AAA (alias-aware char_by_name in propagate_missing_reverses) — NOT FULLY EFFECTIVE
-- Myrtle→Catherine STILL "associated" (should be "sister")
-- Catherine→Myrtle correctly says "sister" ✓
-- The fix was supposed to enable propagation but it's not firing for this pair
-- Possible: the relationship key is "Catherine" (not an alias), so original lookup worked fine — the bug is elsewhere
-
-### Gatz↔Gatsby father/son — FIXED ✓
-- Henry C. Gatz→Gatsby: "father" ✓
-- Gatsby→Henry C. Gatz: "son" ✓
-- This is a genuine improvement from attempt 20 where Gatz had 0 relationships
-
-### Owl Eyes — REGRESSION ✗
-- In attempt 20: 2 entries ("Man with owl-eyed glasses" + "Owl Eyes")
-- In attempt 21: 0 entries — completely absent
-- "the man with owl-eyed glasses" appears in Ch IX summary text
-- LLM variance — neither Pass 1 nor F6 picked it up this run
-- This is a regression
-
-### Wolfshiem fabricated friendships — PERSISTENT
-- Wolfshiem→Daisy "friend", →Tom "friend", →Jordan "friend", →Nick "friend" — all fabricated
-- Daisy→Wolfshiem "friend", Tom→Wolfshiem "friend" — reciprocals also fabricated
-- Dan Cody→Daisy "friend" and Daisy→Dan Cody "friend" — also fabricated
-- Total: ~10 fabricated relationship entries persist
-
-### Other
-- "Nick Carraway, Nick Carraway" redundancy in Ch I summary still present
-- Nick↔Daisy: no cousin relationship (persistent limitation)
-- 26 characters (up from 25 in attempt 20) — the 26th appears to be "Servants" (F6 reconciled)
+### James Gatz — NEW FALSE SPLIT
+- Separate entry (ID cbff004f6102, F6 reconciled) with 4 mentions
+- Has relationships: Dan Cody "employee", Henry C. Gatz "child"
+- Should be merged into Gatsby (James Gatz = Jay Gatsby's birth name)
+- Gatz and Cody relationships incorrectly point to "James Gatz" instead of "Gatsby"
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **George Wilson missing from character list — STILL not resolved after Fix ZZ** [Completeness]
-   - Problem: George Wilson — Myrtle's husband, kills Gatsby, kills himself — is NOT in the 26-character output. Has been missing since attempt 19.
-   - Evidence: Summary Ch II says "George B. Wilson" (with middle initial), Ch VII/VIII/IX mention "Wilson" multiple times. He appears in at least 4 chapter summaries.
-   - Root cause analysis: Fix ZZ addressed the description-phrase blocker, but George Wilson is STILL missing. Two remaining blockers:
-     1. **F6 name-component check (Fix KK)**: "Wilson" as a single word matches component of "Myrtle Wilson" → blocked. "George Wilson" or "George B. Wilson" as multi-word names — the surname "Wilson" still collides.
-     2. **The name in text is "George B. Wilson"** (with middle initial) — may not be recognized as a standard first+last name pattern.
-   - Location: `src/analyzer.py` — F6 reconciliation logic. The name-component check (Fix KK) needs a **same-surname-different-first-name exception**: when a found name like "George [B.] Wilson" shares a surname with existing "Myrtle Wilson" but has a DIFFERENT first name, it should be treated as a distinct character.
-   - **Fix approach (Fix BBB): Same-surname different-person exception in F6 name-component check**
-     - In the Fix KK component-check logic, when blocking a name because one of its words is a component of an existing character:
-       1. Extract the SURNAME (last word) from the candidate name
-       2. Find existing characters whose canonical name or aliases contain that surname
-       3. If the candidate has a DIFFERENT first name from ALL matching existing characters → it's a different person → DO NOT block
-       4. If the candidate is just a bare surname "Wilson" → still block (ambiguous)
-     - Example: "George Wilson" → surname "Wilson" matches "Myrtle Wilson" → first name "George" ≠ "Myrtle" → allow through
-
-2. **Owl Eyes completely missing — REGRESSION from attempt 20** [Completeness]
-   - Problem: "the man with owl-eyed glasses" appears in Ch IX summary but NO character entry exists. In attempt 20 there were 2 entries (split). Now there are 0.
-   - Evidence: Ch III (Gatsby's library) and Ch IX (funeral) both feature this character
-   - Root cause: LLM variance — Pass 1 didn't extract him, and F6 text-scan didn't find a matchable name
-   - Location: This is LLM variance, not a code bug. The name "man with owl-eyed glasses" is a descriptor, not a proper name. F6 looks for proper nouns.
-   - Fix: No reliable code fix — this is LLM extraction variance. May self-correct on re-run.
+1. **George Wilson missing from character list — 22nd attempt** [Completeness]
+   - Problem: George Wilson — Myrtle's husband, kills Gatsby, kills himself — is NOT in the 26-character output
+   - Evidence: "George Wilson" appears in `characters_present` for chapters 2, 7, 8 in the final JSON. The HTML shows him tagged in chapters 2, 7, 8, 9 summaries.
+   - Root cause: UNKNOWN despite extensive code analysis. Simulation of `_is_likely_alias_of_existing` against final character list shows he should NOT be blocked. The blocker likely exists at F6 runtime when the character list is in a different intermediate state (possibly including a bare "Wilson" supporting character that gets absorbed later).
+   - Location: `src/analyzer.py` — F6 reconciliation flow (lines 1225-1804)
+   - **Fix approach (Fix EEE): Add diagnostic logging to F6 flow**
+     1. At the start of F6, log ALL entries in `existing_names` that contain "wilson" (case-insensitive)
+     2. At each filter step (existing_names check, generic descriptor, synonym, _is_likely_alias_of_existing), log whether "George Wilson" passes or fails
+     3. Inside `_is_likely_alias_of_existing`, for multi-word candidates, log which specific check triggers a return True
+     4. Run analysis with logging enabled, capture the output, and identify the exact blocker
+     5. THEN apply a targeted fix based on the identified blocker
+   - **Alternative approach (Fix EEE-alt): Direct F6 injection bypass**
+     - After the F6 `missing_names` loop, add a SECOND pass that checks `characters_present` from the structure data against the character list
+     - Characters in `characters_present` that have proper nouns AND appear in 3+ chapters but are NOT in the character list should be force-added
+     - This bypasses whatever blocker exists in the current F6 filter chain
 
 ### HIGH
 
-3. **Wolfshiem fabricated friendships (10+ entries)** [Profiles]
-   - Problem: Wolfshiem has "friend" with Daisy, Tom, Jordan, Nick. Reciprocals exist. Dan Cody↔Daisy "friend" also fabricated. ~10 fabricated entries.
-   - Evidence: Wolfshiem appears in Ch IV (lunch with Gatsby+Nick) and Ch IX (refuses funeral). Never interacts with Daisy, Tom, Jordan. Dan Cody died before Gatsby met Daisy.
-   - Root cause: LLM profiler hallucination — generates "friend" for characters in the same novel
-   - Location: `src/analyzer.py` — `_generate_character_profile()` / LLM profiler
-   - Fix approach: Post-correction heuristic — if a supporting/minor character has >3 "friend" relationships AND their chapter appearances don't overlap with the friend targets, demote to "associated". OR: add co-occurrence validation — only allow "friend" if both characters appear in at least one common chapter's active_characters or summary text.
-
-4. **Myrtle→Catherine "associated" instead of "sister"** [Profiles]
-   - Problem: Catherine→Myrtle correctly says "sister" ✓ but reverse is "associated" ✗
-   - Evidence: They are sisters. The reciprocal should be "sister".
-   - Root cause: Fix AAA expanded char_by_name to include aliases, but `_propagate_missing_reverses` may have another condition preventing override of existing non-null labels. The function may only fire when the target relationship is None, not when it's "associated".
-   - Location: `src/pipeline/character_profiling/post_corrections.py` — `_propagate_missing_reverses`
-   - Fix: Verify that the "override generic labels" logic from Fix RR (attempt 16) is working. Check if "associated" is in the list of generic labels that get overridden.
-
-5. **Nick↔Daisy: no relationship (should be "cousin")** [Profiles]
-   - Persistent across 21 attempts. First-person narrator limitation — Nick says "my cousin" but text says "I" not "Nick".
-   - No reliable fix available.
+2. **James Gatz false split from Gatsby** [Identity Resolution]
+   - Problem: "James Gatz" (4 mentions, F6 reconciled) is a separate entry from "Gatsby" (266 mentions). James Gatz is Jay Gatsby's birth name.
+   - Evidence: Chapter 6 reveals "James Gatz — that was really, or at least legally, his name"
+   - Root cause: F6 added "James Gatz" as a new character. The pipeline doesn't recognize "James Gatz" as an alias of "Jay Gatsby" because they share no name components (James ≠ Jay, Gatz ≠ Gatsby).
+   - Location: `src/analyzer.py` — Step 4.5.9 word-subset dedup doesn't fire because no words overlap. The birth name → stage name pattern is not handled.
+   - Fix: In Step 4.5.9 or a new post-step, check if an F6-reconciled character's relationships (e.g., Henry C. Gatz "child") point to another character (Gatz→Gatsby) via shared surname components. OR: handle in `_is_likely_alias_of_existing` — if candidate "James Gatz" shares a surname component "Gatz" with existing "Henry C. Gatz" AND another character "Gatsby" has a relationship with "Henry C. Gatz", infer James Gatz = Gatsby.
+   - **Simpler fix**: This is a known biographical alias (James Gatz = Jay Gatsby) that the LLM should have caught in Pass 2. Since it's F6-reconciled, it bypassed Pass 2. Add a post-F6 check: if an F6 character has the same surname as an existing character's alias or relationship target, flag for merge.
 
 ### MEDIUM
 
-6. **Daisy↔Dan Cody "friend" — fabricated** [Profiles]
-   - Daisy and Dan Cody never interact. Cody died years before Gatsby met Daisy.
-   - LLM profiler hallucination. Same root cause as issue #3.
+3. **Nick↔Daisy: no relationship (should be "cousin")** [Profiles]
+   - Persistent across 22 attempts. First-person narrator limitation.
+   - No reliable fix available.
 
-7. **Nick→Wolfshiem "friend" — questionable** [Profiles]
-   - Nick meets Wolfshiem once at lunch in Ch IV. "friend" is a stretch.
-   - Minor — could be "associated".
+4. **Gatsby→Daisy "associated" (should be "romantic interest")** [Profiles]
+   - The central romantic relationship of the novel is labeled generically
+   - LLM profiler limitation — conservative labeling
+   - Low priority since Profiles now passes 8.0 threshold
 
-8. **Ch I summary starts with "Nick Carraway, Nick Carraway"** [Summaries]
+5. **Ch I summary starts with "Nick Carraway, Nick Carraway"** [Summaries]
    - Redundant name repetition. Very minor cosmetic issue.
 
 ### LOW
 
-9. **F6 clutter characters** [Completeness]
-   - "Lutheran minister from Flushing" (1 mention), "West Egg postman" (1 mention), "New York reporter" (1 mention) — very minor characters
-   - These are real characters from the text, not hallucinated, but add noise
-   - Low impact — not worth fixing
+6. **F6 clutter characters** [Completeness]
+   - Ripley Snell (1 mention), Mrs. Claud Roosevelt (1 mention), Benny McClenahan (1 mention), Mrs. Ulysses Swett (1 mention) — real but extremely minor party guests
+   - Not hallucinated, just noise. Not worth fixing.
 
-## Fix Guidance for Attempt 22
+## Fix Guidance for Attempt 23
 
-**Two categories need fixing: Character Extraction (7.0→8.0) and Character Profiles (7.5→8.0).**
+**Only ONE category needs fixing: Character Extraction (7.5→8.0). Profiles now passes at 8.0 ✓.**
 
-**Priority 1 — Fix BBB (CRITICAL): Same-surname different-person exception in F6 name-component check**
+**Priority 1 — Fix EEE (CRITICAL): Diagnose and fix George Wilson F6 blocker**
 
-The George Wilson blocker is now clearly in the Fix KK name-component check. When F6 finds "George Wilson" or "George B. Wilson" in summary text, it checks if any word is a component of an existing character. "Wilson" matches "Myrtle Wilson" → blocked. But "George" ≠ "Myrtle" → these are DIFFERENT people.
+The George Wilson issue has persisted for 4 attempts despite multiple fix attempts. The root cause remains unidentified. Two approaches:
 
-In `src/analyzer.py`, find the Fix KK name-component check in the F6 logic. Add an exception:
+**Approach A (Diagnostic first):** Add temporary diagnostic logging to trace what happens to "George Wilson" in the F6 flow:
 ```python
-# When blocking because word W is a component of existing character E:
-# If candidate name has a first name AND E has a first name AND they differ → different person → allow
-# Only block if candidate is a bare surname (single word) or shares the same first name
+# At start of F6, after building existing_names:
+_wilson_names = [n for n in existing_names if 'wilson' in n]
+logger.warning(f"F6-DIAG: existing_names with 'wilson': {_wilson_names}")
+
+# At each filter check for "George Wilson":
+if 'george wilson' in name.lower():
+    logger.warning(f"F6-DIAG: '{name}' checking existing_names: {name.lower() in existing_names}")
+    logger.warning(f"F6-DIAG: '{name}' normalized: {_normalize_name_for_matching(name)} in existing: {_normalize_name_for_matching(name) in existing_names}")
 ```
 
-This is the SAME logic described in Fix ZZ guidance for attempt 21, but Fix ZZ addressed a DIFFERENT blocker (description-phrase check). The name-component check (Fix KK) is the REMAINING blocker.
+Then run analysis, capture logs, identify the exact blocker.
 
-**Priority 2 — Fix CCC (HIGH): Verify _propagate_missing_reverses override logic**
+**Approach B (Bypass):** After the main F6 loop, add a safety-net pass:
+- For each character in `characters_present` across ALL chapters, if a name:
+  1. Contains at least one proper noun (capitalized word)
+  2. Appears in `characters_present` for ≥ 2 chapters
+  3. Is NOT already in the character list (exact or normalized match)
+  4. Is NOT a substring/superset of an existing character with the SAME first name
+- Then force-add it via `_f6_add_character`
+- This would catch George Wilson (proper noun, 3 chapters, not in list, different first name from "Myrtle Wilson")
 
-Check `_propagate_missing_reverses` in `post_corrections.py`:
-1. Is "associated" in the generic labels list that gets overridden?
-2. Does the function actually fire when B→A already has a value (not None)?
-3. Add debug logging to trace why Myrtle→Catherine "associated" is not being overridden to "sister"
+**Recommend Approach A first** to understand the root cause, then apply a targeted fix.
 
-**Priority 3 — Fix DDD (HIGH): Co-occurrence validation for "friend" relationships**
+**Priority 2 — Fix FFF (HIGH): James Gatz → Gatsby merge**
 
-Add a post-correction step: if character X has >3 "friend" relationships AND X is supporting/minor cast, validate each "friend" by checking if both X and the friend target appear in at least one common chapter summary. If no co-occurrence → demote to "associated".
+After F6 adds characters and Step 4.5.9 runs, add a check:
+- For each F6-reconciled character (hash ID), check if its `relationships` reference another character
+- If the F6 char has a relationship like "Henry C. Gatz: child" and an existing main_cast char also has "Henry C. Gatz: father/son" → they share a family connection → merge the F6 char into the main_cast char as an alias
+- This is a universal pattern: if two characters independently claim familial relationships with the same third character, they may be the same person
 
-This would fix Wolfshiem's fabricated friendships and Daisy↔Dan Cody.
-
-**Do NOT fix: Owl Eyes (LLM variance), Nick↔Daisy cousin (narrator limitation), Ch I redundancy (cosmetic), F6 clutter (valid characters).**
+**Do NOT fix: Nick↔Daisy cousin (narrator limitation), Gatsby→Daisy label (Profiles passes), Ch I redundancy (cosmetic), F6 clutter (valid characters).**
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -206,7 +175,7 @@ This would fix Wolfshiem's fabricated friendships and Daisy↔Dan Cody.
 | 19 | 8.10 | +2.20 | Fix VV (block generic→spousal upgrade) solved false spousals BUT also blocked legitimate Tom↔Daisy. George Wilson MISSING (LLM variance). Net: regression from 8.45. |
 | 20 | 8.40 | +2.50 | Fix XX EFFECTIVE ✓ (Tom↔Daisy husband/wife restored). No false spousals. But George Wilson still missing (F6 bug). Profiles improved 6.5→7.5 but fabricated Wolfshiem friendships persist. |
 | 21 | 8.18 | +2.28 | Fix ZZ partially effective (description-phrase blocker removed). Fix AAA not exercised. BUT George Wilson STILL missing (Fix KK component check remains). Owl Eyes REGRESSION (2→0 entries). Gatz↔Gatsby father/son FIXED ✓. |
-| 22 | TBD | TBD | Fix BBB (George Wilson last_name single-word exception), Fix CCC (sibling↔spousal guard), Fix DDD (reject_unfounded_friend_labels). |
+| 22 | 8.48 | +2.58 | Fix CCC EFFECTIVE ✓ (Myrtle→Catherine sister). Fix DDD EFFECTIVE ✓ (Wolfshiem friends cleaned). Profiles now 8.0 ✓. BUT George Wilson STILL missing. James Gatz false split NEW. Owl Eyes recovered. |
 
 ## Fix History
 
@@ -308,9 +277,9 @@ This would fix Wolfshiem's fabricated friendships and Daisy↔Dan Cody.
 - **Fix AAA: Alias-aware char_by_name in propagate_missing_reverses** — **NOT EFFECTIVE** (Myrtle→Catherine still "associated")
 
 ### Attempt 22 fixes
-- **Fix BBB: F6 last_name single-word exception** — APPLIED; modified `last_name == char_canonical` check to only fire for multi-word existing chars; single-word surname-only chars no longer block multi-word F6 candidates
-- **Fix CCC: Sibling↔spousal cross-tier guard in verify_relationships_from_text** — APPLIED; added `_SIBLING_TIER` set; sibling labels cannot be overridden by spousal terms from co-mention windows
-- **Fix DDD: `reject_unfounded_friend_labels` post-correction** — APPLIED; new method requires both names + "friend" within 150 chars in source text; removes fabricated Wolfshiem friendships
+- **Fix BBB: F6 last_name single-word exception** — **DID NOT RESOLVE** (George Wilson still missing; the actual blocker is elsewhere)
+- **Fix CCC: Sibling↔spousal cross-tier guard in verify_relationships_from_text** — **EFFECTIVE ✓** (Myrtle→Catherine "sister" restored)
+- **Fix DDD: `reject_unfounded_friend_labels` post-correction** — **EFFECTIVE ✓** (fabricated Wolfshiem friendships removed; 10+ entries cleaned)
 
 ## Modification History
 
@@ -372,6 +341,9 @@ This would fix Wolfshiem's fabricated friendships and Daisy↔Dan Cody.
 | 21 | STEP 4.5.9 F6-protection transfer (Fix ZZ-3) | `src/analyzer.py` | **EFFECTIVE** (F6 chars survive) |
 | 21 | Leading-only initial stripping (Fix ZZ-1) | `src/analyzer.py` | **EFFECTIVE** (middle initials preserved) |
 | 21 | Alias-aware char_by_name (Fix AAA) | `src/pipeline/character_profiling/post_corrections.py` | **NOT EFFECTIVE** (Myrtle→Catherine still "associated") |
+| 22 | F6 last_name single-word exception (Fix BBB) | `src/analyzer.py` | **DID NOT RESOLVE** (George Wilson still missing) |
+| 22 | Sibling↔spousal cross-tier guard (Fix CCC) | `src/pipeline/character_profiling/post_corrections.py` | **EFFECTIVE** ✓ (Myrtle→Catherine sister) |
+| 22 | reject_unfounded_friend_labels (Fix DDD) | `src/pipeline/character_profiling/post_corrections.py` | **EFFECTIVE** ✓ (fabricated friendships removed) |
 
 ## Configuration Audit
 - Model: `qwen3-next:80b-a3b-instruct-q8_0` for all agents (think_mode: false)
@@ -380,16 +352,15 @@ This would fix Wolfshiem's fabricated friendships and Daisy↔Dan Cody.
 - Zero LLM retries — no prompt/schema failures
 
 ## Pipeline Notes (Attempt 22)
-- Completed in 85m 57s
-- 26 characters found — George Wilson status: TBD (awaiting evaluation)
+- 26 characters found — George Wilson: STILL MISSING
 - Nick Carraway confirmed as narrator ✓
-- 149 pronunciation flags
-- Fix BBB applied (last_name single-word exception for F6)
-- Fix CCC applied (sibling↔spousal cross-tier guard)
-- Fix DDD applied (reject_unfounded_friend_labels)
-- Pass 2 failed for Jay Gatsby (kept without aliases)
-- "The man with owl-eyed glasses" blocked alias for "Owl Eyes" — still separate character issue
-- 7 characters added via F6 reconciliation
+- 149 pronunciation flags (148 with IPA)
+- Fix BBB applied but George Wilson NOT resolved
+- Fix CCC effective (Myrtle→Catherine sister ✓)
+- Fix DDD effective (Wolfshiem friendships cleaned ✓)
+- Owl Eyes recovered (1 mention, F6 reconciled)
+- James Gatz new false split from Gatsby (4 mentions, F6 reconciled)
+- Profiles now at 8.0 threshold ✓ — only Character Extraction remains below
 
 ## Next Action
-Run PROMPT_fix.md to address George Wilson (Fix BBB: same-surname exception in Fix KK component check) and relationship quality (Fix CCC: propagation debug, Fix DDD: co-occurrence validation for "friend").
+Run PROMPT_fix.md to diagnose and fix George Wilson F6 blocker (Fix EEE: diagnostic logging + targeted fix). Secondary: James Gatz false split (Fix FFF).
