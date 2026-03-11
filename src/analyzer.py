@@ -1632,6 +1632,10 @@ class AudiobookAnalyzer:
                             # If the summary name contains all core words from an existing alias,
                             # it's likely a more descriptive variant (e.g., "the masked figure" contains "figure")
                             if alias_core and alias_core.issubset(core_words):
+                                # Guard: single-word alias vs multi-word candidate = surname collision
+                                # e.g., alias "Wilson" should not block "George Wilson"
+                                if len(alias_core) == 1 and len(core_words) >= 2:
+                                    continue
                                 if "wilson" in name.lower():
                                     logger.warning(f"DIAG-WILSON: blocked by partial alias core-word match against '{alias}' of '{char.canonical_name}'")
                                 logger.info(
