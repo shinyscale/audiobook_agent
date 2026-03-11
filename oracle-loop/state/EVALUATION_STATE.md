@@ -3,13 +3,13 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 21
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.90
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
-- Timestamped: output/gatsby_20260311_003630/
+- Timestamped: output/gatsby_20260311_025616/
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
@@ -342,8 +342,17 @@ In `_propagate_missing_reverses` in `post_corrections.py`:
 - Fix XX effective ✓, Fix YY not exercised
 - active_characters metadata EMPTY for all chapters — LLM summarizer didn't populate it
 
+## Pipeline Notes (Attempt 21)
+- Completed in 89m 9s
+- **26 characters found** (up from 25 — George Wilson likely present now ✓)
+- Nick Carraway confirmed as narrator ✓
+- 149 pronunciation flags
+- Gatsby→Henry C. Gatz contradictory "parent" labels removed (both had same label — contradiction guard fired)
+- Fix ZZ (description-phrase proper-noun guard) appears effective — George Wilson aliases processed
+- Fix AAA (alias-aware char_by_name) in effect — Myrtle→Catherine propagation should be tested
+
 ## Next Action
-Run PROMPT_analyze.md to analyze attempt 21 results.
+Run PROMPT_evaluate.md to evaluate attempt 21 results.
 
 ## Attempt 21 Fixes Applied
 
