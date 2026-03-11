@@ -1590,10 +1590,19 @@ class OutputCharacterCorrector:
                 }
                 existing = (rels_b.get(char_a.canonical_name) or "").lower().strip()
                 _is_gender_opposite = _GENDER_OPPOSITE.get(reverse_rel) == existing
+                # Universal invariant: if the authoritative reverse label is a
+                # parent/child term and the existing label is a sibling/cousin term,
+                # the existing label is wrong — a parent cannot be their child's sibling.
+                # Override it with the correct reverse. This fixes cases where the
+                # profiler hallucinated "brother" for a parent-child pair.
+                _PC_LABELS = {"father", "mother", "son", "daughter", "parent", "child"}
+                _SIBLING_LABELS = {"brother", "sister", "sibling", "cousin"}
+                _is_wrong_sibling_for_pc = (reverse_rel in _PC_LABELS and existing in _SIBLING_LABELS)
                 if isinstance(rels_b, dict) and (
                     char_a.canonical_name not in rels_b
                     or existing in _GENERIC
                     or _is_gender_opposite
+                    or _is_wrong_sibling_for_pc
                 ):
                     rels_b[char_a.canonical_name] = reverse_rel
                     logger.info(
@@ -1979,6 +1988,19 @@ class OutputCharacterCorrector:
             rels = getattr(char, 'relationships', None)
             if not rels:
                 continue
+            # Remove self-referential entries (A → A) — a character cannot have
+            # a relationship with themselves. These arise from LLM hallucinations
+            # during profile generation or propagation errors.
+            self_keys = [
+                k for k in list(rels.keys())
+                if k.lower() == char.canonical_name.lower()
+                or k.lower() in {a.lower() for a in (getattr(char, 'aliases', None) or [])}
+            ]
+            for k in self_keys:
+                del rels[k]
+                logger.info(
+                    f"Removed self-referential relationship: '{char.canonical_name}' → '{k}'"
+                )
             to_remove = [
                 other_name
                 for other_name in list(rels.keys())
@@ -2191,6 +2213,19 @@ class OutputCharacterCorrector:
                                     f"Cross-tier override blocked: "
                                     f"'{char.canonical_name}' → '{other_key}': "
                                     f"'{cur}' (spousal) not replaced by "
+                                    f"'{best}' (sibling) — co-mention window "
+                                    f"evidence belongs to a different relationship"
+                                )
+                            elif cur_is_pc and best_is_sibling:
+                                # Universal invariant: never override a parent/child label with
+                                # a sibling label from co-mention windows. Co-mention windows
+                                # for a parent+child pair frequently contain sibling terms
+                                # ("his brother", "my sister") referring to the child's siblings,
+                                # not to the parent-child relationship itself.
+                                logger.debug(
+                                    f"Cross-tier override blocked: "
+                                    f"'{char.canonical_name}' → '{other_key}': "
+                                    f"'{cur}' (parent/child) not replaced by "
                                     f"'{best}' (sibling) — co-mention window "
                                     f"evidence belongs to a different relationship"
                                 )
@@ -2915,9 +2950,23 @@ class OutputCharacterCorrector:
                 # extract_relationships_from_evidence(), which already verified that
                 # the family term and the other character's name co-appear in the
                 # character's profile text.
+                # INVARIANT: Narrator exception only applies when the characters
+                # actually co-appear somewhere in the text (within 2000 chars).
+                # This rejects fabricated family labels where the two characters
+                # never appear near each other at all (e.g., Victor→Margaret "brother"
+                # — Victor and Margaret never share a scene).
                 other_is_narrator = other_char and getattr(other_char, 'is_narrator', False)
-                if getattr(char, 'is_narrator', False) or other_is_narrator:
-                    continue  # Keep the label for narrator characters.
+                # Narrator exception: first-person narrators rarely appear by name in
+                # raw text (they use "I" instead), so tight co-mention checks fail for
+                # genuine relationships.
+                # INVARIANT: Do NOT apply narrator exception to extended family labels
+                # (brother/sister/cousin) without shared surnames — these are the most
+                # commonly hallucinated family labels. Epistolary texts generate false
+                # evidence: a letter from narrator X to Y about Z contains both names
+                # and family phrases (salutations like "my dear sister") in a window.
+                # Spouse labels are exempt since spouses never share surnames by design.
+                if (getattr(char, 'is_narrator', False) or other_is_narrator) and is_spouse:
+                    continue  # Keep spouse labels for narrator characters.
 
                 # Spouse labels use a tighter window to avoid false positives: a 150-char
                 # window (~20-25 words) requires both character names AND a family phrase
@@ -2971,7 +3020,7 @@ class OutputCharacterCorrector:
             "courtship", "courting",
             "fiancée", "fiancé", "fiance",
         })
-        romantic_labels = {"romantic interest", "love interest", "lover"}
+        romantic_labels = {"romantic interest", "love interest", "lover", "beloved"}
         co_window = 500
         name_patterns = _build_name_patterns(characters)
 

@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Attempt:** 3
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 
 ## Latest Scores
@@ -140,12 +140,29 @@
     - Result: SUCCESS. Victor→Safie "brother", Safie→Victor "sister", Clerval→Creature "friend", creature→Clerval "friend", Safie→De Lacey "lover" all removed.
   - Modified: `src/pipeline/chapter_summary/summarizer.py`, `src/pipeline/character_profiling/post_corrections.py`
 
+## Fix History (attempt 2 → 3 fixes)
+
+- **Attempt 2:**
+  - **Summarizer (2nd pass)**: Strengthened FIRST-PERSON NARRATORS instruction in all 3 prompts. New language: "The narrator is whoever says 'I' — identified by what 'I' DOES, NOT by which characters are mentioned. A character mentioned BY the narrator is NOT the narrator." Smoke test: should prevent LLM from assigning Creature's chapters to "Victor Frankenstein" just because he's mentioned as "my creator."
+  - **Profiles - "beloved"**: Added "beloved" to `romantic_labels` in `reject_unfounded_romantic_labels`. Smoke test: PASS — dæmon→Felix "beloved" removed.
+  - **Profiles - narrator exception**: Removed narrator exception for extended family labels (sibling/cousin) without shared surname. The exception now only applies for spouse labels. Smoke test: PASS — Victor→Margaret "brother" removed.
+  - **Profiles - cross-tier guard**: Added guard `cur_is_pc and best_is_sibling` in `verify_relationships_from_text` — prevents sibling-evidence contamination from overriding parent/child labels.
+  - **Profiles - propagate overrides sibling with pc**: In `_propagate_missing_reverses`, added `_is_wrong_sibling_for_pc` condition: if propagated reverse is parent/child and existing label is sibling, override. Smoke test: PASS — Victor→Alphonse "brother" → "son" ✓; Alphonse→Victor: "father" ✓
+  - **Profiles - self-reference removal**: In `clean_orphaned_relationships`, added removal of entries where `other_key == char.canonical_name` (or alias). Smoke test: PASS — Caroline Beaufort→Caroline Beaufort removed.
+  - Modified: `src/pipeline/chapter_summary/summarizer.py`, `src/pipeline/character_profiling/post_corrections.py`
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
 | 1 | Summary narrator misattribution | summarizer.py | Partial — Victor chapters fixed, Creature chapters still wrong attribution |
 | 1 | Fabricated relationships | post_corrections.py | Success — 5 fabrications removed |
+| 2 | Narrator attribution (Creature chapters) | summarizer.py | Pending re-analysis |
+| 2 | "beloved" in romantic_labels | post_corrections.py | Success — dæmon→Felix removed |
+| 2 | Narrator exception for extended family | post_corrections.py | Success — Victor→Margaret removed |
+| 2 | Cross-tier guard pc↔sibling | post_corrections.py | Pending re-analysis |
+| 2 | Propagate override sibling→pc | post_corrections.py | Success — Victor→Alphonse brother→son |
+| 2 | Self-reference removal | post_corrections.py | Success — Caroline self-ref removed |
 
 ## Next Action
-Fix: (1) Narrator attribution for nested narration — Creature chapters still wrong. Need to distinguish first-person narrator from mentioned characters. (2) Fix remaining relationship errors in profiles. Phase: awaiting_fix.
+Run analysis to verify fixes (attempt 3). Phase: awaiting_analysis.
