@@ -3,13 +3,13 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 22
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.90
 
 ## Output Files
 - HTML: ../output/gatsby/report.html
 - JSON: ../output/gatsby/analysis.json
-- Timestamped: output/gatsby_20260311_025616/
+- Timestamped: output/gatsby_20260311_051335/
 
 ## Latest Scores
 - Structure Detection: 10/10 ✓
@@ -379,14 +379,17 @@ This would fix Wolfshiem's fabricated friendships and Daisy↔Dan Cody.
 - Temperature: 0.7 — reasonable
 - Zero LLM retries — no prompt/schema failures
 
-## Pipeline Notes (Attempt 21)
-- Completed in 89m 9s
-- 26 characters found (George Wilson NOT present despite Fix ZZ)
+## Pipeline Notes (Attempt 22)
+- Completed in 85m 57s
+- 26 characters found — George Wilson status: TBD (awaiting evaluation)
 - Nick Carraway confirmed as narrator ✓
-- 149 pronunciation flags (148 with IPA)
-- Fix ZZ removed one blocker (description-phrase) but Fix KK component check still blocks "Wilson"
-- Owl Eyes completely absent (regression from 2 entries in attempt 20)
-- Gatz↔Gatsby father/son NOW CORRECT (improvement)
+- 149 pronunciation flags
+- Fix BBB applied (last_name single-word exception for F6)
+- Fix CCC applied (sibling↔spousal cross-tier guard)
+- Fix DDD applied (reject_unfounded_friend_labels)
+- Pass 2 failed for Jay Gatsby (kept without aliases)
+- "The man with owl-eyed glasses" blocked alias for "Owl Eyes" — still separate character issue
+- 7 characters added via F6 reconciliation
 
 ## Next Action
 Run PROMPT_fix.md to address George Wilson (Fix BBB: same-surname exception in Fix KK component check) and relationship quality (Fix CCC: propagation debug, Fix DDD: co-occurrence validation for "friend").
