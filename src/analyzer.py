@@ -1272,10 +1272,13 @@ class AudiobookAnalyzer:
                         if normalized.endswith(", " + title):
                             normalized = normalized[: -(len(title) + 2)].strip()
 
-                    # Strip single-letter initials with periods (e.g., "m. waldman" → "waldman")
-                    # This handles cases like "M. Waldman" vs "Professor Waldman"
+                    # Strip LEADING first-name initials only (e.g., "m. waldman" → "waldman").
+                    # This handles "M. Waldman" vs "Professor Waldman" without falsely
+                    # collapsing middle initials: "George B. Wilson" must NOT normalize to
+                    # "george wilson" (they are different names — one has a middle initial).
+                    # Only strip if the FIRST word is a single letter+period.
                     import re
-                    normalized = re.sub(r'\b[a-z]\.\s*', '', normalized).strip()
+                    normalized = re.sub(r'^[a-z]\.\s+', '', normalized).strip()
 
                     return normalized
 
@@ -1596,7 +1599,14 @@ class AudiobookAnalyzer:
                     # Check if summary name appears in character's description
                     # This handles cases where the LLM proposed an alias but grounding filtered it out
                     # Example: "the masked figure" appears in description of "the Red Death"
-                    if char.description:
+                    # IMPORTANT: Only check DESCRIPTIVE phrases (all-lowercase), NOT proper names.
+                    # A proper name like "George Wilson" appearing in Michaelis's description means
+                    # George Wilson is referenced by Michaelis, NOT that George Wilson IS Michaelis.
+                    # Universal invariant: description-phrase alias matching only applies to
+                    # lowercase descriptors (epithets, roles), never to capitalized proper names.
+                    _name_words_orig = [w for w in name.split() if w]
+                    _name_has_proper_noun = any(w[0].isupper() for w in _name_words_orig if w)
+                    if char.description and not _name_has_proper_noun:
                         desc_lower = char.description.lower()
 
                         # Build the cleaned phrase (strip articles but keep adjectives and nouns)
@@ -2073,6 +2083,13 @@ class AudiobookAnalyzer:
                         _459_b_words = set(_459_b.canonical_name.lower().split())
                         if _459_a_words < _459_b_words:
                             _459_b.mention_count = max(_459_b.mention_count, _459_a.mention_count)
+                            # Transfer F6 protection: if the absorbed character was added by F6
+                            # (chapter_summary_reconciliation), carry that strategy onto the survivor
+                            # so the survivor is not discarded by the evidence filter in _convert_characters.
+                            _F6_STRATEGY = "chapter_summary_reconciliation"
+                            if _F6_STRATEGY in (_459_a.supporting_strategies or []) and \
+                                    _F6_STRATEGY not in (_459_b.supporting_strategies or []):
+                                _459_b.supporting_strategies = list(_459_b.supporting_strategies or []) + [_F6_STRATEGY]
                             _459_to_remove.add(_459_a.id)
                             logger.info(
                                 f"Step 4.5.9: '{_459_a.canonical_name}' merged into "
@@ -2084,6 +2101,11 @@ class AudiobookAnalyzer:
                             _459_alias_words = set(_459_alias.lower().split())
                             if _459_a_words <= _459_alias_words and len(_459_a_words) < len(_459_alias_words):
                                 _459_b.mention_count = max(_459_b.mention_count, _459_a.mention_count)
+                                # Transfer F6 protection when merging via alias match too
+                                _F6_STRATEGY = "chapter_summary_reconciliation"
+                                if _F6_STRATEGY in (_459_a.supporting_strategies or []) and \
+                                        _F6_STRATEGY not in (_459_b.supporting_strategies or []):
+                                    _459_b.supporting_strategies = list(_459_b.supporting_strategies or []) + [_F6_STRATEGY]
                                 _459_to_remove.add(_459_a.id)
                                 logger.info(
                                     f"Step 4.5.9: '{_459_a.canonical_name}' merged into "

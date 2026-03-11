@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 20
-- **Phase:** awaiting_fix
+- **Attempt:** 21
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -260,6 +260,12 @@ In `_propagate_missing_reverses` in `post_corrections.py`:
 - **Fix XX: Named-spouse check in `verify_relationships_from_text`** — **EFFECTIVE ✓** (Tom↔Daisy "husband/wife" restored, no false spousals)
 - **Fix YY: Gender-opposite override in `_propagate_missing_reverses`** — **NOT EXERCISED** (Gatz has 0 relationships, so gender override couldn't fire)
 
+### Attempt 21 fixes
+- **Fix ZZ Part 1: Leading-only initial stripping in `_normalize_name_for_matching`** — middle initials (e.g. "George B. Wilson") no longer falsely collapse to match other names
+- **Fix ZZ Part 2: Proper-noun guard in description-phrase check** — `_is_likely_alias_of_existing` no longer blocks proper names that appear in other characters' descriptions (was blocking "George Wilson" via Michaelis's profile text)
+- **Fix ZZ Part 3: F6-protection transfer in STEP 4.5.9** — when a shorter-named F6 character is absorbed by a longer-named character, `chapter_summary_reconciliation` strategy is transferred to survivor
+- **Fix AAA: Alias-aware `char_by_name` in `_propagate_missing_reverses`** — lookup now includes all alias forms so relationship keys using alias names (e.g. "Myrtle Wilson") correctly find the canonical character
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
@@ -316,6 +322,10 @@ In `_propagate_missing_reverses` in `post_corrections.py`:
 | 19 | Cousin label support | `src/pipeline/character_profiling/post_corrections.py`, `src/analyzer.py` | **DID NOT TAKE EFFECT** |
 | 20 | Named-spouse proximity check | `src/pipeline/character_profiling/post_corrections.py` | **EFFECTIVE** ✓ (Tom↔Daisy restored, no false spousals) |
 | 20 | Gender-opposite propagation | `src/pipeline/character_profiling/post_corrections.py` | **NOT EXERCISED** (Gatz has 0 rels) |
+| 21 | F6 description-phrase proper-noun guard (Fix ZZ-2) | `src/analyzer.py` | Pending — blocks "George Wilson" false-alias via Michaelis description |
+| 21 | STEP 4.5.9 F6-protection transfer (Fix ZZ-3) | `src/analyzer.py` | Pending — ensures F6 chars survive absorption |
+| 21 | Leading-only initial stripping (Fix ZZ-1) | `src/analyzer.py` | Pending — middle initials no longer stripped |
+| 21 | Alias-aware char_by_name in propagate_missing_reverses (Fix AAA) | `src/pipeline/character_profiling/post_corrections.py` | Pending — Myrtle→Catherine "sister" reciprocal |
 
 ## Configuration Audit
 - Model: `qwen3-next:80b-a3b-instruct-q8_0` for all agents (think_mode: false)
@@ -333,6 +343,20 @@ In `_propagate_missing_reverses` in `post_corrections.py`:
 - active_characters metadata EMPTY for all chapters — LLM summarizer didn't populate it
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. Fix ZZ: Same-surname different-first-name exception in F6 (George Wilson)
-2. Fix AAA: Override generic labels in `_propagate_missing_reverses` (Myrtle→Catherine "sister")
+Run PROMPT_analyze.md to analyze attempt 21 results.
+
+## Attempt 21 Fixes Applied
+
+### Fix ZZ (George Wilson) — MULTI-PART
+**Root cause (actual, not as described in EVALUATION_STATE):** `_is_likely_alias_of_existing` had a description-phrase check (lines ~1615) that returned True when the candidate name (lowercased) appeared verbatim in ANY character's description. Michaelis's profile text says "attempts to comfort George Wilson in the aftermath" — so "george wilson" matched and F6 was blocked from adding George Wilson.
+
+**Fix ZZ Part 1** (middle-initial normalization): Changed `_normalize_name_for_matching` regex from `r'\b[a-z]\.\s*'` to `r'^[a-z]\.\s+'` so only LEADING initials are stripped (not middle initials like "George B. Wilson").
+
+**Fix ZZ Part 2** (description-phrase proper-noun guard): Added `_name_has_proper_noun` check before the description-phrase alias-matching block. Proper names (any word starting with uppercase) are NEVER blocked by this check — they are referenced characters, not aliases. Only lowercase descriptor phrases (epithets, roles) are subject to description-phrase matching.
+
+**Fix ZZ Part 3** (STEP 4.5.9 F6-protection transfer): When STEP 4.5.9 merges a shorter-named character (A) into a longer-named character (B), if A had `chapter_summary_reconciliation` in its strategies, transfer that protection to B. This prevents F6-confirmed characters from being discarded by the evidence filter after being absorbed by NER characters.
+
+### Fix AAA (Myrtle→Catherine "sister")
+**Root cause:** `_propagate_missing_reverses` built `char_by_name` only from canonical names. If Catherine's relationship entry used "Myrtle Wilson" (alias) as the key (not "Myrtle"), `char_by_name.get("Myrtle Wilson")` returned None → propagation silently skipped.
+
+**Fix:** Extended `char_by_name` to include ALL alias forms. Each alias maps to the canonical character. Now `char_by_name.get("Myrtle Wilson")` correctly returns Myrtle, allowing propagation to fire.

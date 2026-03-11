@@ -1470,7 +1470,15 @@ class OutputCharacterCorrector:
         Universal invariant: if A's profile explicitly records a relationship to B,
         B's profile should record the reciprocal. Only adds — never overwrites.
         """
-        char_by_name = {c.canonical_name: c for c in characters}
+        # Build lookup by canonical name AND all aliases so that relationships
+        # keyed under a non-canonical form (e.g. "Myrtle Wilson" when canonical
+        # is "Myrtle") can still find the target character.
+        char_by_name: dict = {}
+        for c in characters:
+            char_by_name[c.canonical_name] = c
+            for alias in (getattr(c, 'aliases', None) or []):
+                if alias and alias not in char_by_name:
+                    char_by_name[alias] = c
         for char_a in characters:
             rels_a = getattr(char_a, 'relationships', None) or {}
             for other_name, rel_label in list(rels_a.items()):
