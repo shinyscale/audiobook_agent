@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** gatsby
-- **Attempt:** 17
-- **Phase:** awaiting_analysis
+- **Attempt:** 18
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -307,6 +307,6 @@ If Fix TT's competitive attribution is too complex to implement safely, a simple
 - All 332 tests pass ✓
 
 ## Next Action
-Run analysis to verify fixes.
+Evaluate attempt 18 output.
 
-**Phase:** awaiting_analysis
+**Phase:** awaiting_evaluation
