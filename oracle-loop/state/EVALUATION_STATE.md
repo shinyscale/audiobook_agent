@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** gatsby
 - **Attempt:** 17
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 5.90
 
 ## Output Files
@@ -284,5 +284,29 @@ If Fix TT's competitive attribution is too complex to implement safely, a simple
 - Temperature: 0.7 — reasonable
 - Zero LLM retries — no prompt/schema failures
 
+## Attempt 18 Fix Applied
+
+### Fix TT: Remove third-party spousal check from `verify_relationships_from_text`
+- **Root cause:** Third-party check (±50 chars) blocked "husband" from being assigned to Tom→Daisy when Gatsby appeared in Tom+Daisy co-mention windows. Tom never got "husband" label → one-spouse invariant had no competitor for Gatsby→Daisy.
+- **Fix:** Removed entire third-party block (lines 1997-2016 of pre-fix file). Now Tom→Daisy correctly gets upgraded from "associated" to "husband" from text evidence. One-spouse invariant then picks Tom (more spousal-keyword windows) over Gatsby.
+- **File:** `src/pipeline/character_profiling/post_corrections.py`
+
+### Fix UU: Unknown-gender spousal guard in `_enforce_one_spouse_invariant`
+- **Root cause:** `green light → McKee: "husband"` and `McKee → green light: "husband"` both set by LLM. Same-gender guard didn't fire (green light has `gender=None`). Both survived reciprocal check.
+- **Fix:** Added guard: if either character in a "husband"/"wife" pair has `gender=None`, downgrade to "associated". Universal: entities without detectable gender shouldn't hold gendered spousal labels.
+- **File:** `src/pipeline/character_profiling/post_corrections.py`
+
+### Fix TT-bonus: Spousal-keyword competitive selection
+- Changed `_enforce_one_spouse_invariant` to count SPOUSAL-KEYWORD co-mention windows (husband/wife/married/spouse/wedding/marriage) instead of bare co-mention windows. This ensures Tom (Daisy's actual husband, referenced explicitly many times) wins over Gatsby in competitive selection.
+- **File:** `src/pipeline/character_profiling/post_corrections.py`
+
+### Smoke test: PASS
+- `green_light → McKee: "associated"` ✓
+- `McKee → green light: "associated"` ✓
+- `Gatsby → Daisy: "husband"` stays until competitive selection with source text removes it ✓
+- All 332 tests pass ✓
+
 ## Next Action
-Run PROMPT_fix.md to address spousal label attribution (Fix TT: competitive spousal attribution + symbolic entity guard).
+Run analysis to verify fixes.
+
+**Phase:** awaiting_analysis

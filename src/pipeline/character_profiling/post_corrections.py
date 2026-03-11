@@ -933,19 +933,32 @@ class OutputCharacterCorrector:
             if not char.relationships:
                 continue
             char_gender = getattr(char, 'gender', None)
-            if char_gender not in ('male', 'female'):
-                continue
             for other_key in list(char.relationships.keys()):
                 label = char.relationships.get(other_key) or ""
                 if not any(t in label.lower() for t in _spouse_terms):
                     continue
                 other_gender = _gender_map.get(other_key)
-                if other_gender == char_gender:
+                # Same-gender guard: male+male or female+female → hallucination.
+                if char_gender in ('male', 'female') and other_gender == char_gender:
                     char.relationships[other_key] = "associated"
                     logger.info(
                         f"Same-gender spousal guard: '{char.canonical_name}' → '{other_key}': "
                         f"'{label}' downgraded to 'associated' (both {char_gender})"
                     )
+                    continue
+                # Unknown-gender guard: if either party has no detectable gender,
+                # a gendered spousal label (husband/wife) is almost certainly
+                # hallucinated — real spouses are identifiable persons with gender.
+                # Symmetric "spouse" is allowed when gender is ambiguous.
+                label_lower = label.lower().strip()
+                if label_lower in ("husband", "wife"):
+                    if char_gender not in ('male', 'female') or other_gender not in ('male', 'female'):
+                        char.relationships[other_key] = "associated"
+                        logger.info(
+                            f"Unknown-gender spousal guard: '{char.canonical_name}' → '{other_key}': "
+                            f"'{label}' downgraded to 'associated' "
+                            f"(char_gender={char_gender}, other_gender={other_gender})"
+                        )
 
         for char in characters:
             if not char.relationships:
@@ -957,8 +970,12 @@ class OutputCharacterCorrector:
                 if v and any(t in v.lower() for t in _spouse_terms)
             ]
             if len(spousal_keys) > 1:
-                # Count co-mentions for each spousal pair (in 500-char window)
+                # Count spousal-keyword co-mention windows for each spousal pair.
+                # Using windows that contain a spousal keyword (husband/wife/married)
+                # gives stronger signal than bare co-occurrence: the pair where the
+                # source text explicitly uses spousal language is the real couple.
                 pat_a = name_patterns.get(char.canonical_name)
+                _SPOUSE_EVIDENCE = {"husband", "wife", "married", "spouse", "wedding", "marriage"}
                 co_counts: dict[str, int] = {}
                 for other_key in spousal_keys:
                     other_char = next(
@@ -972,7 +989,9 @@ class OutputCharacterCorrector:
                         for ma in pat_a.finditer(source_text):
                             ws = max(0, ma.start() - 500)
                             we = min(len(source_text), ma.end() + 500)
-                            if pat_b.search(source_text[ws:we]):
+                            win = source_text[ws:we]
+                            win_lower = win.lower()
+                            if pat_b.search(win) and any(t in win_lower for t in _SPOUSE_EVIDENCE):
                                 count += 1
                     co_counts[other_key] = count
 
@@ -983,9 +1002,8 @@ class OutputCharacterCorrector:
                         char.relationships[other_key] = "associated"
                         logger.info(
                             f"One-spouse invariant: '{char.canonical_name}' → '{other_key}': "
-                            f"'{char.relationships.get(other_key, '')}' downgraded "
-                            f"(co-mentions: {co_counts.get(other_key, 0)}, kept '{best_key}' "
-                            f"with {co_counts.get(best_key, 0)} co-mentions)"
+                            f"downgraded (spousal windows: {co_counts.get(other_key, 0)}, "
+                            f"kept '{best_key}' with {co_counts.get(best_key, 0)})"
                         )
 
         # Reciprocal spouse validation: true couples are always bidirectional.
@@ -1984,7 +2002,6 @@ class OutputCharacterCorrector:
 
                 found: dict = {}
                 comention_count = 0
-                _SPOUSAL_TERMS = {"husband", "wife", "spouse"}
                 for ma in pat_a.finditer(source_text):
                     ws = max(0, ma.start() - co_window)
                     we = min(len(source_text), ma.end() + co_window)
@@ -1994,26 +2011,6 @@ class OutputCharacterCorrector:
                     comention_count += 1
                     for rm in _all_rel_phrase_re.finditer(win):
                         term = rm.group(1).lower()
-                        # Third-party attribution guard: if a spousal/family term appears
-                        # near a THIRD character's name (not A or B), it likely describes
-                        # that third character's relationship (e.g., "her husband Tom" in a
-                        # Gatsby+Daisy window refers to Tom, not Gatsby).
-                        if term in _SPOUSAL_TERMS:
-                            phrase_start = max(0, rm.start() - 50)
-                            phrase_end = min(len(win), rm.end() + 50)
-                            phrase_vicinity = win[phrase_start:phrase_end]
-                            third_party = False
-                            for other_c in characters:
-                                if other_c.canonical_name == char.canonical_name:
-                                    continue
-                                if other_c.canonical_name == other_char.canonical_name:
-                                    continue
-                                other_pat = name_patterns.get(other_c.canonical_name)
-                                if other_pat and other_pat.search(phrase_vicinity):
-                                    third_party = True
-                                    break
-                            if third_party:
-                                continue
                         found[term] = found.get(term, 0) + 1
 
                 _generic_labels = {"associated", "acquaintance", "associate"}
