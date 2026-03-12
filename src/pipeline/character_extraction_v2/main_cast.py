@@ -1094,8 +1094,15 @@ class MainCastExtractor:
                 }
                 _canon_lower_05b = profile.canonical_name.lower()
                 if _canon_lower_05b.startswith("the ") and alias_lower.startswith("the "):
-                    _canon_last_05b = _canon_lower_05b.split()[-1]
-                    _alias_last_05b = alias_lower.split()[-1]
+                    # Strip parenthetical annotations before extracting last word
+                    # e.g., "the blind father (de lacey)" → "the blind father" → "father"
+                    import re as _re_05b
+                    _canon_stripped_05b = _re_05b.sub(r'\s*\([^)]*\)\s*', ' ', _canon_lower_05b).strip()
+                    _alias_stripped_05b = _re_05b.sub(r'\s*\([^)]*\)\s*', ' ', alias_lower).strip()
+                    _canon_parts_05b = _canon_stripped_05b.split()
+                    _alias_parts_05b = _alias_stripped_05b.split()
+                    _canon_last_05b = _canon_parts_05b[-1] if _canon_parts_05b else _canon_lower_05b.split()[-1]
+                    _alias_last_05b = _alias_parts_05b[-1] if _alias_parts_05b else alias_lower.split()[-1]
                     _canon_is_person_05b = _canon_last_05b in _PERSON_NOUNS_R05B
                     _alias_is_person_05b = _alias_last_05b in _PERSON_NOUNS_R05B
                     if _canon_is_person_05b != _alias_is_person_05b:
