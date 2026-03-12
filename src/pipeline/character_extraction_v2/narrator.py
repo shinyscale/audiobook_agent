@@ -360,10 +360,10 @@ class NarratorDetector:
                     # so this doesn't falsely block narrators in short texts with a flat mention profile.
                     _all_mention_counts = [getattr(c, "mention_count", 0) or 0 for c in characters]
                     _max_mentions = max(_all_mention_counts, default=0)
-                    if _max_mentions > 20 and mention_count < _max_mentions * 0.08:
+                    if _max_mentions > 20 and mention_count < _max_mentions * 0.04:
                         logger.warning(
                             f"Narrator '{char.canonical_name}' has only {mention_count} mentions "
-                            f"(< 8% of highest-mention character's {_max_mentions}); "
+                            f"(< 4% of highest-mention character's {_max_mentions}); "
                             f"likely not the narrator — skipping narrator assignment"
                         )
                         _narrator_blocked = True

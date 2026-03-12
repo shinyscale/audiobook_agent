@@ -1301,6 +1301,49 @@ class CharacterAgent(Agent):
                 f"V2 Step 5.2b: Removed {len(_52b_chars_to_remove)} placeholder duplicate(s) from main cast"
             )
 
+        # STEP 5.2bb: Upgrade pure-kinship canonical names to their proper-name alias.
+        # Universal invariant: if a character's canonical name is a bare kinship/role term
+        # (father, mother, sister, etc.) but they have a proper-name alias, the proper name
+        # is more informative and should be the canonical. This prevents "father" from being
+        # the canonical for "Alphonse Frankenstein" or "mother" for named characters.
+        _KINSHIP_ROLE_TERMS_52bb = {
+            "father", "mother", "brother", "sister", "son", "daughter",
+            "grandfather", "grandmother", "uncle", "aunt", "cousin",
+            "husband", "wife", "stepfather", "stepmother", "guardian",
+        }
+        for char in main_cast:
+            name_lower = char.canonical_name.strip().lower()
+            # Remove possessive prefixes: "his father" → "father", "the father" → "father"
+            for _prep in ("his ", "her ", "their ", "my ", "the ", "a "):
+                if name_lower.startswith(_prep):
+                    name_lower = name_lower[len(_prep):]
+            if name_lower not in _KINSHIP_ROLE_TERMS_52bb:
+                continue
+            # Find proper-name aliases (capitalized word, not a kinship/relational term)
+            proper_aliases_52bb = [
+                a for a in (char.aliases or [])
+                if any(t[0].isupper() for t in a.split() if len(t) >= 2)
+                and a.strip().lower().rstrip("s") not in _KINSHIP_ROLE_TERMS_52bb
+                and not a.startswith("his ")
+                and not a.startswith("her ")
+            ]
+            if not proper_aliases_52bb:
+                continue
+            # Choose fullest (most words) proper-name alias
+            new_canonical_52bb = max(proper_aliases_52bb, key=lambda a: len(a.split()))
+            old_canonical_52bb = char.canonical_name
+            char.canonical_name = new_canonical_52bb
+            # Move old canonical + relational aliases to aliases list
+            if old_canonical_52bb not in char.aliases:
+                char.aliases.append(old_canonical_52bb)
+            # Remove new canonical from aliases to avoid duplication
+            char.aliases = [a for a in char.aliases if a.lower() != new_canonical_52bb.lower()]
+            logger.info(
+                f"V2 Step 5.2bb: Upgraded kinship canonical "
+                f"'{old_canonical_52bb}' → '{new_canonical_52bb}' "
+                f"(aliases: {char.aliases})"
+            )
+
         # STEP 5.2c: Re-search mentions for narrator-placeholder-upgraded characters.
         # Step 5.2b may have changed a placeholder's canonical_name (e.g., "the narrator"
         # → "Montresor"). The initial mention search used the placeholder name and found
