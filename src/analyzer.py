@@ -3130,13 +3130,53 @@ class AudiobookAnalyzer:
         # (Victor) has is_narrator=True but the outer narrator (Walton) wasn't matched to
         # a character, so narrator_detected stayed None.
         if narrator_detected is None and pipeline_char_map and pipeline_char_map.characters:
-            for _pre69_char in pipeline_char_map.characters:
-                if getattr(_pre69_char, 'is_narrator', False) and _pre69_char.canonical_name:
-                    _pre69_name = _pre69_char.canonical_name.strip()
-                    if _pre69_name.lower() not in ('the narrator', 'narrator', ''):
-                        narrator_detected = _pre69_name
-                        print(f"   Step 6.9 fallback: using is_narrator char '{narrator_detected}'")
-                        break
+            # Collect all is_narrator candidates (excluding placeholder names)
+            _pre69_candidates = [
+                c for c in pipeline_char_map.characters
+                if getattr(c, 'is_narrator', False)
+                and c.canonical_name
+                and c.canonical_name.strip().lower() not in ('the narrator', 'narrator', '')
+            ]
+            if _pre69_candidates:
+                if len(_pre69_candidates) == 1:
+                    # Single narrator — pick directly
+                    narrator_detected = _pre69_candidates[0].canonical_name.strip()
+                else:
+                    # Multiple is_narrator characters (nested narrative): prefer the one that
+                    # appears most frequently in non-letter chapter summaries. The inner narrator
+                    # (e.g. Victor Frankenstein) appears in the bulk of story chapters; the
+                    # creature/secondary narrators appear in fewer. Avoid picking purely by
+                    # list order which is nondeterministic across LLM runs.
+                    if summary_map and summary_map.summaries:
+                        _pre69_counts: dict = {}
+                        for _s69pre in summary_map.summaries:
+                            _t69pre = getattr(_s69pre, 'title', '') or ''
+                            if re.match(r'^Letter\s+\w+', _t69pre, re.IGNORECASE):
+                                continue
+                            for _ac69pre in (_s69pre.active_characters or []):
+                                _ac69pre_l = _ac69pre.strip().lower()
+                                for _cand in _pre69_candidates:
+                                    _cand_l = _cand.canonical_name.strip().lower()
+                                    _cand_parts = set(_cand_l.split())
+                                    _ac_parts = set(_ac69pre_l.split())
+                                    if _cand_l == _ac69pre_l or _cand_parts & _ac_parts:
+                                        _pre69_counts[_cand.canonical_name] = _pre69_counts.get(_cand.canonical_name, 0) + 1
+                                        break
+                        if _pre69_counts:
+                            narrator_detected = max(_pre69_counts, key=_pre69_counts.get)
+                        else:
+                            # Fallback: highest mention_count
+                            narrator_detected = max(
+                                _pre69_candidates,
+                                key=lambda c: getattr(c, 'mention_count', 0) or 0
+                            ).canonical_name.strip()
+                    else:
+                        # No summary info — use highest mention_count
+                        narrator_detected = max(
+                            _pre69_candidates,
+                            key=lambda c: getattr(c, 'mention_count', 0) or 0
+                        ).canonical_name.strip()
+                print(f"   Step 6.9 fallback: using is_narrator char '{narrator_detected}'")
 
         # Step 6.9 preamble (inner-narrator): for frame/nested narratives, find the most
         # prominent character across non-letter chapter summaries.  Outer/frame narrators

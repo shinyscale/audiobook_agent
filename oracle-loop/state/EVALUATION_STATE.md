@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 14
-- **Phase:** analysis_running
+- **Attempt:** 15
+- **Phase:** fixes_ready
 - **baseline_score:** 7.35
 
 ## Score History
@@ -21,22 +21,27 @@
 | 12 | ~7.9 | Fix M: Victor chapters correct, creature chapters wrong, letters wrong |
 | 13 | ~4.0 | Fix N/O/P: creature chapters fixed but Victor chapters still "Robert Walton" (narrator detection fragile) |
 
-## Attempt 14 Fixes (commit 8d474af)
+## Attempt 14 Fixes (commit 8d474af) — RESULT: ~7.35 (Step 6.9 picked Walton, not Victor)
 
-### Fix Q: narrator.py secondary narrator threshold
-- Accept secondary narrator when primary has < 15 mentions (outer frame narrator)
-- Victor Frankenstein (55 mentions) now accepted as secondary narrator
-  even though Walton (8 mentions) is primary — because Walton is non-pervasive frame
+### Root cause of attempt 14 failure
+- Step 5.8.6 in characters.py fires for `pov="epistolary"` (not blocked by old exclusion list)
+- It picks Walton (lowest mention count) as narrator via heuristic → sets Walton.is_narrator=True
+- Step 6.9 preamble then finds Walton first in character list → narrator_detected="Robert Walton"
 
-### Fix R: analyzer.py Step 4.5 narrator_detected clearing
-- When Step 4.5 marks a narrator as non-pervasive AND narrator_detected was already
-  set to that name (from V2 pipeline), clear narrator_detected to None
-- Allows Step 6.9 preamble to find Victor (now is_narrator=True) as inner narrator
-- _blocked_pat_69 then replaces "Robert Walton" → "Victor Frankenstein" in non-letter chapters
+## Attempt 15 Fixes
 
-### Fix S: _apply_letter_narrator initials matching
-- Extended regex to handle "R. Walton" and "R.W" style abbreviated names
-- Initials comparison: "R.W" matches "Robert Walton" → enables artifact stripping
+### Fix T: characters.py Step 5.8.6 — exclude epistolary POV from heuristic
+- Added "epistolary" to the `pov not in (...)` exclusion list
+- Added guard: skip heuristic if any character ALREADY has is_narrator=True
+- Rationale: epistolary/frame narratives have secondary narrators set by narrator.py (Fix Q);
+  the heuristic incorrectly overwrites that by picking the lowest-mention char (Walton)
+
+### Fix U: analyzer.py Step 6.9 preamble — pick most prominent is_narrator character
+- When multiple is_narrator characters exist (e.g. Victor + creature as secondary narrators),
+  previously picked the FIRST one in the list (nondeterministic)
+- Now counts appearances in non-letter chapter summaries and picks the most frequent one
+- Victor (appears in ~24/24 non-letter chapters) wins over creature (appears in ~6/24)
+- Fallback: highest mention_count if no summary data
 
 ## Expected Chapter Attribution After Fixes
 - Letters 1-4: "Robert Walton" (correct — his narrative frame)

@@ -2313,7 +2313,16 @@ class CharacterAgent(Agent):
             # Universal invariant: if the LLM already determined the POV is NOT
             # first-person, do not apply the first-person heuristic. This prevents
             # assigning a narrator in third-person/omniscient narratives.
-            and narrator_info.pov not in ("third-person", "omniscient")
+            # Also exclude "epistolary" (frame/nested narratives like Frankenstein):
+            # the outer narrator has very few mentions and will be wrongly picked by
+            # the lowest-mention heuristic even though the inner narrator is the true
+            # narrator. For epistolary POV, secondary narrator assignment (Fix Q) in
+            # narrator.py already marked the inner narrators correctly.
+            and narrator_info.pov not in ("third-person", "omniscient", "epistolary")
+            # Skip if any character was already marked as narrator by a prior step
+            # (e.g. secondary narrator assignment in nested narratives). The heuristic
+            # is only needed when narrator detection has completely failed.
+            and not any(getattr(c, "is_narrator", False) for c in main_cast)
             and main_cast
         ):
             narrator_candidate = self._heuristic_narrator_from_mention_count(
