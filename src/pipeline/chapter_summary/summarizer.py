@@ -1072,6 +1072,28 @@ class ChapterSummarizer:
                     return _ln
                 break  # stop at first non-empty line from tail
 
+            # Path B vocative fallback: letter with no closing signature.
+            # Look for "Captain [Name]", "Mr. [Name]", "Mrs. [Name]" etc. used as
+            # direct address to the narrator within the letter text. The addressee is
+            # not the narrator — but finding the narrator's name in a vocative context
+            # (e.g., a character says "Captain Walton, I must tell you...") tells us who
+            # the letter writer is.
+            _title_re = re.compile(
+                r'\b(Captain|Commander|Mr|Mrs|Miss|Dr|Professor|Colonel|General)\s+'
+                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)',
+                re.IGNORECASE,
+            )
+            for _tm in _title_re.finditer(chapter_text[:10000]):
+                _cand_name = _tm.group(2).strip()
+                # Confirm this is NOT the recipient named in the salutation
+                _sal_m = re.search(r"^\s*To\s+([^\n,]+)", head, re.IGNORECASE | re.MULTILINE)
+                if _sal_m:
+                    _recip = _sal_m.group(1).strip().lower()
+                    if any(w in _recip for w in _cand_name.lower().split()):
+                        continue  # This is the recipient, not the writer
+                # Use this as the signatory
+                return _cand_name
+
         return None
 
     @staticmethod
