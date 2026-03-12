@@ -1314,7 +1314,7 @@ class ChapterSummarizer:
             # double-quote within the same paragraph (heuristic: nearest " before match
             # is farther away than the nearest newline before match).
             # Support ASCII ("), left-curly (U+201C), and right-curly (U+201D) quotes.
-            _scan_text = chapter_text[:3000]
+            _scan_text = chapter_text[:20000]  # extend window for nested narrators
             _found_outside_dialogue = False
             for _m_c in creator_phrase_re.finditer(_scan_text):
                 _pos = _m_c.start()
@@ -1367,7 +1367,7 @@ class ChapterSummarizer:
         # This catches creature/inner narrator chapters that lack awakening/appositive signals.
         if chapter_text:
             _quoted_fp_re = re.compile(
-                r'Chapter\s+\w+\s*\n\s*\u201c?\"?\s*I\s+',  # Chapter N\n"I ...
+                r'(?:Chapter|Letter)\s+\w+\.?\s*\n\s*\u201c?\"?\s*I\s+',  # Chapter N.\n"I ...
                 re.IGNORECASE,
             )
             if _quoted_fp_re.search(chapter_text[:1000]):
@@ -1413,7 +1413,7 @@ class ChapterSummarizer:
         # Guard: does NOT fire if Fix 5 already handled the chapter.
         if chapter_text:
             _quoted_any_re = re.compile(
-                r'Chapter\s+\w+\s*\n\s*[\u201c"]',  # Chapter N\n" (any quoted opening)
+                r'(?:Chapter|Letter)\s+\w+\.?\s*\n\s*[\u201c"]',  # Chapter N.\n" (any quoted opening)
                 re.IGNORECASE,
             )
             if _quoted_any_re.search(chapter_text[:200]):

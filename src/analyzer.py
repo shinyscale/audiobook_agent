@@ -3213,10 +3213,29 @@ class AudiobookAnalyzer:
                 # pollute narrator attribution for inner-narrator chapters.
                 _blocked_69 = locals().get('_blocked_narrator_45', None)
                 _blocked_69_lower = _blocked_69.lower() if _blocked_69 else None
+                # When the blocked outer narrator is different from the confirmed inner
+                # narrator (e.g. "Robert Walton" blocked, "Victor Frankenstein" is narrator),
+                # globally replace the outer narrator name in non-letter chapter summaries.
+                # This catches chapters where _fix_narrator_attribution did NOT run during
+                # summarization (e.g. chapters that don't open with "I " after the header),
+                # leaving the LLM's original wrong narrator name throughout the summary text.
+                _blocked_pat_69 = (
+                    re.compile(r'\b' + re.escape(_blocked_69) + r'\b', re.IGNORECASE)
+                    if _blocked_69 and _blocked_69.lower() != _nn_final.lower()
+                    else None
+                )
                 if summary_map:
                     for _sum in summary_map.summaries:
                         if _sum.summary and 'narrator' in _sum.summary.lower():
                             _sum.summary = _nn_pat.sub(_nn_final, _sum.summary)
+                        # Replace blocked outer narrator with inner narrator in non-letter chapters.
+                        if _blocked_pat_69 and _sum.summary:
+                            _title_69c = getattr(_sum, 'title', '') or ''
+                            _is_letter_69c = bool(
+                                re.match(r'^Letter\s+\w+', _title_69c, re.IGNORECASE)
+                            )
+                            if not _is_letter_69c:
+                                _sum.summary = _blocked_pat_69.sub(_nn_final, _sum.summary)
                         if hasattr(_sum, 'active_characters'):
                             if _sum.active_characters:
                                 _sum.active_characters = [
