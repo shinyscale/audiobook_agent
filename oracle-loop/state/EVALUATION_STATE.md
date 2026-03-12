@@ -2,18 +2,21 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 8
-- **Phase:** awaiting_analysis
+- **Attempt:** 9
+- **Phase:** analysis_running
 - **baseline_score:** 7.35
 
-## Latest Scores (Attempt 7)
-- Structure Detection: ~8.5/10 ✓ (28 chapters ✓, Letter 1 title=null ✗)
-- Character Extraction: ~7.5/10 ✗ (creature/dæmon unified ✓, Alphonse full name ✓, R.Walton duplicate ✗, De Lacey absorbed into dæmon ✗)
-- Character Profiles: ~8.0/10 ✓ (19 profiles generated, Victor narrator notes ✓)
-- Chapter Summaries: ~7.0/10 ✗ (Letters 1/3/4 = Victor Frankenstein ✗, creature ch 12-14/16 = Victor Frankenstein ✗)
-- Pronunciation Guide: ~7.5/10 ✗ (Walton/Clerval/Justine ✓, Frankenstein still missing ✗)
-- HTML Presentation: ~9.5/10 ✓
-- **Overall: ~7.9/10** (significant improvement from attempt 6 ~5.5)
+## Latest Scores (Attempt 8)
+- Structure Detection: ~8.5/10 ✓ (28 chapters ✓)
+- Character Extraction: ~7.5/10 (unknown, regression overshadows)
+- Chapter Summaries: ~3.0/10 ✗ MAJOR REGRESSION (nearly all chapters say "Robert Walton" instead of Victor/creature)
+- Letters 1-4: "Robert Walton" ✓ but with duplication artifacts ("Robert Walton, Robert Walton,")
+- Chapters 2-10 (Victor): "Robert Walton reflects/begins with Robert Walton..." ← WRONG
+- Chapter 11 (creature): "Robert Walton, a newly awakened being..." ← WRONG
+- Chapters 12-13 (creature): "The narrator, living in a hovel..." ✓ (Fix 5 worked)
+- Chapters 14-16 (creature): "Robert Walton recounts..." ← WRONG
+- Chapters 17-24 (Victor): "Robert Walton consumed by guilt..." ← WRONG
+- **Overall: ~5.0/10** (REGRESSION from attempt 7 ~7.9)
 
 ## Score History
 | Attempt | Score | Notes |
@@ -25,58 +28,44 @@
 | 5 | ~7.08 | Same root cause: Step 6.9 undoes narrator fix |
 | 6 | ~5.5 | Regression: LLM hallucinated Elizabeth Lavenza as narrator throughout |
 | 7 | ~7.9 | Major recovery: 28 chapters ✓, Alphonse fixed ✓, but letters/creature chapters misattributed |
+| 8 | ~5.0 | REGRESSION: Step 4.5 set narrator_detected="Robert Walton" without char match → Step 6.9 substituted globally |
 
-## Attempt 6 Root Cause Analysis
-### Elizabeth Lavenza narrator hallucination
-- LLM summarizer wrote "Elizabeth Lavenza" directly in summaries (despite prompt saying not to)
-- Victor discusses Elizabeth so frequently, LLM confused the subject for the narrator
-- `_fix_narrator_attribution` can't fix this: no structural signals for Victor's chapters
-- Character extraction then CONFIRMED Elizabeth Lavenza as narrator (she had highest mentions after "father")
-- Step 6.9 substituted "the narrator" → "Elizabeth Lavenza" where it appeared
-- Result: nearly all 28 chapter summaries were wrong
+## Attempt 8 Root Cause Analysis
+### Step 4.5 set narrator_detected unconditionally
+- Fix C in attempt 8 fixed letter summaries to correctly say "Robert Walton"
+- F6 then added "Robert Walton" to character list (from letter summaries)
+- Step 4.5 second NarratorDetector ran with "Robert Walton" now in character list
+- NarratorDetector found "Robert Walton" but could not match narrator_character_id (only "R. Walton" in cast)
+- Step 4.5 code: `if narrator_detected is None: narrator_detected = narrator_info.narrator_name`
+- This fired UNCONDITIONALLY — even when narrator_character_id was None (no character match)
+- narrator_detected = "Robert Walton" → Step 6.9 substituted "the narrator" → "Robert Walton" globally
+- Victor's chapters that used "the narrator" placeholder became "Robert Walton narrates..."
+- Fix C (attempt 7's approach): The attempt 7 had Victor Frankenstein letter summaries — Step 4.5 would have found "Victor Frankenstein" as narrator (matched), and narrator_detected would have been "Victor Frankenstein" from the first pass anyway
 
-### Narrator threshold too high (8%)
-- NarratorDetector LLM correctly identified Robert Walton as narrator (in both detection passes)
-- But 8% threshold: Walton has 8 mentions, max is 161 → 4.97% < 8% → REJECTED
-- After rejection, heuristic (Step 5.8.6) selected highest-mention character → Elizabeth Lavenza
+### Duplicate artifact in letters
+- "Robert Walton, Robert Walton, begins his journey..." artifacts from Fix B applying twice
+- Fix B in `_convert_chapters` applied `_fix_narrator_attribution` AFTER summaries were already corrected
+- The signatory detection found "Robert Walton" → replaced leading name → led to duplication
 
-### "father" canonical name
-- Alphonse Frankenstein extracted as canonical "father" (161 mentions)
-- Reduced narrator candidate pool for the heuristic selection
+## Fixes Applied for Attempt 9
 
-## Attempt 7 Root Cause Analysis
-### Letters 3/4 not fixed by Step 6.95
-- `_fix_narrator_attribution` WOULD fix Letters 3/4 (simulation confirms signatory detection works)
-- But Step 6.95 is somehow NOT applying the fix in the actual pipeline
-- Most likely: chapter_index mismatch in `_ch_texts_final.get(chapter_index, "")` returns ""
-- Result: Fix never applies → summaries stay as "Victor Frankenstein writes..."
+### Fix E: Step 4.5 - require narrator_character_id
+- `if narrator_detected is None and narrator_info.narrator_character_id:` — only set narrator_detected when narrator was matched to a character
+- Prevents "Robert Walton" from being set via Step 4.5 when R. Walton can't be matched
+- Root cause fix for attempt 8 regression
 
-### Creature chapters 12-14/16 not fixed
-- Chapter 12-14 prose: creature describes cottagers, NO "my creator" in first 3000 chars
-- No appositive/awakening pattern in those summaries
-- Fix 3 and Fix 4 in `_fix_narrator_attribution` don't trigger
+### Fix F: extract_core_noun - strip parentheticals
+- `extract_core_noun("the blind father (De Lacey)")` was returning "lacey)" due to parenthetical
+- Fix: strip parenthetical annotations before splitting on spaces
 
-### Step 6.9 uses wrong narrator name for epistolary texts
-- `_nn_final` starts as "Robert Walton" (narrator_detected)
-- Loop overrides with first is_narrator=True character: "Victor Frankenstein"
-- ALL "the narrator" → "Victor Frankenstein" globally (correct for Victor chapters, wrong for letters/creature)
+### Fix G: Rule 0.5b - strip parentheticals
+- Person/non-person semantic check had same parenthetical bug
+- Fix: strip parenthetical before taking `split()[-1]`
 
-## Fixes Applied for Attempt 8
+### Fix H: Fix 5/Fix 6 in summarizer.py - early return + density check
+- Fix 5 now has early return so Fix 6 doesn't also fire
+- Fix 6: Chapter text opens with ANY quoted prose + FP density ≥ 4 → inner narrator chapter
 
-### Fix A: Step 6.9 - use narrator_detected directly
-- Don't override _nn_final with first is_narrator char
-- Only use canonical if it MATCHES narrator_detected
-- For Frankenstein: _nn_final = "Robert Walton" → letter chapters get "Robert Walton"
-
-### Fix B: _convert_chapters - final safety net
-- After building each StructuralElement, apply `_fix_narrator_attribution` one final time
-- Uses the chapter start/end positions directly (no index mismatch possible)
-- This catches any summaries that Step 6.95 missed
-
-### Fix C: summarizer.py - active_characters clarity (already committed as b192dbd)
-- active_characters/characters_mentioned lists use narrator's ACTUAL NAME if stated
-- Allows Robert Walton to be extracted as a character from letter summaries
-
-### Fix D: Creature chapter detection
-- Add detection pattern for chapter text that starts with quoted first-person speech
-- Universal: if chapter text body begins with `"I ` pattern after chapter header, it's an inner narrator chapter
+### Fix I: Step 4.5.9b - first-initial variant dedup
+- Merges "R. Walton" → "Robert Walton" at analyzer level after F6 runs
+- Prevents duplicate entries in character list

@@ -2115,7 +2115,7 @@ class AudiobookAnalyzer:
                     # Only update if V2 pipeline didn't already identify a narrator —
                     # V2 ran detection with full context (raw text + summaries + cast),
                     # so its result is more reliable than re-detecting from summaries alone.
-                    if narrator_detected is None:
+                    if narrator_detected is None and narrator_info.narrator_character_id:
                         narrator_detected = narrator_info.narrator_name
                         print(f"   Detected narrator: {narrator_info.narrator_name} ({narrator_info.pov})")
                     else:
