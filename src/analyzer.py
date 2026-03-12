@@ -2180,7 +2180,7 @@ class AudiobookAnalyzer:
                     # generated before narrator detection, so they may use "the narrator"
                     # as a stand-in for the protagonist. Using the real name improves
                     # summary specificity for any first-person narrative.
-                    if narrator_info.pov == "first-person" and summary_map:
+                    if narrator_info.pov == "first-person" and summary_map and _narrator_is_pervasive:
                         _nn = narrator_info.narrator_name
                         _replaced = 0
                         for _sum in summary_map.summaries:
