@@ -2106,16 +2106,31 @@ class AudiobookAnalyzer:
                         confidence=narrator_info.confidence,
                     )
 
+                    # Capture whether V2 pipeline already identified a narrator BEFORE
+                    # we mark the Step 4.5-detected narrator (which would set is_narrator=True
+                    # for the outer narrator in frame narratives, making it look like the
+                    # inner narrator was already found).
+                    _had_narrator_before_45 = any(
+                        getattr(_c45, 'is_narrator', False)
+                        for _c45 in pipeline_char_map.characters
+                    )
+
                     # Mark narrator in character list
                     self._mark_narrator_in_character_map(
                         pipeline_char_map.characters, adapted_info
                     )
 
                     # Update narrator_detected for use in profile generation.
-                    # Only update if V2 pipeline didn't already identify a narrator —
-                    # V2 ran detection with full context (raw text + summaries + cast),
-                    # so its result is more reliable than re-detecting from summaries alone.
-                    if narrator_detected is None and narrator_info.narrator_character_id:
+                    # Only update if:
+                    # 1. narrator_detected is still None (V2 pipeline didn't export one)
+                    # 2. The detected narrator was matched to a character
+                    # 3. V2 did NOT already identify an inner narrator (is_narrator=True
+                    #    already set before Step 4.5 ran).
+                    # Guard 3 prevents frame/nested narratives (e.g. Frankenstein) from
+                    # having the outer narrator (Walton) set as narrator_detected after F6
+                    # adds them from correctly-attributed summaries — which would cause
+                    # Step 6.9 to globally substitute Walton into Victor/creature chapters.
+                    if narrator_detected is None and narrator_info.narrator_character_id and not _had_narrator_before_45:
                         narrator_detected = narrator_info.narrator_name
                         print(f"   Detected narrator: {narrator_info.narrator_name} ({narrator_info.pov})")
                     else:
