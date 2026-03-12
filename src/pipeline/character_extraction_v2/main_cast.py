@@ -1015,7 +1015,11 @@ class MainCastExtractor:
                     # Extract core nouns from both canonical and alias (strip "the", articles)
                     def extract_core_noun(text: str) -> str:
                         """Extract the main noun from a phrase like 'the Amontillado'."""
-                        parts = text.lower().strip().split()
+                        import re as _re_cn
+                        # Strip parenthetical annotations before extracting
+                        # e.g., "the blind father (De Lacey)" → "the blind father"
+                        clean = _re_cn.sub(r'\s*\([^)]*\)\s*', ' ', text).strip()
+                        parts = clean.lower().strip().split()
                         # Remove articles and possessives
                         articles = {"the", "a", "an", "this", "that", "these", "those"}
                         core_parts = [p for p in parts if p not in articles]
