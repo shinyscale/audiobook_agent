@@ -3059,6 +3059,23 @@ class AudiobookAnalyzer:
                             f"{_narrator_pick_66.canonical_name}"
                         )
 
+        # Step 6.9 preamble: if narrator_detected is None but the character map has an
+        # is_narrator=True character, use that character as the narrator for "the narrator"
+        # substitution. Step 6.95 and Fix B in _convert_chapters will then override letter
+        # chapters (signatory detection) and inner-narrator chapters (creature structural
+        # patterns) with per-chapter structural evidence, correcting any mis-substitutions.
+        # This handles nested narratives like Frankenstein where the primary inner narrator
+        # (Victor) has is_narrator=True but the outer narrator (Walton) wasn't matched to
+        # a character, so narrator_detected stayed None.
+        if narrator_detected is None and pipeline_char_map and pipeline_char_map.characters:
+            for _pre69_char in pipeline_char_map.characters:
+                if getattr(_pre69_char, 'is_narrator', False) and _pre69_char.canonical_name:
+                    _pre69_name = _pre69_char.canonical_name.strip()
+                    if _pre69_name.lower() not in ('the narrator', 'narrator', ''):
+                        narrator_detected = _pre69_name
+                        print(f"   Step 6.9 fallback: using is_narrator char '{narrator_detected}'")
+                        break
+
         # Step 6.9: Comprehensive "the narrator" → narrator name substitution.
         # First-person narrators are often referred to as "the narrator" in LLM-generated text
         # (chapter summaries, active_characters, plot summary, personality profiles).
