@@ -2170,6 +2170,18 @@ class AudiobookAnalyzer:
                         # non-letter active_characters (where the LLM wrongly used it as narrator).
                         _blocked_narrator_45 = narrator_info.narrator_name
                         print(f"   Narrator skipped: {narrator_info.narrator_name} (already_found={narrator_detected is not None}, had_narrator={_had_narrator_before_45}, rate={_narrator_appearance_rate:.0%})")
+                        # If narrator_detected was previously set (e.g. by the V2 pipeline)
+                        # to this same non-pervasive outer narrator, clear it.  An outer/frame
+                        # narrator (e.g. Robert Walton in Frankenstein) only narrates a few
+                        # framing chapters; leaving narrator_detected pointing at them prevents
+                        # Step 6.9 from finding the TRUE inner narrator (e.g. Victor Frankenstein).
+                        if narrator_detected and narrator_detected.lower() == narrator_info.narrator_name.lower():
+                            narrator_detected = None
+                            logger.info(
+                                f"Cleared narrator_detected: outer narrator "
+                                f"'{narrator_info.narrator_name}' is non-pervasive "
+                                f"(rate={_narrator_appearance_rate:.0%})"
+                            )
                     logger.info(
                         f"Early narrator detection: {narrator_info.narrator_name} "
                         f"(confidence={narrator_info.confidence:.2f})"

@@ -389,7 +389,15 @@ class NarratorDetector:
             # For nested narratives, mark secondary narrators
             elif char.id in narrator_info.nested_narrators:
                 secondary_mentions = getattr(char, "mention_count", 0) or 0
-                if primary_mention_count > 0 and secondary_mentions > primary_mention_count:
+                # Universal invariant: in a nested narrative the OUTER narrator appears
+                # in only a few framing chapters and therefore has a low mention count.
+                # When the outer narrator has < 15 mentions the high mention count of a
+                # secondary candidate reflects that they narrate the BULK of the story —
+                # they should be accepted as the inner narrator, not rejected.
+                # (The original > primary_mention_count guard is for simple 1st-person
+                # stories where the single narrator is confused with a prominent subject.)
+                _outer_is_frame = primary_mention_count < 15
+                if primary_mention_count > 0 and secondary_mentions > primary_mention_count and not _outer_is_frame:
                     logger.warning(
                         f"Secondary narrator candidate '{char.canonical_name}' has "
                         f"{secondary_mentions} mentions vs primary narrator's "

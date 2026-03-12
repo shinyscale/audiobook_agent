@@ -1149,14 +1149,25 @@ class ChapterSummarizer:
                 return summary[:m.start()] + signatory + ", " + summary[m.end():]
 
         # Single leading attribution: "Name, verb..." or "Name verb..."
+        # Pattern handles standard "Robert Walton" AND initials like "R. Walton" or "R.W"
         single_match = re.match(
-            r"^((?:[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*))(,\s+|\s+)",
+            r"^((?:[A-Z][a-zA-Z.]*(?:\s+[A-Z][a-zA-Z.]+)*))(,\s+|\s+)",
             summary,
         )
         if single_match:
             found_name = single_match.group(1)
-            found_lower = set(found_name.lower().split())
-            if not (sig_lower & found_lower):
+            found_lower = set(found_name.lower().replace(".", " ").split())
+            # Initials match: check if found_name initials match signatory's first letters.
+            # E.g. "R.W" or "R. W." matches "Robert Walton" (R=Robert, W=Walton).
+            _initials_match = False
+            _found_initials = [c for c in found_name if c.isupper()]
+            _sig_words = signatory.split()
+            if _found_initials and len(_found_initials) == len(_sig_words):
+                _initials_match = all(
+                    i == w[0] for i, w in zip(_found_initials, _sig_words)
+                )
+            _name_matches = bool(sig_lower & found_lower) or _initials_match
+            if not _name_matches:
                 # Name doesn't match signatory — replace it
                 return signatory + single_match.group(2) + summary[single_match.end():]
             else:
