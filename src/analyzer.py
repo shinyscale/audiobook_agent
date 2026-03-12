@@ -2119,12 +2119,10 @@ class AudiobookAnalyzer:
                     )
 
                     # Mark narrator in character list ONLY if V2 hadn't already found one.
-                    # This prevents Walton from being marked is_narrator=True when Victor
-                    # (V2's inner narrator) already has that flag.
-                    if not _had_narrator_before_45:
-                        self._mark_narrator_in_character_map(
-                            pipeline_char_map.characters, adapted_info
-                        )
+                    # Appearance rate check is computed below; initialize to True so the
+                    # mark call can be conditioned on it after the rate is calculated.
+                    # (Will be updated after _narrator_is_pervasive is computed.)
+                    _mark_narrator_pending = not _had_narrator_before_45
 
                     # Update narrator_detected for use in profile generation.
                     # Only update if:
@@ -2152,6 +2150,16 @@ class AudiobookAnalyzer:
                         )
                         _narrator_appearance_rate = _count_45 / len(summary_map.summaries)
                     _narrator_is_pervasive = _narrator_appearance_rate >= 0.30
+
+                    # Mark narrator in character list only if the narrator is pervasive
+                    # (appears in ≥30% of chapters). Outer/frame narrators (e.g., Robert
+                    # Walton) only appear in letter chapters and must NOT be marked
+                    # is_narrator=True — that would cause the Step 6.9 preamble to pick
+                    # them as the narrator for global "the narrator" substitution.
+                    if _mark_narrator_pending and _narrator_is_pervasive:
+                        self._mark_narrator_in_character_map(
+                            pipeline_char_map.characters, adapted_info
+                        )
 
                     if narrator_detected is None and narrator_info.narrator_character_id and not _had_narrator_before_45 and _narrator_is_pervasive:
                         narrator_detected = narrator_info.narrator_name
@@ -3113,6 +3121,53 @@ class AudiobookAnalyzer:
                         narrator_detected = _pre69_name
                         print(f"   Step 6.9 fallback: using is_narrator char '{narrator_detected}'")
                         break
+
+        # Step 6.9 preamble (inner-narrator): for frame/nested narratives, find the most
+        # prominent character across non-letter chapter summaries.  Outer/frame narrators
+        # (e.g., Robert Walton in Frankenstein) appear in only a few letter chapters, while
+        # the inner narrator (e.g., Victor Frankenstein) is active in virtually every story
+        # chapter.  If such a candidate appears in ≥50 % of non-letter chapters and more
+        # often than the current narrator_detected candidate, promote them.  This corrects
+        # regressions where the plot-summary NarratorDetector returns the outer narrator
+        # (seen early in the text) instead of the true inner narrator.
+        if summary_map and summary_map.summaries and pipeline_char_map and pipeline_char_map.characters:
+            from collections import Counter as _Counter69
+            _char_counts_69: _Counter69 = _Counter69()
+            _non_letter_total_69 = 0
+            for _s69 in summary_map.summaries:
+                _title_69 = getattr(_s69, 'title', '') or ''
+                _is_letter_69 = bool(re.match(r'^Letter\s+\w+', _title_69, re.IGNORECASE))
+                if _is_letter_69:
+                    continue
+                _non_letter_total_69 += 1
+                for _ac69 in (_s69.active_characters or []):
+                    _ac69_l = _ac69.strip().lower()
+                    if _ac69_l not in ('the narrator', 'narrator', ''):
+                        _char_counts_69[_ac69.strip()] += 1
+            if _non_letter_total_69 > 0 and _char_counts_69:
+                _mc_name_69, _mc_count_69 = _char_counts_69.most_common(1)[0]
+                _mc_rate_69 = _mc_count_69 / _non_letter_total_69
+                if _mc_rate_69 >= 0.50:
+                    # Compute appearance rate of current narrator_detected across non-letter chapters
+                    _cur_rate_69 = 0.0
+                    if narrator_detected:
+                        _cur_nd_l = narrator_detected.lower()
+                        _cur_count_69 = sum(
+                            1 for _s69b in summary_map.summaries
+                            if not re.match(r'^Letter\s+\w+', getattr(_s69b, 'title', '') or '', re.IGNORECASE)
+                            and any(
+                                _ac69b.strip().lower() == _cur_nd_l
+                                for _ac69b in (_s69b.active_characters or [])
+                            )
+                        )
+                        _cur_rate_69 = _cur_count_69 / _non_letter_total_69
+                    if narrator_detected is None or _mc_rate_69 > _cur_rate_69:
+                        print(
+                            f"   Step 6.9 inner-narrator: '{_mc_name_69}' appears in "
+                            f"{_mc_rate_69:.0%} of non-letter chapters "
+                            f"(prev: '{narrator_detected}' {_cur_rate_69:.0%})"
+                        )
+                        narrator_detected = _mc_name_69
 
         # Step 6.9: Comprehensive "the narrator" → narrator name substitution.
         # First-person narrators are often referred to as "the narrator" in LLM-generated text
