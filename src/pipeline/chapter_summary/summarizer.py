@@ -992,8 +992,9 @@ class ChapterSummarizer:
             if lines:
                 candidate = lines[-1].strip()
                 if re.match(r"^[A-Z][A-Za-z.]*(?:\s+[A-Z][A-Za-z.]*){0,3}\.?$", candidate):
-                    # Expand initials (e.g., "R.W." → "Robert Walton") if full name
-                    # appears in the chapter text
+                    # Expand initials if full name appears in chapter text.
+                    # Case 1: concatenated "R.W." — search by first-letter matching
+                    # Case 2: "R. Walton" — first word is a single initial, rest is last name
                     if re.match(r"^[A-Z]\.[A-Za-z.]+$", candidate):
                         initials = [c for c in candidate if c.isupper()]
                         for m in re.finditer(
@@ -1002,6 +1003,17 @@ class ChapterSummarizer:
                             name_words = m.group(1).split()
                             if [w[0] for w in name_words] == initials:
                                 return m.group(1)
+                    elif re.match(r"^[A-Z]\.\s+[A-Z][a-z]+", candidate):
+                        # "R. Walton" — single capital initial + last name
+                        # Find full first name starting with that initial
+                        initial = candidate[0]
+                        last_name = candidate.split()[-1].rstrip(".")
+                        for m in re.finditer(
+                            r"\b([A-Z][a-z]+)\s+" + re.escape(last_name) + r"\b",
+                            chapter_text[:10000],
+                        ):
+                            if m.group(1)[0] == initial:
+                                return m.group(1) + " " + last_name
                     return candidate
 
         # Path B: Standalone letter — salutation in head + closing in tail
@@ -1018,7 +1030,19 @@ class ChapterSummarizer:
             if sig_m:
                 name = sig_m.group(1).strip().rstrip(".")
                 name = re.split(r"\n", name)[0].strip()
-                return name if len(name.split()) <= 4 else None
+                if len(name.split()) > 4:
+                    return None
+                # Expand "R. Walton" → "Robert Walton" if full name appears in text
+                if re.match(r"^[A-Z]\.\s+[A-Z][a-z]+", name):
+                    initial = name[0]
+                    last_name = name.split()[-1].rstrip(".")
+                    for _m in re.finditer(
+                        r"\b([A-Z][a-z]+)\s+" + re.escape(last_name) + r"\b",
+                        chapter_text[:10000],
+                    ):
+                        if _m.group(1)[0] == initial:
+                            return _m.group(1) + " " + last_name
+                return name
 
         return None
 
