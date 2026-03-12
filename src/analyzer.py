@@ -3012,11 +3012,25 @@ class AudiobookAnalyzer:
         if narrator_detected:
             # Bug A fix: find the actual narrator character's canonical_name instead of using
             # narrator_detected which may be the generic placeholder "the narrator".
+            # Critical: for nested/epistolary narratives (multiple is_narrator chars), only
+            # upgrade narrator_detected to the canonical name of the MATCHING narrator.
+            # Do NOT override narrator_detected with an arbitrary first is_narrator character
+            # (which could be an inner narrator like "Victor Frankenstein" when the primary
+            # narrator is "Robert Walton").
             _nn_final = narrator_detected
+            _nd_lower = narrator_detected.lower()
             for _nc in pipeline_char_map.characters:
                 if getattr(_nc, 'is_narrator', False) and _nc.canonical_name:
-                    _nn_final = _nc.canonical_name
-                    break
+                    _nc_lower = _nc.canonical_name.lower()
+                    # Match if names overlap (e.g. "robert walton" matches "walton")
+                    if _nc_lower == _nd_lower or _nd_lower in _nc_lower or _nc_lower in _nd_lower:
+                        _nn_final = _nc.canonical_name
+                        break
+                    # Also check aliases
+                    for _alias in (getattr(_nc, 'aliases', None) or []):
+                        if _alias.lower() == _nd_lower:
+                            _nn_final = _nc.canonical_name
+                            break
             # Only substitute if we have a real name (not just "the narrator")
             _nn_pat = re.compile(r'\bthe (?:\S+ )?narrator\b', re.IGNORECASE)
             _do_sub = _nn_final.lower() not in ('the narrator', 'narrator', '')
@@ -3092,7 +3106,7 @@ class AudiobookAnalyzer:
         print("📦 Building analysis result...")
 
         # Convert chapters to StructuralElements
-        structure = self._convert_chapters(chapter_map, summary_map, self.words_per_minute)
+        structure = self._convert_chapters(chapter_map, summary_map, self.words_per_minute, doc=doc)
 
         # Convert characters
         characters = self._convert_characters(pipeline_char_map)
@@ -4908,6 +4922,7 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
         chapter_map: ChapterMap,
         summary_map: Optional[ChapterSummaryMap],
         wpm: int,
+        doc=None,
     ) -> list[StructuralElement]:
         """Convert pipeline ChapterMap to list of StructuralElements."""
         elements = []
@@ -4918,6 +4933,15 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
             for s in summary_map.summaries:
                 summaries[s.chapter_index] = s
 
+        # Pre-import fix function for final safety-net narrator correction
+        _fix_narrator_fn = None
+        if doc is not None:
+            try:
+                from .pipeline.chapter_summary.summarizer import ChapterSummarizer as _CS_conv
+                _fix_narrator_fn = _CS_conv._fix_narrator_attribution
+            except Exception:
+                pass
+
         for chapter in chapter_map.chapters:
             # Calculate duration
             duration = chapter.word_count / wpm
@@ -4927,6 +4951,17 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
             characters_present = []
             if chapter.index in summaries:
                 summary_obj = summaries[chapter.index]
+                # Final safety-net: apply structural narrator fix using exact chapter text.
+                # This catches any misattributions that Steps 6.9/6.95 failed to fix
+                # (e.g., letter chapters where signatory detection works but index lookup
+                # failed in Step 6.95, leaving wrong narrator names in the summary).
+                if _fix_narrator_fn is not None and summary_obj.summary:
+                    try:
+                        _ch_text_conv = doc.text[chapter.start_position:chapter.end_position]
+                        if _ch_text_conv:
+                            _fix_narrator_fn(summary_obj, _ch_text_conv)
+                    except Exception:
+                        pass
                 summary_text = summary_obj.summary
                 characters_present = summary_obj.characters_present
 

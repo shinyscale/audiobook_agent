@@ -353,6 +353,11 @@ class PronunciationMap:
         logger = logging.getLogger(__name__)
 
         def is_in_body(entry: PronunciationEntry) -> bool:
+            # Character-named entries are always relevant regardless of where they
+            # first appear — book titles, chapter headers, and front matter often
+            # contain character names that are still needed for body narration.
+            if entry.flag_reason == PronunciationFlag.CHARACTER:
+                return True
             return body_start <= entry.first_position < body_end
 
         # Filter entries

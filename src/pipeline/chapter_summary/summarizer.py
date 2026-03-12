@@ -1255,6 +1255,34 @@ class ChapterSummarizer:
                             f"{summary[:60]!r} → {fixed[:60]!r}"
                         )
                         result.summary = fixed
+                        return
+
+        # Fix 5: Chapter text opens with quoted first-person prose after a chapter heading.
+        # Universal invariant: in nested/frame narratives, inner narrator chapters are
+        # formatted as the inner narrator's speech within outer quotation marks.
+        # Pattern: after "Chapter N" heading in text, the first prose line begins with "I "
+        # (i.e., the inner narrator speaks directly in first person inside a quote block).
+        # This catches creature/inner narrator chapters that lack awakening/appositive signals.
+        if chapter_text:
+            _quoted_fp_re = re.compile(
+                r'Chapter\s+\w+\s*\n\s*\u201c?\"?\s*I\s+',  # Chapter N\n"I ...
+                re.IGNORECASE,
+            )
+            if _quoted_fp_re.search(chapter_text[:1000]):
+                # Only replace if summary starts with a MULTI-WORD proper name (at least 2 words)
+                # to avoid capturing single words like "The", "In", "On" as false names.
+                leading_name_re2 = re.compile(
+                    r'^([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)+)(,\s+|\s+)'
+                )
+                m2 = leading_name_re2.match(summary)
+                if m2:
+                    fixed2 = 'The narrator' + m2.group(2) + summary[m2.end():]
+                    if fixed2 != summary:
+                        logger.info(
+                            f"Narrator fix (quoted first-person inner narrator): "
+                            f"{summary[:60]!r} → {fixed2[:60]!r}"
+                        )
+                        result.summary = fixed2
 
     @staticmethod
     def _valid_tones() -> set[str]:

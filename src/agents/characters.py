@@ -4310,6 +4310,55 @@ class CharacterAgent(Agent):
                         chars_to_remove.add(other_idx)
                     break  # Only merge with first match
 
+        # Pass 0a: Merge first-initial-only variants
+        # "R. Walton" → alias of "Robert Walton" (initial + last name matches full name)
+        _first_initial_re = re.compile(r"^([A-Z])\.\s+(.+)$")
+        for idx, char in enumerate(main_cast):
+            if idx in chars_to_remove:
+                continue
+
+            char_name = char.canonical_name.strip()
+            m0a = _first_initial_re.match(char_name)
+            if not m0a:
+                continue  # Not an initial + last name pattern
+
+            initial = m0a.group(1)
+            lastname = m0a.group(2).strip()
+
+            # Find full-name characters where: first letter of firstname matches
+            # the initial AND the last word of their name matches our lastname
+            candidates = []
+            for other_idx, other_char in enumerate(main_cast):
+                if other_idx == idx or other_idx in chars_to_remove:
+                    continue
+                other_name = other_char.canonical_name.strip()
+                other_parts = other_name.split()
+                if len(other_parts) < 2:
+                    continue
+                other_firstname = other_parts[0].strip(".,;:")
+                other_lastname = other_parts[-1].strip(".,;:")
+                if (
+                    other_firstname
+                    and other_firstname[0].upper() == initial
+                    and other_lastname.lower() == lastname.lower()
+                ):
+                    candidates.append(other_idx)
+
+            if len(candidates) == 1:
+                other_idx = candidates[0]
+                other_char = main_cast[other_idx]
+                if char_name not in other_char.aliases:
+                    logger.info(
+                        f"Merging first-initial variant: '{char_name}' ({char.mention_count} mentions) "
+                        f"→ '{other_char.canonical_name}' ({other_char.mention_count} mentions) as alias"
+                    )
+                    other_char.aliases.append(char_name)
+                    for alias in char.aliases:
+                        if alias not in other_char.aliases:
+                            other_char.aliases.append(alias)
+                    chars_with_new_aliases.add(other_char.id)
+                chars_to_remove.add(idx)
+
         # Pass 1: Merge last-name-only and title-variant characters
         for idx, char in enumerate(main_cast):
             if idx in chars_to_remove:
