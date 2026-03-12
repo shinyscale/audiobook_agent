@@ -1283,6 +1283,40 @@ class ChapterSummarizer:
                             f"{summary[:60]!r} → {fixed2[:60]!r}"
                         )
                         result.summary = fixed2
+                        return
+
+        # Fix 6: Chapter text opens with ANY quoted prose (not just "I ...") after heading,
+        # AND the opening 300 chars contain ≥4 first-person singular pronouns (I/my/me).
+        # Universal invariant: in frame narratives, inner narrator chapters are presented
+        # within outer quotation marks. Even when the first word is not "I" (e.g., "It is...",
+        # "Some time...", "Cursed..."), heavy first-person usage in the opening confirms
+        # this is the inner narrator's voice, not the outer narrator's.
+        # Guard: does NOT fire if Fix 5 already handled the chapter.
+        if chapter_text:
+            _quoted_any_re = re.compile(
+                r'Chapter\s+\w+\s*\n\s*[\u201c"]',  # Chapter N\n" (any quoted opening)
+                re.IGNORECASE,
+            )
+            if _quoted_any_re.search(chapter_text[:200]):
+                _fp_head = chapter_text[:300]
+                _fp_count = (
+                    len(re.findall(r'\bI\b', _fp_head))
+                    + len(re.findall(r'\bmy\b', _fp_head, re.IGNORECASE))
+                    + len(re.findall(r'\bme\b', _fp_head, re.IGNORECASE))
+                )
+                if _fp_count >= 4:
+                    leading_name_re3 = re.compile(
+                        r'^([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)+)(,\s+|\s+)'
+                    )
+                    m3 = leading_name_re3.match(summary)
+                    if m3:
+                        fixed3 = 'The narrator' + m3.group(2) + summary[m3.end():]
+                        if fixed3 != summary:
+                            logger.info(
+                                f"Narrator fix (quoted inner narrator, FP density): "
+                                f"{summary[:60]!r} → {fixed3[:60]!r}"
+                            )
+                            result.summary = fixed3
 
     @staticmethod
     def _valid_tones() -> set[str]:
