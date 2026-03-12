@@ -2,47 +2,45 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 13
+- **Attempt:** 14
 - **Phase:** analysis_running
 - **baseline_score:** 7.35
 
-## Latest Scores
+## Score History
 | Attempt | Score | Notes |
 |---------|-------|-------|
 | 1 | 7.35 | Baseline |
 | 2 | 7.75 | Profiles improved |
 | 3 | 7.58 | Profiles regressed |
-| 4 | 7.08 | Summaries regressed 6.5→4.0 (narrator substitution undid fix) |
-| 5 | ~7.08 | Same root cause: Step 6.9 undoes narrator fix |
-| 6 | ~5.5 | Regression: LLM hallucinated Elizabeth Lavenza as narrator throughout |
-| 7 | ~7.9 | Major recovery: 28 chapters ✓, Alphonse fixed ✓, but letters/creature chapters misattributed |
-| 8 | ~5.0 | REGRESSION: Step 4.5 set narrator_detected="Robert Walton" without char match → Step 6.9 substituted globally |
-| 9-11 | ~1.5 | All chapters "Robert Walton" — Step 4.5 early sub undid Fix 5 work |
-| 12 | ~7.9 | Victor chapters (1-10, 17-24) correct ✓; creature chapters (11-16) still "Victor Frankenstein" (Fix 5/6 early-return bug); letters all wrong |
+| 4 | 7.08 | Summaries regressed (narrator substitution undid fix) |
+| 5 | ~7.08 | Same root cause |
+| 6 | ~5.5 | Regression: LLM hallucinated Elizabeth Lavenza as narrator |
+| 7 | ~7.9 | Major recovery: 28 chapters ✓, letters/creature chapters misattributed |
+| 8 | ~5.0 | REGRESSION: Step 4.5 early sub → all chapters attributed to outer narrator |
+| 9-11 | ~1.5 | All chapters "Robert Walton" — Step 4.5 early sub regression |
+| 12 | ~7.9 | Fix M: Victor chapters correct, creature chapters wrong, letters wrong |
+| 13 | ~4.0 | Fix N/O/P: creature chapters fixed but Victor chapters still "Robert Walton" (narrator detection fragile) |
 
-## Attempt 13 Fixes
+## Attempt 14 Fixes (commit 8d474af)
 
-### Fix M: Step 4.5 pervasive guard (ab0921b) — Attempt 12
-- Added `_narrator_is_pervasive` guard to prevent early narrator substitution for outer frame narrator
+### Fix Q: narrator.py secondary narrator threshold
+- Accept secondary narrator when primary has < 15 mentions (outer frame narrator)
+- Victor Frankenstein (55 mentions) now accepted as secondary narrator
+  even though Walton (8 mentions) is primary — because Walton is non-pervasive frame
 
-### Fix N: Fix 5/6 early-return removed (e307943)
-- Removed early-return in Fix 5 and Fix 6 when `wrong_name == narrator_detected`
-- Both fixes now ALWAYS replace outer-quote chapter leading names with "The narrator"
-- Outer-quote chapters are creature chapters (11-16), not Victor chapters
+### Fix R: analyzer.py Step 4.5 narrator_detected clearing
+- When Step 4.5 marks a narrator as non-pervasive AND narrator_detected was already
+  set to that name (from V2 pipeline), clear narrator_detected to None
+- Allows Step 6.9 preamble to find Victor (now is_narrator=True) as inner narrator
+- _blocked_pat_69 then replaces "Robert Walton" → "Victor Frankenstein" in non-letter chapters
 
-### Fix O: _detect_letter_signatory improvements (e307943)
-- Refactored: extracted _expand_initials() + _extract_tail_signatory() helpers
-- Extended search range to 20000 chars (Fix L: Letter 4 "Captain Walton" at position 12232)
-- narrator_detected as fallback for initials expansion (Letter 3 "R.W" → "Robert Walton")
-- Path C: tail-closing fallback without salutation (Letter 1 starts mid-text, missing header)
+### Fix S: _apply_letter_narrator initials matching
+- Extended regex to handle "R. Walton" and "R.W" style abbreviated names
+- Initials comparison: "R.W" matches "Robert Walton" → enables artifact stripping
 
-### Fix P: _apply_letter_narrator artifact stripping (e307943)
-- Strips "narrator, Name2, " artifact when leading name already matches signatory
-- Handles LLM output like "Robert Walton narrator, Victor Frankenstein, writes..."
-
-## Expected Chapter Attribution
-- Letters 1-4: "Robert Walton" (his narrative frame)
-- Chapters 1-10: "Victor Frankenstein" (inner narrator)
-- Chapters 11-16: "The narrator" (creature's narration, innermost)
+## Expected Chapter Attribution After Fixes
+- Letters 1-4: "Robert Walton" (correct — his narrative frame)
+- Chapters 1-10: "Victor Frankenstein" (inner narrator confirmed from is_narrator flag)
+- Chapters 11-16: "The narrator" (creature's narration, fixed by Fix N/6)
 - Chapters 17-24: "Victor Frankenstein" (back to Victor)
-- Chapter 25+: "Robert Walton" (back to outer frame)
+- Chapter 25+: "Robert Walton" (back to outer frame, not present in this text)
