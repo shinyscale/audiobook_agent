@@ -1210,15 +1210,38 @@ class ChapterSummarizer:
             result.summary = fixed
             return
 
-        # Fix 4: "My creator" in chapter text — narrator references their own creator,
-        # meaning the narrator is a created being, not the person named in the summary.
-        # Universal invariant: any first-person narrator who writes "my creator" or
-        # "my maker" is NOT the creator — so the leading human name is a misattribution.
+        # Fix 4: "My creator" in chapter text (outside dialogue) — narrator references
+        # their own creator, meaning the narrator is a created being.
+        # Universal invariant: if a narrator (not in dialogue) writes "my creator",
+        # they are NOT the creator — leading human name is a misattribution.
+        # Guard: only fire when "my creator" appears OUTSIDE quotation marks (not in
+        # a character's dialogue), to avoid false positives in chapters where another
+        # character says "my creator" to the actual (human) narrator.
         if chapter_text:
             creator_phrase_re = re.compile(
                 r'\bmy\s+(?:creator|maker)\b', re.IGNORECASE
             )
-            if creator_phrase_re.search(chapter_text[:3000]):
+            # Only match outside dialogue: look for occurrences NOT preceded by a
+            # double-quote within the same paragraph (heuristic: nearest " before match
+            # is farther away than the nearest newline before match).
+            # Support ASCII ("), left-curly (U+201C), and right-curly (U+201D) quotes.
+            _scan_text = chapter_text[:3000]
+            _found_outside_dialogue = False
+            for _m_c in creator_phrase_re.finditer(_scan_text):
+                _pos = _m_c.start()
+                _before = _scan_text[:_pos]
+                _last_quote = max(
+                    _before.rfind('"'),       # ASCII double-quote
+                    _before.rfind('\u201c'),  # Left curly quote "
+                    _before.rfind('\u201d'),  # Right curly quote "
+                )
+                _last_nl = _before.rfind('\n')
+                # If the most recent newline is AFTER the most recent open-quote,
+                # this occurrence is in narrative (not inside a quoted speech block).
+                if _last_nl >= _last_quote:
+                    _found_outside_dialogue = True
+                    break
+            if _found_outside_dialogue:
                 # Replace the leading proper name in the summary with "the narrator"
                 leading_name_re = re.compile(
                     r'^((?:[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*))(,\s+|\s+)'
