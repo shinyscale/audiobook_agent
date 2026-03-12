@@ -2131,11 +2131,33 @@ class AudiobookAnalyzer:
                     # 1. narrator_detected is still None (V2 pipeline didn't export one)
                     # 2. The detected narrator was matched to a character
                     # 3. V2 did NOT already identify an inner narrator
-                    if narrator_detected is None and narrator_info.narrator_character_id and not _had_narrator_before_45:
+                    # 4. The narrator appears in ≥30% of chapter summaries.
+                    #    An outer/frame narrator (e.g., Walton in Frankenstein) only
+                    #    appears in 4/28 chapters (14%). Setting them as narrator_detected
+                    #    causes global Step 6.9 substitution to wrongly attribute all
+                    #    inner-narrator chapters (Victor/creature) to the outer narrator.
+                    #    The 30% threshold safely excludes outer narrators while still
+                    #    detecting single-narrator first-person texts (narrator appears
+                    #    in 100% of chapters).
+                    _narrator_appearance_rate = 0.0
+                    if narrator_info.narrator_name and summary_map and summary_map.summaries:
+                        _nn_lower_45 = narrator_info.narrator_name.lower()
+                        _nn_parts_45 = set(_nn_lower_45.split())
+                        _count_45 = sum(
+                            1 for _s45 in summary_map.summaries
+                            if any(
+                                _nn_parts_45 & set(ac.lower().split())
+                                for ac in (_s45.active_characters or [])
+                            )
+                        )
+                        _narrator_appearance_rate = _count_45 / len(summary_map.summaries)
+                    _narrator_is_pervasive = _narrator_appearance_rate >= 0.30
+
+                    if narrator_detected is None and narrator_info.narrator_character_id and not _had_narrator_before_45 and _narrator_is_pervasive:
                         narrator_detected = narrator_info.narrator_name
-                        print(f"   Detected narrator: {narrator_info.narrator_name} ({narrator_info.pov})")
+                        print(f"   Detected narrator: {narrator_info.narrator_name} ({narrator_info.pov}) [appears in {_narrator_appearance_rate:.0%} of chapters]")
                     else:
-                        print(f"   Narrator already identified by V2 pipeline: {narrator_detected} (skipping re-detection)")
+                        print(f"   Narrator skipped: {narrator_info.narrator_name} (already_found={narrator_detected is not None}, had_narrator={_had_narrator_before_45}, rate={_narrator_appearance_rate:.0%})")
                     logger.info(
                         f"Early narrator detection: {narrator_info.narrator_name} "
                         f"(confidence={narrator_info.confidence:.2f})"
