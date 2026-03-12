@@ -967,21 +967,61 @@ class ChapterSummarizer:
         )
 
     @staticmethod
-    def _detect_letter_signatory(chapter_text: str) -> Optional[str]:
+    def _detect_letter_signatory(
+        chapter_text: str,
+        narrator_detected: "str | None" = None,
+    ) -> Optional[str]:
         """
         Detect if chapter text is (or follows) an epistolary letter and return
         the letter-writer's name.
 
-        Two detection paths:
+        Three detection paths:
         A) The chapter text begins with the closing of a PREVIOUS letter followed
            by the header of the CURRENT letter (e.g., "R. Walton\\nLetter 2\\nTo Mrs. Saville").
            The signatory is the short proper-name line immediately before "Letter N".
         B) Standalone letter: salutation ("To X," or "Dear X,") in the head AND
            a closing signature ("Your... \\nName") in the tail.
+        C) Fallback: tail has a letter closing signature regardless of salutation.
+           Handles chapters where text was cut mid-letter (header/salutation missing
+           from the chapter start position).
 
         Returns the signatory name, or None if not detected.
         """
         head = chapter_text[:600]
+
+        def _expand_initials(candidate: str, text: str, limit: int = 20000) -> str:
+            """Expand abbreviated names like 'R.W.' or 'R. Walton' to full names.
+
+            Falls back to narrator_detected if full name cannot be found in text.
+            """
+            search_text = text[:limit]
+            if re.match(r"^[A-Z]\.[A-Za-z.]+$", candidate):
+                # Concatenated initials: "R.W." — match by first letters
+                initials = [c for c in candidate if c.isupper()]
+                for m in re.finditer(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", search_text):
+                    name_words = m.group(1).split()
+                    if [w[0] for w in name_words] == initials:
+                        return m.group(1)
+                # Fallback: check narrator_detected
+                if narrator_detected:
+                    nd_words = narrator_detected.split()
+                    if [w[0] for w in nd_words] == initials:
+                        return narrator_detected
+            elif re.match(r"^[A-Z]\.\s+[A-Z][a-z]+", candidate):
+                # "R. Walton" — single capital initial + last name
+                initial = candidate[0]
+                last_name = candidate.split()[-1].rstrip(".")
+                for m in re.finditer(
+                    r"\b([A-Z][a-z]+)\s+" + re.escape(last_name) + r"\b", search_text
+                ):
+                    if m.group(1)[0] == initial:
+                        return m.group(1) + " " + last_name
+                # Fallback: check narrator_detected
+                if narrator_detected:
+                    nd_words = narrator_detected.split()
+                    if nd_words and nd_words[0][0] == initial and nd_words[-1].lower() == last_name.lower():
+                        return narrator_detected
+            return candidate
 
         # Path A: "Letter N" header inside the head (preceded by a signature)
         letter_header_m = re.search(r'\bLetter\s+\w+\s*\n', head)
@@ -992,36 +1032,11 @@ class ChapterSummarizer:
             if lines:
                 candidate = lines[-1].strip()
                 if re.match(r"^[A-Z][A-Za-z.]*(?:\s+[A-Z][A-Za-z.]*){0,3}\.?$", candidate):
-                    # Expand initials if full name appears in chapter text.
-                    # Case 1: concatenated "R.W." — search by first-letter matching
-                    # Case 2: "R. Walton" — first word is a single initial, rest is last name
-                    if re.match(r"^[A-Z]\.[A-Za-z.]+$", candidate):
-                        initials = [c for c in candidate if c.isupper()]
-                        for m in re.finditer(
-                            r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", chapter_text[:10000]
-                        ):
-                            name_words = m.group(1).split()
-                            if [w[0] for w in name_words] == initials:
-                                return m.group(1)
-                    elif re.match(r"^[A-Z]\.\s+[A-Z][a-z]+", candidate):
-                        # "R. Walton" — single capital initial + last name
-                        # Find full first name starting with that initial
-                        initial = candidate[0]
-                        last_name = candidate.split()[-1].rstrip(".")
-                        for m in re.finditer(
-                            r"\b([A-Z][a-z]+)\s+" + re.escape(last_name) + r"\b",
-                            chapter_text[:10000],
-                        ):
-                            if m.group(1)[0] == initial:
-                                return m.group(1) + " " + last_name
-                    return candidate
+                    expanded = _expand_initials(candidate, chapter_text)
+                    return expanded
 
-        # Path B: Standalone letter — salutation in head + closing in tail
-        has_salutation = bool(
-            re.search(r"^\s*(?:To\s+\w|Dear\s+\w)", head, re.IGNORECASE | re.MULTILINE)
-        )
-        if has_salutation:
-            tail = chapter_text[-600:]
+        def _extract_tail_signatory(tail: str) -> Optional[str]:
+            """Extract signatory from letter tail (closing phrase + name line)."""
             sig_m = re.search(
                 r"(?:Your|Yours|Ever\s+yours|Affectionately|Sincerely|Faithfully)"
                 r"[^\n]{0,50}\n\s*([A-Z][A-Za-z\s.]{2,40})",
@@ -1032,16 +1047,17 @@ class ChapterSummarizer:
                 name = re.split(r"\n", name)[0].strip()
                 if len(name.split()) > 4:
                     return None
-                # Expand "R. Walton" → "Robert Walton" if full name appears in text
-                if re.match(r"^[A-Z]\.\s+[A-Z][a-z]+", name):
-                    initial = name[0]
-                    last_name = name.split()[-1].rstrip(".")
-                    for _m in re.finditer(
-                        r"\b([A-Z][a-z]+)\s+" + re.escape(last_name) + r"\b",
-                        chapter_text[:10000],
-                    ):
-                        if _m.group(1)[0] == initial:
-                            return _m.group(1) + " " + last_name
+                return _expand_initials(name, chapter_text)
+            return None
+
+        # Path B: Standalone letter — salutation in head + closing in tail
+        has_salutation = bool(
+            re.search(r"^\s*(?:To\s+\w|Dear\s+\w)", head, re.IGNORECASE | re.MULTILINE)
+        )
+        if has_salutation:
+            tail = chapter_text[-600:]
+            name = _extract_tail_signatory(tail)
+            if name:
                 return name
 
             # Path B fallback: last short proper-name line in tail (no closing phrase needed).
@@ -1053,23 +1069,7 @@ class ChapterSummarizer:
                 if not _ln:
                     continue
                 if re.match(r"^[A-Z][A-Za-z.]*(?:\s+[A-Z][A-Za-z.]*){0,3}$", _ln) and 1 <= len(_ln.split()) <= 4:
-                    # Expand initials if possible
-                    if re.match(r"^[A-Z]\.\s+[A-Z][a-z]+", _ln):
-                        _initial = _ln[0]
-                        _last = _ln.split()[-1].rstrip(".")
-                        for _em in re.finditer(
-                            r"\b([A-Z][a-z]+)\s+" + re.escape(_last) + r"\b",
-                            chapter_text[:10000],
-                        ):
-                            if _em.group(1)[0] == _initial:
-                                return _em.group(1) + " " + _last
-                    elif re.match(r"^[A-Z]\.[A-Za-z.]+$", _ln):
-                        _initials = [c for c in _ln if c.isupper()]
-                        for _em in re.finditer(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", chapter_text[:10000]):
-                            _words = _em.group(1).split()
-                            if [w[0] for w in _words] == _initials:
-                                return _em.group(1)
-                    return _ln
+                    return _expand_initials(_ln, chapter_text)
                 break  # stop at first non-empty line from tail
 
             # Path B vocative fallback: letter with no closing signature.
@@ -1083,7 +1083,7 @@ class ChapterSummarizer:
                 r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)',
                 re.IGNORECASE,
             )
-            for _tm in _title_re.finditer(chapter_text[:10000]):
+            for _tm in _title_re.finditer(chapter_text[:20000]):
                 _cand_name = _tm.group(2).strip()
                 # Confirm this is NOT the recipient named in the salutation
                 _sal_m = re.search(r"^\s*To\s+([^\n,]+)", head, re.IGNORECASE | re.MULTILINE)
@@ -1093,6 +1093,14 @@ class ChapterSummarizer:
                         continue  # This is the recipient, not the writer
                 # Use this as the signatory
                 return _cand_name
+
+        # Path C: No Letter header in head, no salutation — but tail has letter closing.
+        # Handles chapters where text was cut mid-letter (missing header/salutation):
+        # the closing "Your affectionate... / R. Walton" is still present in the tail.
+        tail_c = chapter_text[-600:]
+        name_c = _extract_tail_signatory(tail_c)
+        if name_c:
+            return name_c
 
         return None
 
@@ -1151,6 +1159,17 @@ class ChapterSummarizer:
             if not (sig_lower & found_lower):
                 # Name doesn't match signatory — replace it
                 return signatory + single_match.group(2) + summary[single_match.end():]
+            else:
+                # Leading name matches signatory — check for trailing descriptor artifact.
+                # LLMs sometimes generate: "Robert Walton narrator, Victor Frankenstein, writes..."
+                # Strip the lowercase descriptor word + spurious second name attribution.
+                rest = summary[single_match.end():]
+                artifact_re = re.compile(
+                    r'^([a-z][a-zA-Z]+),\s+(?:[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*),\s+'
+                )
+                am = artifact_re.match(rest)
+                if am:
+                    return signatory + single_match.group(2) + rest[am.end():]
 
         return summary
 
@@ -1270,7 +1289,7 @@ class ChapterSummarizer:
         summary = result.summary
 
         # Fix 1: Letter chapters — extract signatory from text structure
-        signatory = ChapterSummarizer._detect_letter_signatory(chapter_text)
+        signatory = ChapterSummarizer._detect_letter_signatory(chapter_text, narrator_detected)
         if signatory:
             fixed = ChapterSummarizer._apply_letter_narrator(summary, signatory)
             if fixed != summary:
@@ -1379,14 +1398,14 @@ class ChapterSummarizer:
                 m2 = leading_name_re2.match(summary)
                 if m2:
                     wrong_name = m2.group(1)
-                    # If narrator_detected is already set and the leading name IS the
-                    # confirmed inner narrator, this chapter is correctly attributed —
-                    # do NOT replace (prevents Step 6.95 from undoing Step 6.9's work).
-                    if narrator_detected and wrong_name.lower() == narrator_detected.lower():
-                        return  # Already correctly attributed; nothing to fix.
-                    # Determine replacement: use narrator_detected if available (Step
-                    # 6.95 context), otherwise placeholder "The narrator".
-                    replacement = narrator_detected if narrator_detected else 'The narrator'
+                    # Outer-quote first-person chapters are innermost-narrator chapters
+                    # (the chapter opens with "I " within outer quotes, meaning a deeper
+                    # embedded narrator is speaking, not the primary narrator).
+                    # Always replace with "The narrator" — do NOT use narrator_detected
+                    # (the primary narrator e.g. Victor Frankenstein) as replacement.
+                    # This prevents Step 6.9's substitution from persisting in creature
+                    # chapters when Step 6.95 re-runs this fix.
+                    replacement = 'The narrator'
                     # Global replacement: fix ALL instances throughout the summary.
                     if ' ' in wrong_name:
                         fixed2 = re.sub(
@@ -1430,10 +1449,16 @@ class ChapterSummarizer:
                     m3 = leading_name_re3.match(summary)
                     if m3:
                         wrong_name3 = m3.group(1)
-                        # Same narrator_detected logic as Fix 5.
-                        if narrator_detected and wrong_name3.lower() == narrator_detected.lower():
-                            return  # Already correctly attributed.
-                        replacement3 = narrator_detected if narrator_detected else 'The narrator'
+                        # Outer-quote chapters are innermost-narrator chapters (e.g. the
+                        # creature in Frankenstein speaking within Victor's narration).
+                        # NEVER use narrator_detected as replacement here — the confirmed
+                        # primary narrator (e.g. Victor Frankenstein) is NOT narrating
+                        # these chapters; a deeper embedded narrator is.  Always replace
+                        # with the generic "The narrator" placeholder so Step 6.9/6.95
+                        # does NOT substitute the primary narrator's name here.
+                        # (Unlike Fix 5 which covers non-outer-quote first-person chapters
+                        # that ARE narrated by the primary narrator.)
+                        replacement3 = 'The narrator'
                         if ' ' in wrong_name3:
                             fixed3 = re.sub(
                                 r'\b' + re.escape(wrong_name3) + r'\b',
