@@ -122,14 +122,6 @@ class CharacterProposer(BasePronunciationProposer):
                 if word_lower in self.whitelist:
                     continue
 
-                # Skip words in the CMU dictionary — they have standard English
-                # pronunciations a professional narrator already knows.
-                if self.cmu_known_words and word_lower in self.cmu_known_words:
-                    logger.debug(
-                        f"Skipping '{word}' — in CMU dictionary (standard pronunciation)"
-                    )
-                    continue
-
                 # Skip very short words
                 if len(word) < 2:
                     continue

@@ -2146,6 +2146,21 @@ class AudiobookAnalyzer:
                             logger.info(
                                 f"Replaced 'the narrator' with '{_nn}' in {_replaced} summaries"
                             )
+                        # Re-apply structural narrator fixes AFTER the substitution above.
+                        # The substitution may have undone valid fixes made during
+                        # summarization (e.g., Creature chapters fixed to "the narrator"
+                        # get re-labeled with the main narrator's name).
+                        # Using chapter text evidence re-corrects any misattributions.
+                        if chapter_map and doc:
+                            from .pipeline.chapter_summary.summarizer import ChapterSummarizer as _CS
+                            _ch_texts = {
+                                ch.index: doc.text[ch.start_position:ch.end_position]
+                                for ch in chapter_map.chapters
+                            }
+                            for _sum in summary_map.summaries:
+                                _ch_text = _ch_texts.get(_sum.chapter_index, "")
+                                if _ch_text:
+                                    _CS._fix_narrator_attribution(_sum, _ch_text)
                 else:
                     print("   No definitive narrator identified yet")
                     logger.info("Early narrator detection: No narrator identified")
@@ -3052,6 +3067,26 @@ class AudiobookAnalyzer:
                     if hasattr(_char, 'description') and _char.description:
                         if 'narrator' in _char.description.lower():
                             _char.description = _nn_pat.sub(_nn_final, _char.description)
+
+        # Step 6.95: Final structural narrator fix pass.
+        # Step 6.9 above may have re-substituted "the narrator" → narrator_name in summaries
+        # that were correctly fixed during summarization (e.g. Creature chapters where the
+        # during-summarization pass had set "the narrator" as a placeholder).  Re-apply
+        # structural fixes one last time using chapter-text evidence so that embedded
+        # narrators (Creature chapters, letter chapters) are not misattributed.
+        if summary_map and chapter_map and doc:
+            try:
+                from .pipeline.chapter_summary.summarizer import ChapterSummarizer as _CS_final
+                _ch_texts_final = {
+                    ch.index: doc.text[ch.start_position:ch.end_position]
+                    for ch in chapter_map.chapters
+                }
+                for _sum_final in summary_map.summaries:
+                    _ch_text_final = _ch_texts_final.get(_sum_final.chapter_index, "")
+                    if _ch_text_final:
+                        _CS_final._fix_narrator_attribution(_sum_final, _ch_text_final)
+            except Exception as _e_695:
+                logger.warning(f"Step 6.95 structural narrator fix failed: {_e_695}")
 
         # Step 7: Convert to AnalysisResult
         print("📦 Building analysis result...")

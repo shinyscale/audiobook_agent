@@ -2978,9 +2978,19 @@ class OutputCharacterCorrector:
 
                 # Spouse labels use a tighter window to avoid false positives: a 150-char
                 # window (~20-25 words) requires both character names AND a family phrase
-                # to appear within the same short passage. This prevents "his wife Daisy"
-                # from satisfying a Gatsby-Wolfsheim co-mention that spans a paragraph.
-                evidence_window = 150 if is_spouse else tight_window
+                # to appear within the same short passage.
+                # Sibling/cousin labels use an even tighter 45-char window to prevent
+                # false evidence from co-mentioned family phrases referring to a DIFFERENT
+                # relationship in the same scene — e.g., "Elizabeth...my cousin...Justine"
+                # where "my cousin" is the narrator's reference to Elizabeth, not
+                # Elizabeth's relationship to Justine.  45 chars ensures the cousin/sibling
+                # phrase must be immediately adjacent to both character names.
+                if is_sibling_or_cousin:
+                    evidence_window = 45
+                elif is_spouse:
+                    evidence_window = 150
+                else:
+                    evidence_window = tight_window
                 # Use canonical-name-only pattern for pat_b to avoid false evidence
                 # from single-word aliases (e.g., "Henry" for "Henry Clerval") that
                 # appear near the anchor character in unrelated passages.

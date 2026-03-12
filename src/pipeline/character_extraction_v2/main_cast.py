@@ -1083,7 +1083,10 @@ class MainCastExtractor:
                 _PERSON_NOUNS_R05B = {
                     "man", "woman", "boy", "girl", "person", "figure", "stranger",
                     "visitor", "creature", "being", "fellow", "ghost", "spirit", "phantom",
-                    "specter", "soul", "voice",
+                    "specter", "spectre", "soul", "voice",
+                    # Antagonist/monster descriptors — all refer to character entities, not objects
+                    "monster", "daemon", "dæmon", "demon", "fiend", "wretch", "villain",
+                    "beast", "devil", "ogre", "brute",
                 }
                 _canon_lower_05b = profile.canonical_name.lower()
                 if _canon_lower_05b.startswith("the ") and alias_lower.startswith("the "):

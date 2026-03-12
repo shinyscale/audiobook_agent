@@ -110,15 +110,27 @@
       }
     },
     "gatsby": {
-      "commit": "f28ea23054ccddb29763adeba5550318f66cded4",
-      "score": 8.53,
+      "commit": "a8aaef5c9e2e37f1245d801009cad5d615a52aa7",
+      "score": 8.60,
       "category_scores": {
         "structure": 10,
         "characters": 8,
-        "profiles": 7.5,
+        "profiles": 8,
         "summaries": 8.5,
         "pronunciation": 8.5,
         "presentation": 8.5
+      }
+    },
+    "frankenstein": {
+      "commit": "9c0acb8c4073d73f9ac6812d9ba22b5185811607",
+      "score": 7.35,
+      "category_scores": {
+        "structure": 9,
+        "characters": 8,
+        "profiles": 5,
+        "summaries": 6,
+        "pronunciation": 8,
+        "presentation": 8
       }
     }
   }
