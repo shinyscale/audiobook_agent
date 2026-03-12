@@ -2,21 +2,18 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 6
+- **Attempt:** 7
 - **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 
-## Latest Scores (Attempt 5)
-- Structure Detection: 7.5/10 ✗ (FAILING)
-- Character Extraction: 7.0/10 ✗ (FAILING)
-  - Completeness: 7.5/10
-  - Identity Resolution: 8.0/10 ✓
-  - Alias Grouping: 5.5/10
-- Character Profiles: 7.0/10 ✗ (FAILING)
-- Chapter Summaries: 4.0/10 ✗ (FAILING) [same root cause as attempt 4]
-- Pronunciation Guide: 7.5/10 ✗ (FAILING)
+## Latest Scores (Attempt 6)
+- Structure Detection: ~7.5/10 ✗ (27 chapters vs 28 expected)
+- Character Extraction: ~6.5/10 ✗ (creature/dæmon merged ✓, Alphonse as "father" ✗)
+- Character Profiles: ~7.0/10 ✗
+- Chapter Summaries: ~2.0/10 ✗ (CATASTROPHIC - Elizabeth Lavenza misidentified as narrator)
+- Pronunciation Guide: ~7.5/10 ✗ (Walton/Justine/Waldman/Clerval added ✓, Frankenstein missing ✗)
 - HTML Presentation: 9.5/10 ✓
-- **Overall: 7.08/10** (reference only)
+- **Overall: ~5.5/10** (regression from attempt 5)
 
 ## Score History
 | Attempt | Score | Notes |
@@ -26,30 +23,47 @@
 | 3 | 7.58 | Profiles regressed |
 | 4 | 7.08 | Summaries regressed 6.5→4.0 (narrator substitution undid fix) |
 | 5 | ~7.08 | Same root cause: Step 6.9 undoes narrator fix |
+| 6 | ~5.5 | Regression: LLM hallucinated Elizabeth Lavenza as narrator throughout |
 
-## Fixes Applied for Attempt 6
+## Attempt 6 Root Cause Analysis
+### Elizabeth Lavenza narrator hallucination
+- LLM summarizer wrote "Elizabeth Lavenza" directly in summaries (despite prompt saying not to)
+- Victor discusses Elizabeth so frequently, LLM confused the subject for the narrator
+- `_fix_narrator_attribution` can't fix this: no structural signals for Victor's chapters
+- Character extraction then CONFIRMED Elizabeth Lavenza as narrator (she had highest mentions after "father")
+- Step 6.9 substituted "the narrator" → "Elizabeth Lavenza" where it appeared
+- Result: nearly all 28 chapter summaries were wrong
 
-### Critical fixes
-1. **analyzer.py Step 6.95**: Final structural narrator fix pass AFTER Step 6.9
-   - Step 6.9 replaces "the narrator" → narrator_name unconditionally
-   - Step 6.95 re-runs _fix_narrator_attribution on all summaries using chapter text
-   - Expected to fix: Letters 2-4 (signatory detection), Ch 11 (awakening_re), Ch 15-16 (appositive_re)
-   - Still wrong: Letter 1 (no signatory in text), Ch 12-14 (no structural signal)
+### Narrator threshold too high (8%)
+- NarratorDetector LLM correctly identified Robert Walton as narrator (in both detection passes)
+- But 8% threshold: Walton has 8 mentions, max is 161 → 4.97% < 8% → REJECTED
+- After rejection, heuristic (Step 5.8.6) selected highest-mention character → Elizabeth Lavenza
 
-2. **main_cast.py Rule 0.5b**: Added monster/daemon/fiend/wretch/dæmon to person nouns
-   - Fixes: creature aliases no longer blocked from grouping with dæmon
-   - Expected: "the creature" and "the dæmon" can now be the same character
+### "father" canonical name
+- Alphonse Frankenstein extracted as canonical "father" (161 mentions)
+- Reduced narrator candidate pool for the heuristic selection
 
-3. **character_proposer.py**: Removed CMU dictionary skip
-   - Fixes: Frankenstein, Walton, Justine, Waldman now in pronunciation guide
-   - Expected: Pronunciation score improves from 7.5 to 8.0+
+## Fixes Applied for Attempt 7
 
-4. **summarizer.py Fix 4**: "my creator" heuristic (limited help for Frankenstein)
-   - Won't fire for Ch 12-14 (no "my creator" in first 3000 chars)
-   - Will help for other novels with created-being narrators
+### Fix 1: summarizer.py - Force "the narrator" placeholder
+- Changed all 3 prompt instances from "use name if explicitly stated" → "ALWAYS use 'the narrator'"
+- Prevents LLM from ever writing a character's name for the narrative voice
+- Step 6.9 injects the correct narrator name during post-processing
 
-## Expected Attempt 6 Improvements
-- Chapter Summaries: 4.0 → ~8.0 (7 more chapters correct: Letters 2-4 + Ch 11, 15, 16)
-- Pronunciation: 7.5 → ~8.5 (adding missing proper nouns)
-- Character Extraction (Alias Grouping): 5.5 → ~7.0 (creature/dæmon better grouped)
-- Character Profiles: 7.0 → ~8.0 (Victor→Elizabeth from better summaries)
+### Fix 2: narrator.py - Lower threshold 8% → 4%
+- Robert Walton: 8 mentions / 161 max = 4.97% → now passes 4% threshold
+- Allows frame/epistolary narrators with naturally low mention counts to be accepted
+
+### Fix 3: characters.py STEP 5.2bb - Upgrade kinship canonical names
+- "father" + alias "Alphonse Frankenstein" → canonical becomes "Alphonse Frankenstein"
+- Applies universally to father/mother/sister/brother/husband/wife/etc.
+- Fixes the narrator candidate pool and character display
+
+## Expected Attempt 7 Improvements
+- Chapter Summaries: ~2.0 → ~7.0 (summaries use "the narrator" → Victor substituted)
+  - Letters 2-4: correct via signatory detection (Step 6.95)
+  - Ch 5-10, 17-24: correct via Victor as narrator (Step 6.9)
+  - Ch 11, 15, 16: correct via awakening_re/appositive_re (Step 6.95)
+  - Letters 1, Ch 12-14: still wrong (no structural signal)
+- Character Extraction: ~6.5 → ~7.5 (Alphonse canonical fix)
+- Pronunciation: ~7.5/10 (no change expected)
