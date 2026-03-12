@@ -2107,29 +2107,30 @@ class AudiobookAnalyzer:
                     )
 
                     # Capture whether V2 pipeline already identified a narrator BEFORE
-                    # we mark the Step 4.5-detected narrator (which would set is_narrator=True
-                    # for the outer narrator in frame narratives, making it look like the
-                    # inner narrator was already found).
+                    # we mark the Step 4.5-detected narrator.
+                    # CRITICAL: if V2 already set is_narrator=True for an inner narrator
+                    # (e.g., Victor Frankenstein), do NOT also mark the outer narrator
+                    # (e.g., Robert Walton detected here by Step 4.5). Marking both would
+                    # cause the Step 6.9 fallback to potentially pick the outer narrator
+                    # if it appears first in the character list — reproducing the regression.
                     _had_narrator_before_45 = any(
                         getattr(_c45, 'is_narrator', False)
                         for _c45 in pipeline_char_map.characters
                     )
 
-                    # Mark narrator in character list
-                    self._mark_narrator_in_character_map(
-                        pipeline_char_map.characters, adapted_info
-                    )
+                    # Mark narrator in character list ONLY if V2 hadn't already found one.
+                    # This prevents Walton from being marked is_narrator=True when Victor
+                    # (V2's inner narrator) already has that flag.
+                    if not _had_narrator_before_45:
+                        self._mark_narrator_in_character_map(
+                            pipeline_char_map.characters, adapted_info
+                        )
 
                     # Update narrator_detected for use in profile generation.
                     # Only update if:
                     # 1. narrator_detected is still None (V2 pipeline didn't export one)
                     # 2. The detected narrator was matched to a character
-                    # 3. V2 did NOT already identify an inner narrator (is_narrator=True
-                    #    already set before Step 4.5 ran).
-                    # Guard 3 prevents frame/nested narratives (e.g. Frankenstein) from
-                    # having the outer narrator (Walton) set as narrator_detected after F6
-                    # adds them from correctly-attributed summaries — which would cause
-                    # Step 6.9 to globally substitute Walton into Victor/creature chapters.
+                    # 3. V2 did NOT already identify an inner narrator
                     if narrator_detected is None and narrator_info.narrator_character_id and not _had_narrator_before_45:
                         narrator_detected = narrator_info.narrator_name
                         print(f"   Detected narrator: {narrator_info.narrator_name} ({narrator_info.pov})")
