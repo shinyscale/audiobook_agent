@@ -1236,7 +1236,11 @@ class ChapterSummarizer:
         return fixed_sentence + rest
 
     @staticmethod
-    def _fix_narrator_attribution(result: "ChapterSummary", chapter_text: str) -> None:
+    def _fix_narrator_attribution(
+        result: "ChapterSummary",
+        chapter_text: str,
+        narrator_detected: "str | None" = None,
+    ) -> None:
         """
         Post-process a ChapterSummary in-place to fix narrator misattribution.
 
@@ -1248,6 +1252,17 @@ class ChapterSummarizer:
         Static method so it can be called from analyzer.py after the narrator
         substitution pass (which replaces 'the narrator' with the narrator's name,
         undoing any fixes applied during summarization).
+
+        Args:
+            result: ChapterSummary to modify in-place.
+            chapter_text: Raw chapter text for structural analysis.
+            narrator_detected: The confirmed inner narrator name (e.g., "Victor
+                Frankenstein"), when available.  When set, Fix 5/6 will use it as the
+                replacement instead of "The narrator", and will SKIP the fix entirely
+                if the current leading name already matches (so a correct attribution
+                is never overwritten).  Fix 4 always replaces with "The narrator"
+                regardless of narrator_detected (the creature's identity is never
+                narrator_detected).
         """
         if not result.summary:
             return
@@ -1316,13 +1331,26 @@ class ChapterSummarizer:
                     _found_outside_dialogue = True
                     break
             if _found_outside_dialogue:
-                # Replace the leading proper name in the summary with "the narrator"
+                # Replace the leading proper name in the summary with "The narrator".
+                # Fix 4 always uses "The narrator" regardless of narrator_detected —
+                # the creature is NEVER narrator_detected (Victor/outer narrator is).
                 leading_name_re = re.compile(
                     r'^((?:[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*))(,\s+|\s+)'
                 )
                 m = leading_name_re.match(summary)
                 if m:
-                    fixed = 'The narrator' + m.group(2) + summary[m.end():]
+                    wrong_name = m.group(1)
+                    # Global replacement: fix ALL instances in the summary, not just
+                    # the leading occurrence.  This ensures the full summary is fixed
+                    # when the LLM uses the wrong narrator name throughout the text.
+                    if ' ' in wrong_name:
+                        fixed = re.sub(
+                            r'\b' + re.escape(wrong_name) + r'\b',
+                            'The narrator',
+                            summary,
+                        )
+                    else:
+                        fixed = 'The narrator' + m.group(2) + summary[m.end():]
                     if fixed != summary:
                         logger.info(
                             f"Narrator fix (my creator heuristic): "
@@ -1350,7 +1378,24 @@ class ChapterSummarizer:
                 )
                 m2 = leading_name_re2.match(summary)
                 if m2:
-                    fixed2 = 'The narrator' + m2.group(2) + summary[m2.end():]
+                    wrong_name = m2.group(1)
+                    # If narrator_detected is already set and the leading name IS the
+                    # confirmed inner narrator, this chapter is correctly attributed —
+                    # do NOT replace (prevents Step 6.95 from undoing Step 6.9's work).
+                    if narrator_detected and wrong_name.lower() == narrator_detected.lower():
+                        return  # Already correctly attributed; nothing to fix.
+                    # Determine replacement: use narrator_detected if available (Step
+                    # 6.95 context), otherwise placeholder "The narrator".
+                    replacement = narrator_detected if narrator_detected else 'The narrator'
+                    # Global replacement: fix ALL instances throughout the summary.
+                    if ' ' in wrong_name:
+                        fixed2 = re.sub(
+                            r'\b' + re.escape(wrong_name) + r'\b',
+                            replacement,
+                            summary,
+                        )
+                    else:
+                        fixed2 = replacement + m2.group(2) + summary[m2.end():]
                     if fixed2 != summary:
                         logger.info(
                             f"Narrator fix (quoted first-person inner narrator): "
@@ -1384,7 +1429,19 @@ class ChapterSummarizer:
                     )
                     m3 = leading_name_re3.match(summary)
                     if m3:
-                        fixed3 = 'The narrator' + m3.group(2) + summary[m3.end():]
+                        wrong_name3 = m3.group(1)
+                        # Same narrator_detected logic as Fix 5.
+                        if narrator_detected and wrong_name3.lower() == narrator_detected.lower():
+                            return  # Already correctly attributed.
+                        replacement3 = narrator_detected if narrator_detected else 'The narrator'
+                        if ' ' in wrong_name3:
+                            fixed3 = re.sub(
+                                r'\b' + re.escape(wrong_name3) + r'\b',
+                                replacement3,
+                                summary,
+                            )
+                        else:
+                            fixed3 = replacement3 + m3.group(2) + summary[m3.end():]
                         if fixed3 != summary:
                             logger.info(
                                 f"Narrator fix (quoted inner narrator, FP density): "

@@ -2113,6 +2113,7 @@ class AudiobookAnalyzer:
                     # (e.g., Robert Walton detected here by Step 4.5). Marking both would
                     # cause the Step 6.9 fallback to potentially pick the outer narrator
                     # if it appears first in the character list — reproducing the regression.
+                    _blocked_narrator_45: "str | None" = None  # outer/frame narrator name blocked by guards
                     _had_narrator_before_45 = any(
                         getattr(_c45, 'is_narrator', False)
                         for _c45 in pipeline_char_map.characters
@@ -2165,6 +2166,9 @@ class AudiobookAnalyzer:
                         narrator_detected = narrator_info.narrator_name
                         print(f"   Detected narrator: {narrator_info.narrator_name} ({narrator_info.pov}) [appears in {_narrator_appearance_rate:.0%} of chapters]")
                     else:
+                        # Store the blocked narrator name so Step 6.9 can remove it from
+                        # non-letter active_characters (where the LLM wrongly used it as narrator).
+                        _blocked_narrator_45 = narrator_info.narrator_name
                         print(f"   Narrator skipped: {narrator_info.narrator_name} (already_found={narrator_detected is not None}, had_narrator={_had_narrator_before_45}, rate={_narrator_appearance_rate:.0%})")
                     logger.info(
                         f"Early narrator detection: {narrator_info.narrator_name} "
@@ -3161,7 +3165,7 @@ class AudiobookAnalyzer:
                             )
                         )
                         _cur_rate_69 = _cur_count_69 / _non_letter_total_69
-                    if narrator_detected is None or _mc_rate_69 > _cur_rate_69:
+                    if narrator_detected is None:
                         print(
                             f"   Step 6.9 inner-narrator: '{_mc_name_69}' appears in "
                             f"{_mc_rate_69:.0%} of non-letter chapters "
@@ -3203,6 +3207,12 @@ class AudiobookAnalyzer:
             if _do_sub:
                 # 1. Chapter summary texts (already partly done earlier, but may have missed some)
                 # 2. active_characters lists in chapter summaries
+                # _blocked_narrator_45: outer frame narrator blocked by appearance-rate guard
+                # (e.g. "Robert Walton" in Frankenstein).  The LLM wrongly listed it in every
+                # chapter's active_characters.  Remove it from non-letter chapters so it doesn't
+                # pollute narrator attribution for inner-narrator chapters.
+                _blocked_69 = locals().get('_blocked_narrator_45', None)
+                _blocked_69_lower = _blocked_69.lower() if _blocked_69 else None
                 if summary_map:
                     for _sum in summary_map.summaries:
                         if _sum.summary and 'narrator' in _sum.summary.lower():
@@ -3213,6 +3223,17 @@ class AudiobookAnalyzer:
                                     _nn_final if re.match(r'^the narrator$', ac, re.IGNORECASE) else ac
                                     for ac in _sum.active_characters
                                 ]
+                            # Remove outer narrator from non-letter chapters' active_characters.
+                            if _blocked_69_lower:
+                                _title_69b = getattr(_sum, 'title', '') or ''
+                                _is_letter_69b = bool(
+                                    re.match(r'^Letter\s+\w+', _title_69b, re.IGNORECASE)
+                                )
+                                if not _is_letter_69b:
+                                    _sum.active_characters = [
+                                        ac for ac in (_sum.active_characters or [])
+                                        if ac.lower() != _blocked_69_lower
+                                    ]
                             # Also inject narrator into active_characters if absent
                             _ac_lower = [ac.lower() for ac in (_sum.active_characters or [])]
                             if _nn_final.lower() not in _ac_lower:
@@ -3263,7 +3284,12 @@ class AudiobookAnalyzer:
                 for _sum_final in summary_map.summaries:
                     _ch_text_final = _ch_texts_final.get(_sum_final.chapter_index, "")
                     if _ch_text_final:
-                        _CS_final._fix_narrator_attribution(_sum_final, _ch_text_final)
+                        # Pass narrator_detected so Fix 5/6 know the confirmed inner
+                        # narrator and won't undo a correct Step 6.9 substitution.
+                        _CS_final._fix_narrator_attribution(
+                            _sum_final, _ch_text_final,
+                            narrator_detected=narrator_detected,
+                        )
             except Exception as _e_695:
                 logger.warning(f"Step 6.95 structural narrator fix failed: {_e_695}")
 
@@ -3271,7 +3297,10 @@ class AudiobookAnalyzer:
         print("📦 Building analysis result...")
 
         # Convert chapters to StructuralElements
-        structure = self._convert_chapters(chapter_map, summary_map, self.words_per_minute, doc=doc)
+        structure = self._convert_chapters(
+            chapter_map, summary_map, self.words_per_minute, doc=doc,
+            narrator_detected=narrator_detected,
+        )
 
         # Convert characters
         characters = self._convert_characters(pipeline_char_map)
@@ -5088,6 +5117,7 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
         summary_map: Optional[ChapterSummaryMap],
         wpm: int,
         doc=None,
+        narrator_detected: "str | None" = None,
     ) -> list[StructuralElement]:
         """Convert pipeline ChapterMap to list of StructuralElements."""
         elements = []
@@ -5124,7 +5154,7 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
                     try:
                         _ch_text_conv = doc.text[chapter.start_position:chapter.end_position]
                         if _ch_text_conv:
-                            _fix_narrator_fn(summary_obj, _ch_text_conv)
+                            _fix_narrator_fn(summary_obj, _ch_text_conv, narrator_detected)
                     except Exception:
                         pass
                 summary_text = summary_obj.summary
