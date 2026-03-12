@@ -2584,16 +2584,13 @@ class CharacterAgent(Agent):
                 "grounded_count": grounding_report.total_grounded,
                 "ungrounded_count": grounding_report.total_ungrounded,
                 "narrator_pov": narrator_info.pov,
-                # Export narrator_name even when narrator_character_id is None (i.e., the LLM
-                # identified a narrator by name but could not match them to an extracted character).
-                # This allows downstream stages (Step 6.9 narrator substitution) to use the name
-                # for summary attribution even when the narrator wasn't found in the cast.
-                # For frame narratives (e.g., Frankenstein), the outer narrator (e.g., Robert Walton)
-                # often has few extracted mentions and fails the V2 main_cast threshold, so their
-                # name would be lost without this. The downstream character-marking step
-                # (Step 4.5) safely handles the case where narrator_name has no matching character:
-                # _match_to_character returns None → no incorrect is_narrator flag is set.
-                "narrator_name": narrator_info.narrator_name,
+                # Only export narrator_name when narrator_character_id is set (narrator matched
+                # to an extracted character). If narrator_name is exported without a matching
+                # character, analyzer.py line ~1115 sets narrator_detected = narrator_name
+                # unconditionally, causing Step 6.9 to globally substitute that name into ALL
+                # chapter summaries — breaking nested narratives (e.g., Frankenstein where
+                # Robert Walton is narrator but Victor/creature chapters must not use Walton).
+                "narrator_name": narrator_info.narrator_name if narrator_info.narrator_character_id else None,
             },
         )
 
