@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 9
-- **Phase:** analysis_running
+- **Phase:** analysis_running (4th restart — full fix set)
 - **baseline_score:** 7.35
 
 ## Latest Scores (Attempt 8)
@@ -49,23 +49,46 @@
 
 ## Fixes Applied for Attempt 9
 
-### Fix E: Step 4.5 - require narrator_character_id
-- `if narrator_detected is None and narrator_info.narrator_character_id:` — only set narrator_detected when narrator was matched to a character
-- Prevents "Robert Walton" from being set via Step 4.5 when R. Walton can't be matched
-- Root cause fix for attempt 8 regression
+### Fix E: Step 4.5 - narrator_character_id guard (9b90ac3)
+- `if narrator_detected is None and narrator_info.narrator_character_id:`
+- Prevents "Robert Walton" from being set via Step 4.5 when narrator can't be matched
+- But INSUFFICIENT alone: F6 adds "Robert Walton" → Step 4.5 can now match it → still sets narrator_detected
 
-### Fix F: extract_core_noun - strip parentheticals
+### Fix E2: narrator_name export revert (24669d3)
+- Revert 9068f81: only export narrator_name when narrator_character_id is set
+- Prevents V2 pipeline line ~1115 from setting narrator_detected unconditionally
+- But INSUFFICIENT alone: Step 4.5 still fires after F6 adds "Robert Walton"
+
+### Fix E3: Step 6.9 is_narrator fallback (00f2a73)
+- If narrator_detected is None, use first is_narrator=True character (Victor)
+- Then Step 6.95/Fix B corrects letters (→ Robert Walton) and creature chapters (→ The narrator)
+- But INSUFFICIENT alone: narrator_detected might be set to "Robert Walton" by Step 4.5
+
+### Fix E4: Step 4.5 _had_narrator_before_45 guard (34f8651)
+- Capture whether is_narrator=True was set BEFORE Step 4.5 runs
+- If V2 already found an inner narrator (Victor), Step 4.5 can't override narrator_detected
+- Combined with E, E2, E3: narrator_detected stays None → fallback uses Victor → Step 6.95/Fix B corrects letters/creature ✓
+
+### Fix F: extract_core_noun - strip parentheticals (1cb6cdf)
 - `extract_core_noun("the blind father (De Lacey)")` was returning "lacey)" due to parenthetical
 - Fix: strip parenthetical annotations before splitting on spaces
 
-### Fix G: Rule 0.5b - strip parentheticals
+### Fix G: Rule 0.5b - strip parentheticals (342435a)
 - Person/non-person semantic check had same parenthetical bug
 - Fix: strip parenthetical before taking `split()[-1]`
 
-### Fix H: Fix 5/Fix 6 in summarizer.py - early return + density check
+### Fix H: Fix 5/Fix 6 in summarizer.py - early return + density check (013081d)
 - Fix 5 now has early return so Fix 6 doesn't also fire
 - Fix 6: Chapter text opens with ANY quoted prose + FP density ≥ 4 → inner narrator chapter
 
-### Fix I: Step 4.5.9b - first-initial variant dedup
+### Fix I: Step 4.5.9b - first-initial variant dedup (1d432b1)
 - Merges "R. Walton" → "Robert Walton" at analyzer level after F6 runs
-- Prevents duplicate entries in character list
+
+### Fix J: Signatory expansion "R. Walton" → "Robert Walton" (3f524d3)
+- Added Path A and Path B expansion for "Initial. Lastname" format signatories
+
+### Fix K: Letter signatory Path B name-only line fallback (c1985f9)
+- Letter 3 ends with "R.W." (no "Your affectionate...") — added fallback to detect name-only closing lines
+
+### Fix L: Letter 4 vocative fallback (f0a3664)
+- Letter 4 has no closing signature — added "Captain Walton" address detection to identify narrator
