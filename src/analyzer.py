@@ -2311,6 +2311,61 @@ class AudiobookAnalyzer:
             except Exception as _459_e:
                 logger.warning(f"Step 4.5.9 post-extraction dedup failed: {_459_e}")
 
+        # Step 4.5.9b: First-initial variant dedup.
+        # Handles "R. Walton" → alias of "Robert Walton" after F6 may have added both.
+        # Step 4.5.9 word-subset check can't catch this because "r." != "robert".
+        # Universal invariant: "[A]. [Lastname]" where A matches the first letter of a
+        # full first name in another character with the same last name → same person.
+        if pipeline_char_map and pipeline_char_map.characters:
+            try:
+                import re as _re_459b
+                _first_initial_459b = _re_459b.compile(r"^([A-Z])\.\s+(.+)$")
+                _459b_to_remove: set[str] = set()
+                _459b_chars = list(pipeline_char_map.characters)
+                for _459b_i, _459b_a in enumerate(_459b_chars):
+                    if _459b_a.id in _459b_to_remove:
+                        continue
+                    _m0a = _first_initial_459b.match(_459b_a.canonical_name.strip())
+                    if not _m0a:
+                        continue
+                    _initial_459b = _m0a.group(1)
+                    _lastname_459b = _m0a.group(2).strip()
+                    for _459b_j, _459b_b in enumerate(_459b_chars):
+                        if _459b_i == _459b_j or _459b_b.id in _459b_to_remove:
+                            continue
+                        _parts = _459b_b.canonical_name.strip().split()
+                        if len(_parts) < 2:
+                            continue
+                        _firstname_b = _parts[0].strip(".,;:")
+                        _lastname_b = _parts[-1].strip(".,;:")
+                        if (
+                            _firstname_b
+                            and _firstname_b[0].upper() == _initial_459b
+                            and _lastname_b.lower() == _lastname_459b.lower()
+                        ):
+                            # Merge abbreviated into full name
+                            _abbrv_name = _459b_a.canonical_name
+                            if _abbrv_name not in (_459b_b.aliases or []):
+                                _459b_b.aliases = list(_459b_b.aliases or []) + [_abbrv_name]
+                            _459b_b.mention_count = max(
+                                _459b_b.mention_count, _459b_a.mention_count
+                            )
+                            _459b_to_remove.add(_459b_a.id)
+                            logger.info(
+                                f"Step 4.5.9b: '{_abbrv_name}' merged into "
+                                f"'{_459b_b.canonical_name}' (first-initial variant)"
+                            )
+                            break
+                if _459b_to_remove:
+                    pipeline_char_map.characters = [
+                        c for c in _459b_chars if c.id not in _459b_to_remove
+                    ]
+                    logger.info(
+                        f"Step 4.5.9b: Removed {len(_459b_to_remove)} first-initial duplicate(s)"
+                    )
+            except Exception as _459b_e:
+                logger.warning(f"Step 4.5.9b first-initial dedup failed: {_459b_e}")
+
         # Post-4.5.9 F6 re-check: characters that were blocked during F6 may now be
         # unblocked after 4.5.9 merged/removed the blocker (e.g., a bare "Wilson" that
         # blocked "George Wilson" was absorbed into "Myrtle Wilson" by 4.5.9).
