@@ -1044,6 +1044,34 @@ class ChapterSummarizer:
                             return _m.group(1) + " " + last_name
                 return name
 
+            # Path B fallback: last short proper-name line in tail (no closing phrase needed).
+            # Handles signatures like "R.W." after "Heaven bless my beloved sister!" — where
+            # the letter ends with a blessing/exclamation instead of "Your affectionate..."
+            # Look for a line that is ONLY a proper name (or initials) near the end.
+            for _line in reversed(tail.split("\n")):
+                _ln = _line.strip().rstrip(".")
+                if not _ln:
+                    continue
+                if re.match(r"^[A-Z][A-Za-z.]*(?:\s+[A-Z][A-Za-z.]*){0,3}$", _ln) and 1 <= len(_ln.split()) <= 4:
+                    # Expand initials if possible
+                    if re.match(r"^[A-Z]\.\s+[A-Z][a-z]+", _ln):
+                        _initial = _ln[0]
+                        _last = _ln.split()[-1].rstrip(".")
+                        for _em in re.finditer(
+                            r"\b([A-Z][a-z]+)\s+" + re.escape(_last) + r"\b",
+                            chapter_text[:10000],
+                        ):
+                            if _em.group(1)[0] == _initial:
+                                return _em.group(1) + " " + _last
+                    elif re.match(r"^[A-Z]\.[A-Za-z.]+$", _ln):
+                        _initials = [c for c in _ln if c.isupper()]
+                        for _em in re.finditer(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", chapter_text[:10000]):
+                            _words = _em.group(1).split()
+                            if [w[0] for w in _words] == _initials:
+                                return _em.group(1)
+                    return _ln
+                break  # stop at first non-empty line from tail
+
         return None
 
     @staticmethod
