@@ -3148,6 +3148,14 @@ class AudiobookAnalyzer:
                     # (e.g. Victor Frankenstein) appears in the bulk of story chapters; the
                     # creature/secondary narrators appear in fewer. Avoid picking purely by
                     # list order which is nondeterministic across LLM runs.
+                    # Fix BB: stop words excluded from word-set intersection to prevent
+                    # generic "the X" characters (e.g. "the dæmon", "the Arctic ice")
+                    # from matching every "the Y" active_characters entry via shared "the".
+                    _PRE69_STOP_WORDS = frozenset({
+                        'a', 'an', 'the', 'of', 'in', 'on', 'at', 'by', 'to',
+                        'with', 'from', 'and', 'or', 'is', 'was', 'are', 'were',
+                        'his', 'her', 'their', 'its', 'my', 'your', 'our',
+                    })
                     if summary_map and summary_map.summaries:
                         _pre69_counts: dict = {}
                         for _s69pre in summary_map.summaries:
@@ -3158,9 +3166,12 @@ class AudiobookAnalyzer:
                                 _ac69pre_l = _ac69pre.strip().lower()
                                 for _cand in _pre69_candidates:
                                     _cand_l = _cand.canonical_name.strip().lower()
-                                    _cand_parts = set(_cand_l.split())
-                                    _ac_parts = set(_ac69pre_l.split())
-                                    if _cand_l == _ac69pre_l or _cand_parts & _ac_parts:
+                                    # Use content-word intersection (stop words excluded)
+                                    # to avoid spurious matches via shared articles/prepositions
+                                    _cand_content = set(_cand_l.split()) - _PRE69_STOP_WORDS
+                                    _ac_content = set(_ac69pre_l.split()) - _PRE69_STOP_WORDS
+                                    if (_cand_l == _ac69pre_l or
+                                            (_cand_content and _ac_content and _cand_content & _ac_content)):
                                         _pre69_counts[_cand.canonical_name] = _pre69_counts.get(_cand.canonical_name, 0) + 1
                                         break
                         if _pre69_counts:

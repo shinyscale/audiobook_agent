@@ -2,7 +2,7 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 17
+- **Attempt:** 18
 - **Phase:** analysis_running
 - **baseline_score:** 7.35
 
@@ -71,6 +71,25 @@
 - Previously: picked FIRST is_narrator character (Robert Walton, main_cast_0)
 - Now: prefers character whose name matches narrator_detected (Victor Frankenstein)
 - Fallback: first is_narrator character if no narrator_detected match
+
+## Attempt 17 Fixes (commit 63de4e8) — RESULT: REGRESSION (narrator=the dæmon → all summaries say "the creature")
+
+### Root cause of attempt 17 regression
+- LLM in this run extracted "the dæmon" as a SEPARATE entity from "the creature" with is_narrator=True
+- Step 6.9 preamble (Fix U) used word-set intersection: {"the","dæmon"} ∩ {"the","creature"} = {"the"}
+  → "the dæmon" matched ANY "the X" active_characters entry, got inflated count → picked as narrator
+- "Finalizing narrator detection" returned "No definitive narrator" → preamble result (dæmon) stood
+- Step 6.9 substitution: _nn_final = "the creature" (via alias lookup: dæmon → alias of creature)
+  → ALL "the narrator" in summaries replaced with "the creature" → complete regression
+
+## Attempt 18 Fixes
+
+### Fix BB: analyzer.py Step 6.9 preamble — exclude stop words from word-set intersection
+- Stop words filtered: {a, an, the, of, in, on, at, by, to, with, from, and, or, is/was/are/were, his/her/their/its/my/your/our}
+- Content words only used for intersection: "the dæmon" → {"dæmon"}, "the creature" → {"creature"}
+- {"dæmon"} ∩ {"creature"} = empty → no false match between generic "the X" names
+- "Victor Frankenstein" → {"victor","frankenstein"} → matches "Victor" entries correctly
+- Expected result: Victor wins preamble count (appears in 24/28 non-letter chapters)
 
 ## Expected Chapter Attribution After Fixes
 - Letters 1-4: "Robert Walton" (correct — his narrative frame)
