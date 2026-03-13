@@ -909,7 +909,15 @@ class CMUProposer(BasePronunciationProposer):
 
         Universal invariant: when every component of a concatenated word appears
         independently in the CMU dictionary the combined pronunciation is unambiguous.
+
+        Important: proper nouns (starting with uppercase) are NEVER predictable compounds,
+        even if their letters happen to split into CMU words. E.g., "Arveiron" (French
+        river name) splits into "arve"+"iron" but is not a compound — it's a proper noun
+        with its own pronunciation.
         """
+        # Proper nouns are never predictable compounds regardless of substring matches
+        if word and word[0].isupper():
+            return False
         word_lower = word.lower()
         if len(word_lower) < 6:
             return False
@@ -983,7 +991,8 @@ class CMUProposer(BasePronunciationProposer):
                 continue
 
             # Skip closed compounds whose every part is in CMU (e.g., "firelight", "tinfoil")
-            if self._is_closed_compound(word_lower):
+            # Pass original form so proper noun uppercase guard works correctly.
+            if self._is_closed_compound(word):
                 continue
 
             # Skip OCR artifacts (missing spaces between words)
@@ -1042,6 +1051,16 @@ class CMUProposer(BasePronunciationProposer):
     ) -> list[PronunciationProposal]:
         """Use WordIndex for efficient filtering of unknown words."""
 
+        # Build set of words that appear capitalized in the text (proper nouns).
+        # filter_by_predicate passes lowercase keys, so _is_closed_compound can't
+        # detect proper nouns from capitalization alone. This set allows is_unknown
+        # to skip the compound check for words like "Arveiron" (French river).
+        capitalized_word_keys: set[str] = {
+            word_lower
+            for word_lower, occs in word_index.word_positions.items()
+            if any(occ.original_form and occ.original_form[0].isupper() for occ in occs)
+        }
+
         def is_unknown(word: str) -> bool:
             """Check if word is unknown to CMU dictionary."""
             if len(word) < self.min_word_length:
@@ -1054,7 +1073,8 @@ class CMUProposer(BasePronunciationProposer):
                 return False
             if self._is_common_derivation(word):
                 return False
-            if self._is_closed_compound(word):
+            # Skip compound check for proper nouns (capitalized in source text)
+            if word not in capitalized_word_keys and self._is_closed_compound(word):
                 return False
             if self._is_ocr_artifact(word):
                 return False
