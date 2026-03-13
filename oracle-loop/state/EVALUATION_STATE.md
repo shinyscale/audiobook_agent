@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 21
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 
 ## Score History
@@ -130,11 +130,15 @@
 - Attempt 19: Guards CC2/CC3, Step 3.8 extended, Rule 0.5b extended
 - Attempt 20: Fix DD/EE/FF/GG/HH — no improvement (creature fragmentation, profile gaps)
 - Attempt 21: Fix KK (creature fragment merge), Fix LL (kinship→relationship), Fix MM (gender from kinship), Fix NN (Fix EE surname guard) — creature unified ✓ but new issues
+- Attempt 22: Fix OO (canonical/alias parenthetical matching in F6), Fix PP (strip parenthetical from canonical in Fix EE), Fix QQ (strip parenthetical from aliases in Pass 2)
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 22 | Walton/De Lacey F6 duplicates | analyzer.py (Fix OO) | Pending — canonical/alias parenthetical matching in _is_likely_alias_of_existing |
+| 22 | "my father" / "the old man" canonical | characters.py (Fix PP) | Pending — strip parenthetical from best_alias before setting canonical |
+| 22 | Parenthetical aliases | main_cast.py (Fix QQ) | Pending — strip parenthetical from aliases in Pass 2 (also fixes Fix EE by providing clean aliases) |
 | 21 | Creature fragmentation | characters.py (Fix KK) | Fixed ✓ — creature unified as "the fiend" |
 | 21 | Kinship alias relationships | characters.py (Fix LL) | Partially — Alphonse→Caroline "husband" correct |
 | 21 | Gender from kinship | characters.py (Fix MM) | Fixed ✓ — Elizabeth gender=female |

@@ -1492,6 +1492,17 @@ class AudiobookAnalyzer:
                     for char in pipeline_char_map.characters:
                         char_canonical = char.canonical_name.lower().strip()
 
+                        # Fix OO: Strip parenthetical from canonical before comparison.
+                        # E.g., "R. Walton (Robert Walton)" → clean canonical "r. walton",
+                        # parenthetical content "Robert Walton" → check if candidate matches.
+                        char_canonical_clean = char_canonical
+                        char_canonical_paren = None
+                        if "(" in char_canonical:
+                            _cp = char_canonical.split("(", 1)
+                            char_canonical_clean = _cp[0].strip()
+                            if ")" in _cp[1]:
+                                char_canonical_paren = _cp[1].split(")")[0].strip()
+
                         # Check exact match after cleaning
                         if clean_lower == char_canonical:
                             if "wilson" in name.lower():
@@ -1500,6 +1511,40 @@ class AudiobookAnalyzer:
                                 f"F6: '{name}' matches existing '{char.canonical_name}' after cleaning"
                             )
                             return True
+
+                        # Fix OO: Also check against parenthetical-stripped canonical.
+                        # E.g., candidate "Robert Walton" vs canonical "R. Walton (Robert Walton)" →
+                        # parenthetical "robert walton" == candidate → match.
+                        if char_canonical_paren and clean_lower == char_canonical_paren:
+                            logger.info(
+                                f"F6 Fix OO: '{name}' matches '{char.canonical_name}' "
+                                f"via canonical parenthetical content '{char_canonical_paren}'"
+                            )
+                            return True
+
+                        # Fix OO: Also check candidate against cleaned canonical (no parenthetical).
+                        # E.g., candidate "R. Walton" vs canonical "R. Walton (Robert Walton)" →
+                        # clean canonical "r. walton" == candidate → match.
+                        if clean_lower == char_canonical_clean and char_canonical_clean != char_canonical:
+                            logger.info(
+                                f"F6 Fix OO: '{name}' matches '{char.canonical_name}' "
+                                f"after stripping canonical parenthetical"
+                            )
+                            return True
+
+                        # Fix OO: Check candidate against aliases after stripping parenthetical.
+                        # E.g., candidate "De Lacey" vs alias "De Lacey (Old man)" →
+                        # strip to "de lacey" == candidate "de lacey" → match.
+                        for _alias in (char.aliases or []):
+                            _alias_clean = _alias.lower().strip()
+                            if "(" in _alias_clean:
+                                _alias_clean = _alias_clean.split("(")[0].strip()
+                            if clean_lower == _alias_clean and _alias_clean:
+                                logger.info(
+                                    f"F6 Fix OO: '{name}' matches alias '{_alias}' of "
+                                    f"'{char.canonical_name}' after stripping alias parenthetical"
+                                )
+                                return True
 
                         # Check if summary name is "FirstName LastName" and existing char is "FirstName"
                         # e.g., "Herbert White" should match "Herbert"

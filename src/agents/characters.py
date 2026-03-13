@@ -3459,15 +3459,22 @@ class CharacterAgent(Agent):
                     # E.g., "De Lacey" is preferred over "De Lacey (the old man)".
                     clean_aliases = [a for a in proper_name_aliases if "(" not in a]
                     candidate_pool = clean_aliases if clean_aliases else proper_name_aliases
-                    # Among clean aliases, choose the one with the most words (most specific name)
-                    best_alias = max(candidate_pool, key=lambda a: len(a.split()))
+                    # Among clean aliases, choose the one with the most words (most specific name).
+                    # For parenthetical aliases, count only words before the parenthetical.
+                    best_alias = max(candidate_pool, key=lambda a: len(a.split("(")[0].strip().split()))
+
+                    # Fix PP: Strip parenthetical annotation from best_alias before using as canonical.
+                    # E.g., "Alphonse Frankenstein (Father)" → canonical "Alphonse Frankenstein".
+                    # The parenthetical is a narrative role note, not part of the proper name.
+                    import re as _re_pp
+                    best_alias_canonical = _re_pp.sub(r'\s*\([^)]*\)', '', best_alias).strip()
 
                     # Fix NN: Guard against promoting a shared surname.
                     # If another character already uses this alias as one of their aliases,
                     # the name is ambiguous (shared by multiple characters, e.g. family surname).
                     # Promoting it to canonical would trigger _deduplicate_alias_canonical_conflicts
                     # to wrongly merge unrelated family members.
-                    _best_alias_lower = best_alias.lower()
+                    _best_alias_lower = best_alias_canonical.lower()
                     _conflict = any(
                         c is not desc_char
                         and any(a.lower() == _best_alias_lower for a in (c.aliases or []))
@@ -3475,20 +3482,25 @@ class CharacterAgent(Agent):
                     )
                     if _conflict:
                         logger.info(
-                            f"Fix EE: Skipping promotion of '{best_alias}' for '{desc_char.canonical_name}' "
+                            f"Fix EE: Skipping promotion of '{best_alias_canonical}' for '{desc_char.canonical_name}' "
                             f"— alias is shared with another character (ambiguous surname)"
                         )
                         # Fall through to merge-target search below
                     else:
                         old_canonical = desc_char.canonical_name
                         logger.info(
-                            f"Fix EE: Promoting '{best_alias}' to canonical for '{old_canonical}' "
-                            f"(was descriptor, had proper-name alias)"
+                            f"Fix EE/PP: Promoting '{best_alias_canonical}' to canonical for '{old_canonical}' "
+                            f"(was descriptor, had proper-name alias; stripped parenthetical from '{best_alias}')"
                         )
-                        desc_char.canonical_name = best_alias
+                        desc_char.canonical_name = best_alias_canonical
                         if old_canonical not in desc_char.aliases:
                             desc_char.aliases.append(old_canonical)
-                        desc_char.aliases.remove(best_alias)
+                        # Remove the original alias (with or without parenthetical)
+                        if best_alias in desc_char.aliases:
+                            desc_char.aliases.remove(best_alias)
+                        # Also remove the parenthetical-stripped version if it was added separately
+                        if best_alias_canonical != best_alias and best_alias_canonical in desc_char.aliases:
+                            desc_char.aliases.remove(best_alias_canonical)
                         # Re-classify: now has a proper noun, no longer needs merge
                         proper_name_chars.append(desc_char)
                         continue  # Skip merge attempt; now it's a proper-name char

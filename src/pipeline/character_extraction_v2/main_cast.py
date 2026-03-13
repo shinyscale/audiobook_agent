@@ -564,7 +564,20 @@ class MainCastExtractor:
             if alias_response.success and alias_result:
                 # Merge aliases into the character profile
                 aliases = alias_result.get("aliases", [])
-                char.aliases = [a.strip() for a in aliases if a.strip()]
+                # Fix QQ: Strip parenthetical annotations from aliases.
+                # LLMs often add role notes like "Alphonse Frankenstein (Father)" or
+                # "De Lacey (Old man)" — the parenthetical is a narrative annotation,
+                # not part of the character's name. Strip it to get the clean name.
+                import re as _re_qq
+                cleaned_aliases = []
+                for _a in aliases:
+                    _a = _a.strip()
+                    if _a:
+                        _a_clean = _re_qq.sub(r'\s*\([^)]*\)', '', _a).strip()
+                        _final = _a_clean if _a_clean else _a
+                        if _final not in cleaned_aliases:
+                            cleaned_aliases.append(_final)
+                char.aliases = cleaned_aliases
 
                 # Optional: keep uncertain aliases separate for later validation
                 uncertain = alias_result.get("uncertain_aliases", []) or []
