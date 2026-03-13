@@ -438,6 +438,54 @@ class CharacterAgent(Agent):
                 f"(LLM merged incompatible entity types)"
             )
 
+        # STEP 3.85: Merge creature-type split fragments into the highest-mention creature character.
+        # Universal invariant: "the creature", "the dæmon", "the being", "the fiend" etc. are
+        # all descriptors for the SAME entity in creature-feature narratives (Frankenstein,
+        # gothic horror). After Step 3.8 splits them from human/object parents, multiple
+        # creature-typed split_ chars end up coexisting as separate stubs. Merge them here.
+        #
+        # This fires only when ≥2 split_ characters BOTH have creature-term last words.
+        # The lower-mention ones are absorbed into the highest-mention one as aliases.
+        _CREATURE_TERMS_385 = {
+            "creature", "monster", "fiend", "daemon", "dæmon", "wretch", "being",
+            "demon", "devil", "beast", "brute", "phantom", "specter", "spectre",
+            "ghost", "spirit", "ogre",
+        }
+
+        def _is_creature_split_385(c: Character) -> bool:
+            if not (isinstance(c.id, str) and c.id.startswith("split_")):
+                return False
+            last_word = c.canonical_name.lower().rstrip(")").split()[-1].rstrip(")")
+            return last_word in _CREATURE_TERMS_385
+
+        creature_splits_385 = [c for c in main_cast if _is_creature_split_385(c)]
+        if len(creature_splits_385) >= 2:
+            # Ground mention counts first so we pick the right dominant
+            self._refresh_mentions(
+                {c.id for c in creature_splits_385}, main_cast, searcher, mention_results
+            )
+            creature_splits_385.sort(key=lambda c: c.mention_count, reverse=True)
+            dominant_385 = creature_splits_385[0]
+            to_merge_385 = creature_splits_385[1:]
+
+            for _frag in to_merge_385:
+                # Transfer aliases and attributes into the dominant
+                new_alias = _frag.canonical_name
+                if new_alias not in dominant_385.aliases:
+                    dominant_385.aliases.append(new_alias)
+                for _a in (_frag.aliases or []):
+                    if _a not in dominant_385.aliases and _a != dominant_385.canonical_name:
+                        dominant_385.aliases.append(_a)
+                # Propagate narrator flag if any fragment had it
+                if getattr(_frag, "is_narrator", False):
+                    dominant_385.is_narrator = True
+                main_cast.remove(_frag)
+                logger.info(
+                    f"V2 Step 3.85: Merged creature fragment '{_frag.canonical_name}' "
+                    f"({_frag.mention_count}m) into '{dominant_385.canonical_name}' "
+                    f"({dominant_385.mention_count}m)"
+                )
+
         # STEP 3.9: Post-split repair pass
         # Splitting creates new split_* character stubs with mention_count=0.
         # We must ground them and then re-run within-main merges so they can be absorbed

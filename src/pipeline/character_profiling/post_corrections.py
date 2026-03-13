@@ -878,6 +878,11 @@ class OutputCharacterCorrector:
         # (e.g., "John Smith (his father)" → forces father/son labels). Must run
         # BEFORE fix_bidirectional_parent_labels so the forced labels survive.
         self.force_parenthetical_relationship_labels(characters)
+        # _infer_relationships_from_possessive_aliases uses possessive kinship aliases
+        # (e.g., "his father", "his wife") to bootstrap narrator-relative relationships
+        # and infer missing gender. Runs after force_parenthetical so its corrections
+        # take precedence over the alias-inferred ones when both fire.
+        self._infer_relationships_from_possessive_aliases(characters)
         # fix_bidirectional_parent_labels must run AFTER verify_relationships_from_text,
         # which overrides relationships based on text evidence and can re-introduce
         # bidirectional parent labels (e.g., "father" found near co-mentioned siblings
@@ -3198,6 +3203,109 @@ class OutputCharacterCorrector:
                         f"(was '{old_fwd}'); "
                         f"'{other_canonical}' → '{char.canonical_name}': '{reverse_label}' "
                         f"(was '{old_rev}')"
+                    )
+
+    def _infer_relationships_from_possessive_aliases(self, characters) -> None:
+        """Bootstrap relationships from possessive kinship aliases.
+
+        When character A has an alias like "his father", "his wife", "her mother", etc.,
+        and there is exactly one character with is_narrator=True, the possessive implies
+        the narrator is the "his/her" referent.
+
+        Universal invariant in 1st-person narratives: "[possessive] [kinship]" aliases
+        are narrator-relative. "his father" = the narrator's father.
+
+        Also infers gender from kinship aliases:
+        - "his wife" / "her wife" → female
+        - "his husband" / "her husband" → male
+        - "his mother" / "her mother" → female
+        - "his father" / "her father" → male
+        - "his son" / "her son" → male
+        - "his daughter" / "her daughter" → female
+        """
+        import re as _re_pka
+
+        _POSSESSIVE_KINSHIP_RE = _re_pka.compile(
+            r"^(?:his|her|my|our)\s+(father|mother|son|daughter|brother|sister|husband|wife|"
+            r"uncle|aunt|nephew|niece|grandfather|grandmother|grandson|granddaughter)$",
+            _re_pka.IGNORECASE,
+        )
+        _KINSHIP_GENDER = {
+            "father": "male", "son": "male", "brother": "male",
+            "husband": "male", "uncle": "male", "nephew": "male",
+            "grandfather": "male", "grandson": "male",
+            "mother": "female", "daughter": "female", "sister": "female",
+            "wife": "female", "aunt": "female", "niece": "female",
+            "grandmother": "female", "granddaughter": "female",
+        }
+        _KINSHIP_REL_MAP = {
+            "father": "father", "mother": "mother",
+            "son": "son", "daughter": "daughter",
+            "brother": "brother", "sister": "sister",
+            "husband": "husband", "wife": "wife",
+            "uncle": "uncle", "aunt": "aunt",
+            "nephew": "nephew", "niece": "niece",
+            "grandfather": "grandfather", "grandmother": "grandmother",
+            "grandson": "grandson", "granddaughter": "granddaughter",
+        }
+
+        # Find the narrator (exactly one is_narrator=True character in 1st-person texts)
+        narrator_chars = [c for c in characters if getattr(c, "is_narrator", False)]
+
+        for char in characters:
+            for alias in (char.aliases or []):
+                m = _POSSESSIVE_KINSHIP_RE.match(alias.strip())
+                if not m:
+                    continue
+                kinship_term = m.group(1).lower()
+                rel_label = _KINSHIP_REL_MAP.get(kinship_term)
+                if not rel_label:
+                    continue
+
+                # Fix MM: Infer gender from kinship alias
+                inferred_gender = _KINSHIP_GENDER.get(kinship_term)
+                if inferred_gender and not char.gender:
+                    char.gender = inferred_gender
+                    logger.info(
+                        f"Fix MM: Inferred gender='{inferred_gender}' for '{char.canonical_name}' "
+                        f"from alias '{alias}'"
+                    )
+
+                # Fix LL: Bootstrap relationship to narrator if exactly one exists
+                if len(narrator_chars) != 1:
+                    continue
+                narrator = narrator_chars[0]
+                if narrator.id == char.id:
+                    continue  # Skip self-reference
+
+                # Only set if narrator has no relationship to this char yet,
+                # or has an obviously wrong label (e.g., "brother" when alias says "father")
+                _PARENT_CHILD_TERMS_PKA = frozenset({
+                    "father", "mother", "son", "daughter",
+                    "grandfather", "grandmother", "grandson", "granddaughter",
+                })
+                existing_fwd = (narrator.relationships or {}).get(char.canonical_name, "")
+                existing_rev = (char.relationships or {}).get(narrator.canonical_name, "")
+
+                # Override if missing or sibling label when actual kinship is parent/child
+                _should_set = (
+                    not existing_fwd
+                    or (rel_label in _PARENT_CHILD_TERMS_PKA
+                        and existing_fwd.lower() in {"brother", "sister", "cousin", "sibling"})
+                )
+                if _should_set:
+                    reverse_label = RELATIONSHIP_REVERSES.get(rel_label, rel_label)
+                    if not hasattr(narrator, "relationships") or narrator.relationships is None:
+                        narrator.relationships = {}
+                    if not hasattr(char, "relationships") or char.relationships is None:
+                        char.relationships = {}
+                    narrator.relationships[char.canonical_name] = reverse_label
+                    char.relationships[narrator.canonical_name] = rel_label
+                    logger.info(
+                        f"Fix LL: Bootstrap from alias '{alias}' — "
+                        f"'{narrator.canonical_name}' → '{char.canonical_name}': '{reverse_label}'; "
+                        f"'{char.canonical_name}' → '{narrator.canonical_name}': '{rel_label}' "
+                        f"(was fwd='{existing_fwd}', rev='{existing_rev}')"
                     )
 
     def clean_unknown_relationships(self, characters) -> None:
