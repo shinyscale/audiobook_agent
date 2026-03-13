@@ -2,7 +2,7 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 18
+- **Attempt:** 20
 - **Phase:** analysis_running
 - **baseline_score:** 7.35
 
@@ -82,7 +82,13 @@
 - Step 6.9 substitution: _nn_final = "the creature" (via alias lookup: dæmon → alias of creature)
   → ALL "the narrator" in summaries replaced with "the creature" → complete regression
 
-## Attempt 18 Fixes
+## Attempt 18 Fixes (commit 8d474af → cc66e09) — RESULT: REGRESSION (creature merged into Arctic ice)
+
+### Root cause of attempt 18 regression
+- LLM Pass 2 consolidated "the creature", "the dæmon", "the blind father (De Lacey)" all into "the Arctic ice"
+- verify_aliases Rule 0.5 (symbolic objects) should have blocked "the creature" as alias of "the Arctic ice"
+- merge_descriptive_entities alias-based merge detected "creature" in aliases_b_norm (if "the creature" survived verify_aliases)
+- Step 3.8 (_split_semantic_conflicts) didn't detect conflict because "arctic ice" is neither creature_terms nor human_descriptors
 
 ### Fix BB: analyzer.py Step 6.9 preamble — exclude stop words from word-set intersection
 - Stop words filtered: {a, an, the, of, in, on, at, by, to, with, from, and, or, is/was/are/were, his/her/their/its/my/your/our}
@@ -91,9 +97,67 @@
 - "Victor Frankenstein" → {"victor","frankenstein"} → matches "Victor" entries correctly
 - Expected result: Victor wins preamble count (appears in 24/28 non-letter chapters)
 
+## Attempt 19 Fixes (commit cc66e09)
+
+### Guard CC2: characters.py _merge_descriptor_into_proper_name (Step 3.6b)
+- Block person-entity descriptors (creature/being/monster/etc.) from merging into non-person targets
+- Check: if last word of descriptor canonical is in _PERSON_NOUNS_MERGE_GUARD_CC2 and last word of target is NOT → block
+- "the creature" (last="creature"=person) would not merge into "the Arctic ice" (last="ice"≠person)
+
+### Guard CC3: main_cast.py merge_descriptive_entities alias-based merge
+- Block alias-based merge when one entity is person/being and the other is non-living environment
+- _NON_LIVING_NOUNS_CC3: ice, sea, ocean, water, river, lake, mist, etc.
+- _PERSON_NOUNS_CC3: creature, being, monster, daemon, dæmon, man, woman, father, mother, etc.
+- If one canonical is person and other is non-living → skip merge even if canonical in aliases
+
+### Step 3.8 extended: _split_semantic_conflicts (characters.py)
+- Added Group 3: non_living_terms (ice, sea, ocean, forest, mountain, snow, etc.)
+- Extended creature_terms: added dæmon/demon/devil/beast/brute/ogre/phantom/specter/ghost/spirit
+- Extended human_descriptors: added father/mother/son/daughter/brother/sister/husband/wife
+- New conflict: canonical_is_non_living AND (alias_is_creature OR alias_is_human) → split
+- "the Arctic ice" (canonical_is_non_living=True) + "the creature" (alias_is_creature=True) → SPLIT
+
+### Rule 0.5b extended: _PERSON_NOUNS_R05B (main_cast.py)
+- Added: father, mother, son, daughter, brother, sister, husband, wife, child, gentleman, lady, sailor
+- "the blind father (De Lacey)" now correctly identified as person entity (last_word="father")
+
 ## Expected Chapter Attribution After Fixes
 - Letters 1-4: "Robert Walton" (correct — his narrative frame)
 - Chapters 1-10: "Victor Frankenstein" (inner narrator confirmed from is_narrator flag)
 - Chapters 11-16: "The narrator" (creature's narration, fixed by Fix N/6)
 - Chapters 17-24: "Victor Frankenstein" (back to Victor)
 - Chapter 25+: "Robert Walton" (back to outer frame, not present in this text)
+
+## Attempt 20 Fixes (commits cc0cdc8, fa1a5c6, 25a3988)
+
+### Fix DD: main_cast.py Rule 0.5b extension
+- Extended to block non-"the"-prefixed non-living aliases for person entities
+- E.g., "Arctic ice" can no longer be alias of "the creature" even without "the" prefix
+- New _NON_LIVING_NOUNS_R05B: ice, sea, ocean, water, river, lake, mist, storm, forest, etc.
+- Fires when: canonical starts with "the" AND is person entity AND alias last word is non-living
+
+### Fix EE: characters.py canonical name promotion for descriptor characters
+- When a descriptor character has proper-name aliases, promote best alias to canonical
+- E.g., "Father" with alias "Alphonse Frankenstein" → canonical = "Alphonse Frankenstein"
+- Prefers clean aliases (no parentheticals) over annotated ones
+- Enables the character to be properly recognized and profiled
+
+### Fix FF: characters.py kinship terms in _common_descriptor_words
+- Added: father, mother, son, daughter, brother, sister, husband, wife, uncle, aunt, etc.
+- "Father", "Mother" etc. now classified as descriptors enabling Fix EE to operate
+
+### Fix GG: characters.py non-living environment entity filter
+- After all pipeline steps, filter out characters whose canonical last word is a non-living noun
+- Removes "the ice" (and similar Arctic/nature descriptions extracted as characters)
+- Guard: symbolic entities (is_symbolic=True) are exempt; entities with proper-name aliases are exempt
+- Fixes: Victor's "the ice as rival" relationship, spurious "environmental antagonist" entity
+
+### Fix HH: analyzer.py F9 relationship extraction augmented with F2 summary evidence
+- When profile evidence is sparse (<3 items), supplement F9 with F2 summary evidence
+- F2 summary items (what chapters say about the character) help populate relationships
+- Fixes: Elizabeth (92 mentions, empty relationships) should now get Victor relationship
+
+### Attempt 20 Expected Improvements
+- Characters: Father → Alphonse Frankenstein canonical (Fix EE+FF); no spurious "the ice" (Fix GG)
+- Profiles: Victor won't have "the ice as rival"; Elizabeth may get Victor relationship (Fix HH)
+- Overall: Estimated 7.8-8.2/10

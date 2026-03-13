@@ -80,7 +80,7 @@
       "name": "frankenstein",
       "file": "Test_Texts/Frankenstein_ebook.txt",
       "complete": false,
-      "attempts": 1
+      "attempts": 20
     },
     {
       "name": "dracula",
