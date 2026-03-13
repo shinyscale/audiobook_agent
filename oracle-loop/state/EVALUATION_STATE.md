@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 23
-- **Phase:** awaiting_fix
+- **Attempt:** 24
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 
 ## Score History
@@ -121,11 +121,14 @@
 - Attempt 21: Fix KK (creature fragment merge), Fix LL (kinship→relationship), Fix MM (gender from kinship), Fix NN (Fix EE surname guard) — creature unified ✓ but new issues
 - Attempt 22: Fix OO/PP/QQ committed; killed at 1h14m because Fix RR/SS/TT/UU/WW also needed
 - Attempt 23: ALL fixes committed (OO/PP/QQ/RR/SS/TT/UU/WW) — canonicals fixed ✓, Walton dup removed ✓, but systematic narrator substitution errors
+- Attempt 24: Fix XX (narrator.py: prefer inner narrator for nested narratives), Fix YY (Fix OO alias guard: require canonical-word overlap)
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 24 | narrator.py outputs outer narrator (Walton) → used globally | narrator.py (Fix XX) | Changed prompt+example: inner narrator (Victor) for nested narratives |
+| 24 | Felix/De Lacey false merge via alias surname match | analyzer.py (Fix YY) | Added canonical-word-overlap guard to Fix OO alias check |
 | 23 | Ch11 nested narrator error | summarizer.py (Fix RR) | Partial ✓ — Ch11 fixed, but Ch16 and all Victor chapters still wrong |
 | 23 | F9 None→{} normalization | analyzer.py (Fix SS) | No visible effect — Elizabeth still empty relationships |
 | 23 | F9 evidence uses pronouns for narrator | analyzer.py (Fix TT) | No visible effect — relationships still wrong |
