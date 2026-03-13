@@ -1562,6 +1562,7 @@ class AudiobookAnalyzer:
                         TITLE_PATTERNS = [
                             r"^(?:sergeant-major|sergeant|captain|major|colonel|general|lieutenant|admiral|commander)\s+(.+)$",
                             r"^(?:doctor|dr\.|professor|prof\.|reverend|rev\.|father|sister)\s+(.+)$",
+                            r"^(?:mr\.|mr|mrs\.|mrs|ms\.|ms|miss|sir|lord|lady|judge|magistrate|inspector|constable|sheriff|detective|officer)\s+(.+)$",
                         ]
 
                         for pattern in TITLE_PATTERNS:
@@ -3562,12 +3563,24 @@ class AudiobookAnalyzer:
         consensus_log_data = consensus_collector.build_log()
         consensus_log = ConsensusLog(**consensus_log_data) if consensus_log_data.get("total_votes", 0) > 0 else None
 
-        # Determine narrator_character_id from the converted output characters
+        # Determine narrator_character_id from the converted output characters.
+        # Fix AA: prefer the character whose name matches narrator_detected (the finalized
+        # inner narrator, e.g. Victor Frankenstein) over the first is_narrator character
+        # (which may be the outer/frame narrator, e.g. Robert Walton).
         _narrator_char_id = None
-        for _oc in characters:
-            if getattr(_oc, 'is_narrator', False):
-                _narrator_char_id = _oc.id
-                break
+        if narrator_detected:
+            _nd_lower_aa = narrator_detected.lower()
+            for _oc in characters:
+                if getattr(_oc, 'is_narrator', False) and _oc.canonical_name:
+                    _oc_lower = _oc.canonical_name.lower()
+                    if _oc_lower == _nd_lower_aa or _nd_lower_aa in _oc_lower or _oc_lower in _nd_lower_aa:
+                        _narrator_char_id = _oc.id
+                        break
+        if _narrator_char_id is None:
+            for _oc in characters:
+                if getattr(_oc, 'is_narrator', False):
+                    _narrator_char_id = _oc.id
+                    break
 
         result = AnalysisResult(
             metadata=metadata,

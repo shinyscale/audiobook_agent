@@ -142,11 +142,14 @@ class WordIndex:
         - Hyphenated words: "well-known" (captured as single word)
         - Apostrophes: "don't", "O'Brien" (captured as single word)
 
-        Note: Accented characters (cafe, naive) may need special handling
-        depending on text encoding. Consider Unicode word boundaries if needed.
+        Note: Extends to Latin Extended characters (U+00C0-U+00FF) to capture
+        words with ligatures and diacritics such as "dæmon" (æ = U+00E6),
+        "naïve", "café", etc. that appear in older literary texts.
         """
-        # Pattern handles hyphenated words and apostrophes
-        pattern = r"\b([a-zA-Z]+(?:[-'][a-zA-Z]+)*)\b"
+        # Pattern handles hyphenated words, apostrophes, and Latin Extended chars (æ, Æ, etc.)
+        # Uses lookahead/lookbehind instead of \b to handle non-ASCII word boundaries correctly.
+        _W = r"[a-zA-Z\xc0-\xd6\xd8-\xf6\xf8-\xff]"  # ASCII letters + Latin Extended (U+00C0-U+00FF)
+        pattern = rf"(?<!{_W[1:-1]})({_W}+(?:[-']{_W}+)*)(?!{_W[1:-1]})"
 
         for match in re.finditer(pattern, self.full_text):
             word = match.group(1)

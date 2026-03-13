@@ -2,7 +2,7 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 15
+- **Attempt:** 17
 - **Phase:** analysis_running
 - **baseline_score:** 7.35
 
@@ -42,6 +42,35 @@
 - Now counts appearances in non-letter chapter summaries and picks the most frequent one
 - Victor (appears in ~24/24 non-letter chapters) wins over creature (appears in ~6/24)
 - Fallback: highest mention_count if no summary data
+
+## Attempt 16 Fixes (commit c711e2c) — RESULT: ~7.5/10 (Narration improved but chars/pronunciation still <8)
+
+### Fix V: narrator.py secondary path — skip symbolic entities (is_symbolic=True)
+### Fix W: narrator.py secondary path — block ≤5 mention characters
+
+### Attempt 16 Score Breakdown
+- Structure: 8/10 ✓ (28 chapters)
+- Characters: 7/10 ✗ — Mr. Kirwin + Magistrate Kirwin duplicate; Alphonse gender=female; Chamounix is a place
+- Profiles: 7.5/10 ✗ — Victor missing Elizabeth/creature relationships
+- Summaries: 8/10 ✓ — narrator attribution mostly correct; Ch15 says Victor instead of creature
+- Pronunciation: 7/10 ✗ — "dæmon" not indexed (æ=non-ASCII, old regex missed it); missing Prometheus/Lucerne/Arveiron
+- HTML: 8/10 ✓
+
+## Attempt 17 Fixes
+
+### Fix X: analyzer.py _is_likely_alias_of_existing TITLE_PATTERNS
+- Added: `mr.`, `mr`, `mrs.`, `mrs`, `ms.`, `ms`, `miss`, `sir`, `lord`, `lady`, `judge`, `magistrate`, `inspector`, `constable`, `sheriff`, `detective`, `officer`
+- Fixes: "Magistrate Kirwin" now blocked when "Mr. Kirwin" exists (identity resolution)
+
+### Fix Y: word_index.py _build_index Unicode tokenization
+- Changed: ASCII-only `[a-zA-Z]` pattern → Latin Extended `[a-zA-Z\xc0-\xd6\xd8-\xf6\xf8-\xff]`
+- Uses lookahead/lookbehind for word boundaries (not \b which fails on non-ASCII)
+- Fixes: "dæmon" now indexed and flagged for pronunciation (æ=U+00E6 in range)
+
+### Fix AA: analyzer.py narrator_character_id selection
+- Previously: picked FIRST is_narrator character (Robert Walton, main_cast_0)
+- Now: prefers character whose name matches narrator_detected (Victor Frankenstein)
+- Fallback: first is_narrator character if no narrator_detected match
 
 ## Expected Chapter Attribution After Fixes
 - Letters 1-4: "Robert Walton" (correct — his narrative frame)
