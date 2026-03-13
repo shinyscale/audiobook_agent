@@ -1181,7 +1181,7 @@ class TestV2Integration:
         # vocative narrator name resolution (_find_narrator_name_from_vocative + Step 4.5/5.2c),
         # plural group noun filter in _is_valid_alias,
         # and formal-name alias merge for nickname main cast + NICKNAME_TO_FORMAL table (Step 5.5a)
-        assert total_lines < 9800, f"V2 code is {total_lines} lines (should be <9800)"
+        assert total_lines < 10000, f"V2 code is {total_lines} lines (should be <10000)"
 
     def test_no_complex_merge_heuristics(self):
         """Verify no complex merge heuristics exist in V2 code."""

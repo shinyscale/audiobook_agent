@@ -139,6 +139,14 @@ class CharacterProposer(BasePronunciationProposer):
                 }:
                     continue
 
+                # Skip if in CMU dictionary — narrators already know standard English
+                # pronunciations; only flag words that require special guidance.
+                if word_lower in self.cmu_known_words:
+                    logger.debug(
+                        f"Character proposer: skipping '{word}' — found in CMU dictionary"
+                    )
+                    continue
+
                 seen_words.add(word_lower)
 
                 # Find all occurrences (uses WordIndex if provided)
