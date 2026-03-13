@@ -3407,8 +3407,12 @@ class CharacterAgent(Agent):
                     a for a in desc_char.aliases if _has_proper_noun(a)
                 ]
                 if proper_name_aliases:
-                    # Choose the alias with the most words (most specific name)
-                    best_alias = max(proper_name_aliases, key=lambda a: len(a.split()))
+                    # Prefer clean aliases (no parenthetical annotations) over parenthetical ones.
+                    # E.g., "De Lacey" is preferred over "De Lacey (the old man)".
+                    clean_aliases = [a for a in proper_name_aliases if "(" not in a]
+                    candidate_pool = clean_aliases if clean_aliases else proper_name_aliases
+                    # Among clean aliases, choose the one with the most words (most specific name)
+                    best_alias = max(candidate_pool, key=lambda a: len(a.split()))
                     old_canonical = desc_char.canonical_name
                     logger.info(
                         f"Fix EE: Promoting '{best_alias}' to canonical for '{old_canonical}' "
