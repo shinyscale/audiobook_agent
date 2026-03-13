@@ -2548,6 +2548,12 @@ class AudiobookAnalyzer:
                 # (e.g., "John" vs "John Donaldson", "Mary" vs "Mary Smith")
                 all_character_names = [c.canonical_name for c in pipeline_char_map.characters]
 
+                # Build character mention counts dict for Fix II (supplementary F9 for partial profiles).
+                character_mention_counts_map: dict[str, int] = {
+                    c.canonical_name: (getattr(c, "mention_count", 0) or 0)
+                    for c in pipeline_char_map.characters
+                }
+
                 # Build character descriptions map for same-name disambiguation.
                 # When two characters share a name prefix (e.g., "John" and "John Donaldson"),
                 # passing the other character's extracted description helps the LLM distinguish
@@ -2648,6 +2654,7 @@ class AudiobookAnalyzer:
                             all_character_names=all_character_names,
                             character_descriptions=character_descriptions_map,
                             narrator_name=narrator_detected if not getattr(char, "is_narrator", False) else None,
+                            character_mention_counts=character_mention_counts_map,
                         )
                     )
 
@@ -3403,6 +3410,10 @@ class AudiobookAnalyzer:
                 profile_llm = self._get_agent_llm_client("characters") or llm
                 if profile_llm:
                     all_char_names = [c.canonical_name for c in characters]
+                    _safety_net_mention_counts = {
+                        c.canonical_name: (getattr(c, "mention_count", 0) or 0)
+                        for c in characters
+                    }
                     for new_char in safety_net_chars:
                         print(f"   Profiling safety-net character: {new_char.canonical_name}")
                         profile, evidence, confidence, appearance, personality, voice_guidance, relationships = (
@@ -3410,6 +3421,7 @@ class AudiobookAnalyzer:
                                 profile_llm, new_char, doc.text,
                                 all_character_names=all_char_names,
                                 narrator_name=narrator_detected if not getattr(new_char, "is_narrator", False) else None,
+                                character_mention_counts=_safety_net_mention_counts,
                             )
                         )
                         if personality:
@@ -3801,6 +3813,7 @@ class AudiobookAnalyzer:
         all_character_names: Optional[list[str]] = None,
         character_descriptions: Optional[dict[str, str]] = None,
         narrator_name: Optional[str] = None,
+        character_mention_counts: Optional[dict[str, int]] = None,
     ) -> tuple[str, list[dict], float, Optional[dict], Optional[dict], Optional[dict], Optional[dict]]:
         """Generate prose profile for a character using LLM with evidence grounding.
 
@@ -4778,6 +4791,49 @@ Return ONLY the JSON object."""
                             )
                             if relationships:
                                 logger.info(f"Focused extraction found {len(relationships)} relationships for {character.canonical_name}")
+
+                        # Fix II: Supplementary F9 for high-mention characters with partial profiles.
+                        # If a character has >30 mentions and there are other high-mention characters
+                        # (>30 mentions) missing from their relationships, run a supplementary F9
+                        # to find those missing connections.
+                        # Universal invariant: two characters with >30 mentions in the same narrative
+                        # almost certainly interact — their absence from each other's profiles is an omission.
+                        _char_mentions = getattr(character, "mention_count", 0) or 0
+                        if (
+                            _char_mentions > 30
+                            and isinstance(relationships, dict)
+                            and len(relationships) >= 1  # Has some relationships (partial profile)
+                            and _f9_evidence
+                            and all_character_names
+                            and character_mention_counts
+                        ):
+                            # Find high-mention characters absent from relationships
+                            _rel_names_lower = {k.lower() for k in relationships}
+                            _missing_high_mention = [
+                                name for name in all_character_names
+                                if name != character.canonical_name
+                                and name.lower() not in _rel_names_lower
+                                and (character_mention_counts.get(name, 0) or 0) > 30
+                            ]
+                            if _missing_high_mention:
+                                logger.info(
+                                    f"Fix II: {character.canonical_name} has {_char_mentions} mentions "
+                                    f"but is missing relationships to high-mention characters: {_missing_high_mention}. "
+                                    f"Running supplementary F9."
+                                )
+                                _supplementary = self._extract_relationships_from_evidence(
+                                    llm,
+                                    character.canonical_name,
+                                    _f9_evidence,
+                                    _missing_high_mention  # Only look for the missing ones
+                                )
+                                if _supplementary:
+                                    # Merge into existing relationships (don't replace)
+                                    relationships = {**(relationships or {}), **_supplementary}
+                                    logger.info(
+                                        f"Fix II: Supplementary F9 added {len(_supplementary)} "
+                                        f"relationship(s) for {character.canonical_name}: {_supplementary}"
+                                    )
 
                         return (
                             profile,
