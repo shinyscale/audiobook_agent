@@ -4802,7 +4802,6 @@ Return ONLY the JSON object."""
                         if (
                             _char_mentions > 30
                             and isinstance(relationships, dict)
-                            and len(relationships) >= 1  # Has some relationships (partial profile)
                             and _f9_evidence
                             and all_character_names
                             and character_mention_counts
