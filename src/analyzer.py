@@ -4836,6 +4836,11 @@ Return ONLY the JSON object."""
                             )
                             if relationships:
                                 logger.info(f"Focused extraction found {len(relationships)} relationships for {character.canonical_name}")
+                            # Fix SS: Normalize None → {} so Fix II's isinstance(relationships, dict)
+                            # check passes even when F9 returns None (no relationships found).
+                            # Without this, Fix II never fires for characters whose F9 call fails.
+                            if relationships is None:
+                                relationships = {}
 
                         # Fix II: Supplementary F9 for high-mention characters with partial profiles.
                         # If a character has >30 mentions and there are other high-mention characters
