@@ -2,14 +2,15 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 20
-- **Phase:** analysis_running
+- **Attempt:** 21
+- **Phase:** pending_analysis
 - **baseline_score:** 7.35
 
 ## Score History
 | Attempt | Score | Notes |
 |---------|-------|-------|
 | 1 | 7.35 | Baseline |
+| 20 | ~7.35 | No improvement: creature fragmentation, Elizabeth gender/rels, wrong Alphonse rel |
 | 2 | 7.75 | Profiles improved |
 | 3 | 7.58 | Profiles regressed |
 | 4 | 7.08 | Summaries regressed (narrator substitution undid fix) |
@@ -161,3 +162,41 @@
 - Characters: Father → Alphonse Frankenstein canonical (Fix EE+FF); no spurious "the ice" (Fix GG)
 - Profiles: Victor won't have "the ice as rival"; Elizabeth may get Victor relationship (Fix HH)
 - Overall: Estimated 7.8-8.2/10
+
+## Attempt 20 Result (commit b6fea39 baseline, run ~101 min) — RESULT: ~7.35/10 (no net improvement)
+
+### Attempt 20 Score Breakdown
+- Structure: 8/10 ✓ — 28 chapters detected; Letter 1 title=None (minor)
+- Characters: 6.5/10 ✗ — creature fragmented (split_the_dæmon + split_the_being); Elizabeth gender=None; "the old man" not promoted; Felix wrong "De Lacey" alias
+- Profiles: 6.5/10 ✗ — Elizabeth empty relationships; Victor→Alphonse "brother" (WRONG); Alphonse→Victor "brother" (WRONG)
+- Summaries: 8/10 ✓ — Ch1 says "The narrator" not substituted; creature chapters (Ch11-16) correct; Victor chapters mostly correct
+- Pronunciation: 7.5/10 ✗ — Arveiron missing (fix committed for attempt 21); dæmon ✓; Chamounix ✓
+- HTML: 8/10 ✓
+
+### Root causes of attempt 20 failures
+1. **Creature fragmentation**: LLM this run extracted "the being" as a separate entity from "the dæmon". Step 3.8 split them because they had conflicting aliases. Now two creature-type split_ chars exist instead of one.
+2. **Elizabeth gender=None**: Alias "his wife" should infer female gender but gender inference from kinship aliases not implemented.
+3. **Elizabeth empty relationships**: Fix HH didn't fire or LLM failed to extract rels from F2 evidence.
+4. **Victor/Alphonse "brother" (WRONG)**: LLM profiler labeled relationship as "brother" instead of "father/son". The `_propagate_missing_reverses` sibling-override guard exists but didn't catch this (Victor has no authoritative father label to override from).
+5. **"the old man" not promoted**: Fix EE fires only for descriptor characters; LLM this run may have extracted "the old man" differently OR "De Lacey" was already associated with Felix, so old man's proper name alias wasn't set.
+
+## Attempt 21 Fixes
+
+### Fix KK: characters.py — post-split creature fragment merge
+- After Step 3.8 `_split_semantic_conflicts`, merge any two split_ characters BOTH of which have creature_terms as their canonical last word
+- creature_terms: creature, being, monster, daemon, dæmon, fiend, wretch, demon, beast, phantom
+- If two split_ chars both qualify: merge the lower-mention one into the higher-mention one (alias-based merge)
+- Guard: only merge if they originate from the same parent character (same prefix before the canonical name)
+
+### Fix LL: characters.py — kinship alias → relationship infer
+- When character A has alias like "his father", "her mother", "his son", etc. and there is a dominant co-mentioned character B:
+  - bootstrap A→B with the kinship term relationship
+  - bootstrap B→A with the inverse kinship term
+- Prevents LLM profiler from hallucinating "brother" when the alias clearly says "father"
+
+### Fix MM: characters.py — gender inference from kinship aliases
+- When alias contains "wife"/"her wife" → gender=female
+- When alias contains "husband"/"his husband" → gender=male
+- When alias contains "mother"/"her mother" → gender=female
+- When alias contains "his" prefix (possessive) → check referent gender from canonical name
+- Fixes: Elizabeth alias "his wife" → gender=female
