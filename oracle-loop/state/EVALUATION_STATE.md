@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 21
-- **Phase:** awaiting_analysis
+- **Attempt:** 23
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 
 ## Score History
@@ -12,6 +12,7 @@
 | 1 | 7.35 | Baseline |
 | 20 | ~7.35 | No improvement: creature fragmentation, Elizabeth gender/rels, wrong Alphonse rel |
 | 21 | 7.15 | Creature unified ✓, but duplicates (Walton, De Lacey), poor canonicals, empty profiles |
+| 22 | (killed) | Had Fix OO/PP/QQ but missing Fix RR/SS/TT/UU/WW — killed to avoid wasting 2.5h |
 
 ## Latest Scores
 - Structure Detection: 8/10 ✓
@@ -130,29 +131,39 @@
 - Attempt 19: Guards CC2/CC3, Step 3.8 extended, Rule 0.5b extended
 - Attempt 20: Fix DD/EE/FF/GG/HH — no improvement (creature fragmentation, profile gaps)
 - Attempt 21: Fix KK (creature fragment merge), Fix LL (kinship→relationship), Fix MM (gender from kinship), Fix NN (Fix EE surname guard) — creature unified ✓ but new issues
-- Attempt 22: Fix OO (canonical/alias parenthetical matching in F6), Fix PP (strip parenthetical from canonical in Fix EE), Fix QQ (strip parenthetical from aliases in Pass 2)
+- Attempt 22: Fix OO/PP/QQ committed; killed at 1h14m because Fix RR/SS/TT/UU/WW also needed
+- Attempt 23: ALL fixes committed (OO/PP/QQ/RR/SS/TT/UU/WW) — analysis starting now
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 22 | Walton/De Lacey F6 duplicates | analyzer.py (Fix OO) | Pending — canonical/alias parenthetical matching in _is_likely_alias_of_existing |
-| 22 | "my father" / "the old man" canonical | characters.py (Fix PP) | Pending — strip parenthetical from best_alias before setting canonical |
-| 22 | Parenthetical aliases | main_cast.py (Fix QQ) | Pending — strip parenthetical from aliases in Pass 2 (also fixes Fix EE by providing clean aliases) |
-| 21 | Creature fragmentation | characters.py (Fix KK) | Fixed ✓ — creature unified as "the fiend" |
-| 21 | Kinship alias relationships | characters.py (Fix LL) | Partially — Alphonse→Caroline "husband" correct |
+| 23 | Ch11 nested narrator error | summarizer.py (Fix RR) | Committed — extended Fix 6 window+detection |
+| 23 | F9 None→{} normalization | analyzer.py (Fix SS) | Committed — unblocks Fix II for empty profiles |
+| 23 | F9 evidence uses pronouns for narrator | analyzer.py (Fix TT) | Committed — always include F2 summary evidence |
+| 23 | Canonical parentheticals (proper-name chars) | characters.py (Fix UU) | Committed — R. Walton (Robert Walton) → Robert Walton |
+| 23 | "the fiend" canonical | characters.py (Fix WW) | Committed — Step 3.86 prefers "the creature" |
+| 22 | Walton/De Lacey F6 duplicates | analyzer.py (Fix OO) | Committed — parenthetical matching in F6 |
+| 22 | "my father" / "the old man" canonical | characters.py (Fix PP) | Committed — strip parenthetical from Fix EE best_alias |
+| 22 | Parenthetical aliases | main_cast.py (Fix QQ) | Committed — strip parenthetical from Pass 2 aliases |
+| 21 | Creature fragmentation | characters.py (Fix KK) | Fixed ✓ — creature unified |
 | 21 | Gender from kinship | characters.py (Fix MM) | Fixed ✓ — Elizabeth gender=female |
-| 21 | Fix EE surname guard | main_cast.py (Fix NN) | Unknown — "my father" still canonical |
-| 20 | Elizabeth relationships | analyzer.py (Fix HH) | No change — still empty |
-| 20 | Canonical promotion | characters.py (Fix EE) | Partial — "my father" not promoted |
+| 20 | Canonical promotion | characters.py (Fix EE) | Partial — fixed by Fix PP+QQ in attempt 22 |
+
+## Output Files (Attempt 23)
+- HTML: output/frankenstein/report.html
+- JSON: output/frankenstein/analysis.json
+- Duration: 197m 31s
+
+## Pipeline Notes (Attempt 23)
+- 19 characters (down from 22: Walton dup removed ✓, De Lacey dup removed ✓, Arctic ice removed ✓)
+- Robert Walton canonical (no parenthetical) ✓ Fix UU
+- "the creature" canonical (not "the fiend") ✓ Fix WW
+- Creature unified: the creature (aka the dæmon, the monster, the fiend) ✓
+- Alphonse Frankenstein proper name canonical ✓ Fix PP/QQ
+- CONCERN: "Felix (aka De Lacey, the son, Felix De Lacey)" — De Lacey father may be missing from cast
+- CONCERN: Elizabeth still has empty relationships
 
 ## Next Action
 
-The fix phase should focus on these high-impact issues in order:
-
-1. **Fix `_is_likely_alias_of_existing` to catch Walton and De Lacey duplicates** (CRITICAL #1, #2) — strip parentheticals from aliases, handle initial abbreviations ("R." matching "Robert")
-2. **Fix canonical promotion (Fix EE) to strip parentheticals** (HIGH #4, #6) — "Alphonse Frankenstein (Father)" should promote to "Alphonse Frankenstein"
-3. **Debug Elizabeth empty relationships** (CRITICAL #3) — trace why F9/profiler produces nothing for 92-mention character
-4. **Ch11 narrator attribution** (HIGH #7) — verify creature chapters use correct narrator
-
-Fixing #1+#2 should cascade to fix #8 and #10 (De Lacey relationship confusion). Fixing #4 may cascade to fix #9 (Victor's relationships using "my father" key).
+Proceed to evaluate phase.
