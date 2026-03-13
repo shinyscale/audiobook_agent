@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 21
-- **Phase:** pending_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 
 ## Score History
@@ -200,3 +200,12 @@
 - When alias contains "mother"/"her mother" → gender=female
 - When alias contains "his" prefix (possessive) → check referent gender from canonical name
 - Fixes: Elizabeth alias "his wife" → gender=female
+
+## Attempt 21 Output Files
+- HTML: ../output/frankenstein/report.html
+- JSON: ../output/frankenstein/analysis.json
+
+## Attempt 21 Pipeline Notes
+- Run used model: qwen2.5:32b-instruct-q8_0 (pre-existing nohup job from 07:22; gui_settings configured qwen3-next:80b-a3b-instruct-q8_0 but that model was not loaded and health check timed out)
+- Completed at 11:25 on 2026-03-13
+- Log: oracle-loop/logs/frankenstein_attempt21.log (42 lines)
