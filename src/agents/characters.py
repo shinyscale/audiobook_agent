@@ -3461,18 +3461,37 @@ class CharacterAgent(Agent):
                     candidate_pool = clean_aliases if clean_aliases else proper_name_aliases
                     # Among clean aliases, choose the one with the most words (most specific name)
                     best_alias = max(candidate_pool, key=lambda a: len(a.split()))
-                    old_canonical = desc_char.canonical_name
-                    logger.info(
-                        f"Fix EE: Promoting '{best_alias}' to canonical for '{old_canonical}' "
-                        f"(was descriptor, had proper-name alias)"
+
+                    # Fix NN: Guard against promoting a shared surname.
+                    # If another character already uses this alias as one of their aliases,
+                    # the name is ambiguous (shared by multiple characters, e.g. family surname).
+                    # Promoting it to canonical would trigger _deduplicate_alias_canonical_conflicts
+                    # to wrongly merge unrelated family members.
+                    _best_alias_lower = best_alias.lower()
+                    _conflict = any(
+                        c is not desc_char
+                        and any(a.lower() == _best_alias_lower for a in (c.aliases or []))
+                        for c in characters
                     )
-                    desc_char.canonical_name = best_alias
-                    if old_canonical not in desc_char.aliases:
-                        desc_char.aliases.append(old_canonical)
-                    desc_char.aliases.remove(best_alias)
-                    # Re-classify: now has a proper noun, no longer needs merge
-                    proper_name_chars.append(desc_char)
-                    continue  # Skip merge attempt; now it's a proper-name char
+                    if _conflict:
+                        logger.info(
+                            f"Fix EE: Skipping promotion of '{best_alias}' for '{desc_char.canonical_name}' "
+                            f"— alias is shared with another character (ambiguous surname)"
+                        )
+                        # Fall through to merge-target search below
+                    else:
+                        old_canonical = desc_char.canonical_name
+                        logger.info(
+                            f"Fix EE: Promoting '{best_alias}' to canonical for '{old_canonical}' "
+                            f"(was descriptor, had proper-name alias)"
+                        )
+                        desc_char.canonical_name = best_alias
+                        if old_canonical not in desc_char.aliases:
+                            desc_char.aliases.append(old_canonical)
+                        desc_char.aliases.remove(best_alias)
+                        # Re-classify: now has a proper noun, no longer needs merge
+                        proper_name_chars.append(desc_char)
+                        continue  # Skip merge attempt; now it's a proper-name char
 
             # Find proper-name candidates with matching role + gender + fewer mentions
             candidates = [
