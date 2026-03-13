@@ -38,7 +38,7 @@ NARRATOR_DETECTION_PROMPT = """You are analyzing a novel's narrative point of vi
 
 Based on the summaries below, determine:
 1. Is this first-person ("I" narration) or third-person? NOTE: These summaries are written in third-person regardless of the original story's style. To detect POV: first-person means the story uses "I"/"we" from a character's direct perspective; third-person/omniscient uses "he"/"she"/"they" even if one character's emotions are the focus. A character referred to as "he/she" is NOT the first-person narrator. IMPORTANT: In first-person stories, the narrator uses "I" for themselves, so their proper name appears LESS FREQUENTLY than the characters they describe. If your proposed narrator is the most-mentioned character, reconsider — the most-mentioned character is usually the SUBJECT of the story, not the narrator.
-2. If first-person, WHO is the narrator? Output their EXACT name from the main cast list below. For frame/nested narratives, identify the narrator who uses "I" across the MAJORITY of chapters — the inner narrator who tells the bulk of the story, not the outer frame narrator who merely introduces or transcribes. KEY: If a summary says "X recounts/tells their story to Y", then X is the "I" voice being reported — output X's name (the inner narrator, who narrates the most content).
+2. If first-person, WHO is the narrator? Output their EXACT name from the main cast list below. For frame/nested narratives, the OUTER narrator (whose "I" appears outside quotation marks) is the primary narrator; the inner narrator (whose first-person voice appears within quoted dialogue) is secondary. KEY: If a summary says "X recounts/tells their story/experiences to Y" or "X describes events to Y", then X is the INNER narrator and Y is the OUTER primary narrator — output Y's name.
 3. Is this a nested/frame narrative with multiple narrators?
 
 CHAPTER SUMMARIES:
@@ -62,10 +62,10 @@ For nested narratives (like Frankenstein with Walton's letters framing Victor's 
 ```json
 {{
   "pov": "epistolary",
-  "narrator_name": "Victor Frankenstein",
+  "narrator_name": "Robert Walton",
   "is_nested": true,
   "nested_narrators": ["Robert Walton", "Victor Frankenstein", "the creature"],
-  "reasoning": "Frame narrative: Victor narrates the bulk of chapters (his story); Walton only narrates 4 framing letters — Victor is the inner narrator"
+  "reasoning": "Frame narrative: Walton's letters contain Victor's story, which contains the creature's story"
 }}
 ```
 
