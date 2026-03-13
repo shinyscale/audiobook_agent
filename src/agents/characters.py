@@ -486,6 +486,32 @@ class CharacterAgent(Agent):
                     f"({dominant_385.mention_count}m)"
                 )
 
+        # STEP 3.86: Fix WW — universal "the creature" canonical promotion.
+        # After all creature-term merges, any character whose canonical is a pejorative/
+        # evaluative creature term ("the fiend", "the monster", etc.) but has "the creature"
+        # as an alias should be promoted to "the creature" canonical. This is consistent
+        # with the preference in merge_descriptive_entities (main_cast.py).
+        # Universal: applies to any novel with a creature-term character.
+        _CREATURE_TERMS_STEP386 = {
+            "the fiend", "the monster", "the wretch", "the daemon",
+            "the dæmon", "the demon", "the being", "the abomination",
+        }
+        for _mc in main_cast:
+            if _mc.canonical_name.lower() in _CREATURE_TERMS_STEP386:
+                _creature_alias_386 = next(
+                    (a for a in (_mc.aliases or []) if a.lower() == "the creature"), None
+                )
+                if _creature_alias_386:
+                    _old_386 = _mc.canonical_name
+                    _mc.aliases = [a for a in _mc.aliases if a.lower() != "the creature"]
+                    if _old_386 not in _mc.aliases:
+                        _mc.aliases.append(_old_386)
+                    _mc.canonical_name = "the creature"
+                    logger.info(
+                        f"V2 Step 3.86 Fix WW: Promoted 'the creature' to canonical "
+                        f"(was '{_old_386}')"
+                    )
+
         # STEP 3.9: Post-split repair pass
         # Splitting creates new split_* character stubs with mention_count=0.
         # We must ground them and then re-run within-main merges so they can be absorbed
@@ -3418,6 +3444,48 @@ class CharacterAgent(Agent):
             if words & _female_words:
                 return "female"
             return "unknown"
+
+        # Fix UU: Strip or upgrade parenthetical content in canonical names for proper-name chars.
+        # Handles cases like "R. Walton (Robert Walton)" where the paren contains a fuller name,
+        # and "Caroline Beaufort Frankenstein (Mother)" where the paren is a role annotation.
+        # Fix EE/PP handles descriptor canonicals; Fix UU handles proper-name canonicals.
+        import re as _re_uu
+        for _uu_char in characters:
+            if "(" not in _uu_char.canonical_name:
+                continue
+            _uu_parts = _uu_char.canonical_name.split("(", 1)
+            _uu_pre = _uu_parts[0].strip()
+            _uu_paren = _uu_parts[1].split(")")[0].strip() if ")" in _uu_parts[1] else ""
+            if not _uu_pre:
+                continue
+            # Determine best canonical: if paren is proper noun AND fuller than pre, prefer paren
+            _uu_new = _uu_pre
+            if _uu_paren and _has_proper_noun(_uu_paren):
+                _uu_pre_words = _uu_pre.split()
+                _uu_par_words = _uu_paren.split()
+                _uu_is_fuller = False
+                if len(_uu_par_words) >= len(_uu_pre_words):
+                    # Check if paren expands an abbreviated word (e.g., "R." → "Robert")
+                    for _pi, (_pw, _prw) in enumerate(zip(_uu_par_words, _uu_pre_words)):
+                        if (_prw.endswith('.') and len(_pw) > len(_prw)
+                                and _pw[0].lower() == _prw[0].lower()):
+                            _uu_is_fuller = True
+                            break
+                if _uu_is_fuller:
+                    _uu_new = _uu_paren
+            # Apply: set canonical to cleaned form, add old form to aliases
+            if _uu_new != _uu_char.canonical_name:
+                _uu_old = _uu_char.canonical_name
+                # Preserve the stripped pre-paren as alias if it's different from new canonical
+                if _uu_pre != _uu_new and _uu_pre not in (_uu_char.aliases or []):
+                    _uu_char.aliases = (_uu_char.aliases or []) + [_uu_pre]
+                # Add old canonical as alias too
+                if _uu_old not in (_uu_char.aliases or []):
+                    _uu_char.aliases = (_uu_char.aliases or []) + [_uu_old]
+                _uu_char.canonical_name = _uu_new
+                logger.info(
+                    f"Fix UU: Cleaned canonical '{_uu_old}' → '{_uu_new}'"
+                )
 
         descriptor_chars = []
         proper_name_chars = []
