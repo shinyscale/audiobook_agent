@@ -1435,19 +1435,29 @@ class ChapterSummarizer:
                         return
 
         # Fix 6: Chapter text opens with ANY quoted prose (not just "I ...") after heading,
-        # AND the opening 300 chars contain ≥4 first-person singular pronouns (I/my/me).
+        # AND the opening 300 chars of the inner narrator's text contain ≥4 first-person
+        # singular pronouns (I/my/me).
         # Universal invariant: in frame narratives, inner narrator chapters are presented
         # within outer quotation marks. Even when the first word is not "I" (e.g., "It is...",
         # "Some time...", "Cursed..."), heavy first-person usage in the opening confirms
         # this is the inner narrator's voice, not the outer narrator's.
         # Guard: does NOT fire if Fix 5 already handled the chapter.
+        # Fix RR: Extended search window from 200→1000 chars (the chapter heading may be
+        # preceded by the tail of the outer narrator's text, so the offset to the heading
+        # can exceed 200 chars). Also count first-person pronouns AFTER the heading
+        # (inner narrator's text) rather than before (outer narrator's). Also extend
+        # name detection to handle summaries starting with "The chapter describes [Name]".
         if chapter_text:
             _quoted_any_re = re.compile(
                 r'(?:Chapter|Letter)\s+\w+\.?\s*\n\s*[\u201c"]',  # Chapter N.\n" (any quoted opening)
                 re.IGNORECASE,
             )
-            if _quoted_any_re.search(chapter_text[:200]):
-                _fp_head = chapter_text[:300]
+            _heading_match = _quoted_any_re.search(chapter_text[:1000])  # Fix RR: extended to 1000
+            if _heading_match:
+                # Fix RR: count first-person pronouns in INNER narrator's text (after heading),
+                # not in the outer narrator's preceding text (which also uses "I/my/me").
+                _inner_start = _heading_match.end()
+                _fp_head = chapter_text[_inner_start:_inner_start + 300]
                 _fp_count = (
                     len(re.findall(r'\bI\b', _fp_head))
                     + len(re.findall(r'\bmy\b', _fp_head, re.IGNORECASE))
@@ -1460,6 +1470,27 @@ class ChapterSummarizer:
                     m3 = leading_name_re3.match(summary)
                     if m3:
                         wrong_name3 = m3.group(1)
+                    else:
+                        # Fix RR: summary starts with "The chapter describes [Name]..."
+                        # — leading proper name is not at position 0. Search first sentence.
+                        _first_dot = summary.find('.')
+                        _first_sent = summary[:_first_dot + 1] if _first_dot != -1 else summary[:200]
+                        _nm = re.search(
+                            r'\b([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)+)\b', _first_sent
+                        )
+                        wrong_name3 = _nm.group(1) if _nm else None
+                    if wrong_name3:
+                        # Fix RR guard: only replace if the wrong name appears ≥2 times
+                        # as a narrator-agent (not just once as possessive subject matter).
+                        # E.g. "De Lacey's family history" has De Lacey × 1 (possessive,
+                        # subject matter) — do NOT replace. "Victor Frankenstein's journey
+                        # ... Victor Frankenstein observes" has × 2 — DO replace.
+                        _name_count_in_summary = len(re.findall(
+                            r'\b' + re.escape(wrong_name3) + r'\b', summary
+                        ))
+                        if _name_count_in_summary < 2:
+                            wrong_name3 = None
+                    if wrong_name3:
                         # Outer-quote chapters are innermost-narrator chapters (e.g. the
                         # creature in Frankenstein speaking within Victor's narration).
                         # NEVER use narrator_detected as replacement here — the confirmed
@@ -1477,7 +1508,7 @@ class ChapterSummarizer:
                                 summary,
                             )
                         else:
-                            fixed3 = replacement3 + m3.group(2) + summary[m3.end():]
+                            fixed3 = replacement3 + summary[len(wrong_name3):]
                         if fixed3 != summary:
                             logger.info(
                                 f"Narrator fix (quoted inner narrator, FP density): "
