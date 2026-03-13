@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 15
-- **Phase:** fixes_ready
+- **Phase:** analysis_running
 - **baseline_score:** 7.35
 
 ## Score History

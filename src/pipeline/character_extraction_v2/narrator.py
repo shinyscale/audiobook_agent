@@ -389,6 +389,29 @@ class NarratorDetector:
             # For nested narratives, mark secondary narrators
             elif char.id in narrator_info.nested_narrators:
                 secondary_mentions = getattr(char, "mention_count", 0) or 0
+                # Universal invariant: narrators must be PEOPLE, not symbolic entities,
+                # settings, or objects. The LLM sometimes includes environmental forces
+                # (e.g., "the Arctic ice") in nested_narrators for frame narratives —
+                # these are never actual narrators. Skip symbolic entities.
+                if getattr(char, "is_symbolic", False):
+                    logger.info(
+                        f"Secondary narrator candidate '{char.canonical_name}' skipped — "
+                        f"symbolic entity (is_symbolic=True) cannot be a narrator"
+                    )
+                    continue
+                # Universal invariant: secondary narrators must have meaningful text presence.
+                # A character with ≤ 5 mentions is a peripheral figure, not someone telling
+                # a significant portion of the narrative. This prevents the outer/frame narrator
+                # (e.g., Walton with 3–8 mentions) from being assigned is_narrator via the
+                # secondary path when narrator_character_id is None (so Walton misses the
+                # primary-path blocking check and falls through to the elif).
+                # Exception: mention_count=0 means not yet computed (mock/test scenario).
+                if 0 < secondary_mentions <= 5:
+                    logger.info(
+                        f"Secondary narrator candidate '{char.canonical_name}' skipped — "
+                        f"only {secondary_mentions} mention(s), too few to be a narrator"
+                    )
+                    continue
                 # Universal invariant: in a nested narrative the OUTER narrator appears
                 # in only a few framing chapters and therefore has a low mention count.
                 # When the outer narrator has < 15 mentions the high mention count of a
