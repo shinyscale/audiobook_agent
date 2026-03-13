@@ -4749,13 +4749,31 @@ Return ONLY the JSON object."""
 
                         # F9: Focused relationship extraction (second LLM call if needed)
                         # If relationships dict is empty/None but we have evidence and other characters exist,
-                        # make a focused LLM call to extract just relationships from the evidence
-                        if (not relationships or not isinstance(relationships, dict) or len(relationships) == 0) and validated_evidence and all_character_names:
+                        # make a focused LLM call to extract just relationships from the evidence.
+                        # Fix HH: Also use F2 summary evidence when profile evidence is sparse,
+                        # to ensure characters with rich summary context but thin text mentions
+                        # (e.g., supporting characters) still get relationship extraction.
+                        _f9_evidence = validated_evidence or []
+                        if len(_f9_evidence) < 3 and summary_evidence and summary_evidence.evidence:
+                            # Augment with F2 summary evidence items (converted to evidence format)
+                            _f2_items = [
+                                {"statement": ev.statement, "quote": "", "position": 0}
+                                for ev in summary_evidence.evidence[:10]
+                                if ev.statement and len(ev.statement) > 20
+                            ]
+                            if _f2_items:
+                                _f9_evidence = _f9_evidence + _f2_items
+                                logger.info(
+                                    f"F9/Fix HH: Augmented evidence for {character.canonical_name} "
+                                    f"with {len(_f2_items)} F2 summary items "
+                                    f"(was {len(validated_evidence)} profile items)"
+                                )
+                        if (not relationships or not isinstance(relationships, dict) or len(relationships) == 0) and _f9_evidence and all_character_names:
                             logger.info(f"Attempting focused relationship extraction for {character.canonical_name}")
                             relationships = self._extract_relationships_from_evidence(
                                 llm,
                                 character.canonical_name,
-                                validated_evidence,
+                                _f9_evidence,
                                 all_character_names
                             )
                             if relationships:
