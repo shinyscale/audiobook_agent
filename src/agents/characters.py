@@ -2571,6 +2571,51 @@ class CharacterAgent(Agent):
                             f"from '{_owner_5115.canonical_name}' (appeared on {len(_owners_5115)} characters)"
                         )
 
+        # Fix GG: Remove non-living environment characters from cast.
+        # Universal invariant: physical environment elements (ice, sea, storm, etc.) are
+        # NEVER narrative characters — they are setting elements. If a non-living noun
+        # ends up in the cast with no proper-name aliases and no symbolic status,
+        # it was extracted erroneously (e.g., "the ice" in Frankenstein polar scenes).
+        _NON_LIVING_FILTER_GG = {
+            "ice", "sea", "ocean", "water", "river", "lake", "mist", "fog",
+            "wind", "storm", "forest", "wood", "mountain", "cliff", "cave",
+            "snow", "frost", "darkness", "light", "fire", "void", "abyss",
+            "shadow", "nature", "earth", "sky", "air", "wave", "tide",
+            "current", "glacier", "wilderness", "landscape", "terrain",
+            "cold", "heat", "silence", "night", "fog",
+        }
+
+        def _is_nonliving_entity_gg(char) -> bool:
+            """True if this character is an erroneously extracted non-living entity."""
+            if getattr(char, "is_symbolic", False):
+                return False  # Symbolic objects may legitimately be characters
+            name_lower = char.canonical_name.lower().strip()
+            last_word = name_lower.split()[-1] if name_lower else ""
+            if last_word not in _NON_LIVING_FILTER_GG:
+                return False
+            # Allow through if character has a proper-name alias (could be a location with a name)
+            for alias in (char.aliases or []):
+                # Check using _has_proper_noun logic inline
+                for word in alias.split():
+                    clean = word.strip(".,;:'\"()[]")
+                    if clean and clean[0].isupper() and clean.lower() not in {
+                        "the", "a", "an", "of", "in", "from", "to", "at", "by", "on"
+                    }:
+                        return False  # Has a proper-name alias — keep it
+            return True  # No proper names, last word is non-living — filter out
+
+        _gg_removed_main = [c for c in main_cast if _is_nonliving_entity_gg(c)]
+        _gg_removed_supp = [c for c in supporting_cast if _is_nonliving_entity_gg(c)]
+        if _gg_removed_main or _gg_removed_supp:
+            for _c in _gg_removed_main + _gg_removed_supp:
+                logger.warning(
+                    f"Fix GG: Removing non-living environment entity '{_c.canonical_name}' "
+                    f"from cast (last word: '{_c.canonical_name.lower().split()[-1]}', "
+                    f"mentions={_c.mention_count})"
+                )
+            main_cast = [c for c in main_cast if not _is_nonliving_entity_gg(c)]
+            supporting_cast = [c for c in supporting_cast if not _is_nonliving_entity_gg(c)]
+
         # Build final CharacterMap
         all_characters = self._convert_to_pipeline_characters(
             main_cast, supporting_cast, mention_results
@@ -3289,6 +3334,11 @@ class CharacterAgent(Agent):
                 "man", "woman", "boy", "girl", "person", "child",
                 "stranger", "visitor", "figure", "creature", "ghost",
                 "spirit", "shadow", "voice", "soul", "being",
+                # Fix FF: Kinship terms — "Father", "Mother", "Brother" etc. when capitalized
+                # are still descriptor roles, not proper nouns (e.g., "Father" → Alphonse Frankenstein).
+                "father", "mother", "son", "daughter", "brother", "sister",
+                "husband", "wife", "uncle", "aunt", "nephew", "niece",
+                "grandfather", "grandmother", "grandma", "grandpa",
             }
             for word in name.split():
                 clean = word.strip(".,;:'\"()[]")
@@ -3346,6 +3396,31 @@ class CharacterAgent(Agent):
             # Require meaningful mention count to avoid merging minor descriptors
             if desc_mentions < 5:
                 continue
+
+            # Fix EE: Canonical name promotion.
+            # If the descriptor character already has a proper-name alias, promote the best one
+            # to canonical (moving the old descriptor canonical to aliases).
+            # E.g., "Father" with alias "Alphonse Frankenstein" → canonical becomes "Alphonse Frankenstein".
+            # This lets the character become a proper_name_char instead of needing a merge target.
+            if desc_char.aliases:
+                proper_name_aliases = [
+                    a for a in desc_char.aliases if _has_proper_noun(a)
+                ]
+                if proper_name_aliases:
+                    # Choose the alias with the most words (most specific name)
+                    best_alias = max(proper_name_aliases, key=lambda a: len(a.split()))
+                    old_canonical = desc_char.canonical_name
+                    logger.info(
+                        f"Fix EE: Promoting '{best_alias}' to canonical for '{old_canonical}' "
+                        f"(was descriptor, had proper-name alias)"
+                    )
+                    desc_char.canonical_name = best_alias
+                    if old_canonical not in desc_char.aliases:
+                        desc_char.aliases.append(old_canonical)
+                    desc_char.aliases.remove(best_alias)
+                    # Re-classify: now has a proper noun, no longer needs merge
+                    proper_name_chars.append(desc_char)
+                    continue  # Skip merge attempt; now it's a proper-name char
 
             # Find proper-name candidates with matching role + gender + fewer mentions
             candidates = [

@@ -1095,19 +1095,30 @@ class MainCastExtractor:
                     "father", "mother", "son", "daughter", "brother", "sister",
                     "husband", "wife", "child", "gentleman", "lady", "sailor",
                 }
+                # Fix DD: Environmental/non-living nouns that cannot be aliases of person entities.
+                # Even without "the" prefix, an environmental term cannot name a character.
+                _NON_LIVING_NOUNS_R05B = {
+                    "ice", "sea", "ocean", "water", "river", "lake", "mist", "fog",
+                    "wind", "storm", "forest", "wood", "mountain", "cliff", "cave",
+                    "snow", "frost", "darkness", "light", "fire", "void", "abyss",
+                    "shadow", "nature", "earth", "sky", "air", "wave", "tide",
+                    "current", "glacier", "wilderness", "landscape", "terrain",
+                    "cold", "heat", "silence", "night",
+                }
                 _canon_lower_05b = profile.canonical_name.lower()
+                # Always compute stripped parts for both conditions below
+                import re as _re_05b
+                _canon_stripped_05b = _re_05b.sub(r'\s*\([^)]*\)\s*', ' ', _canon_lower_05b).strip()
+                _alias_stripped_05b = _re_05b.sub(r'\s*\([^)]*\)\s*', ' ', alias_lower).strip()
+                _canon_parts_05b = _canon_stripped_05b.split()
+                _alias_parts_05b = _alias_stripped_05b.split()
+                _canon_last_05b = _canon_parts_05b[-1] if _canon_parts_05b else _canon_lower_05b.split()[-1]
+                _alias_last_05b = _alias_parts_05b[-1] if _alias_parts_05b else alias_lower.split()[-1]
+                _canon_is_person_05b = _canon_last_05b in _PERSON_NOUNS_R05B
+                _alias_is_person_05b = _alias_last_05b in _PERSON_NOUNS_R05B
+                _alias_is_nonliving_05b = _alias_last_05b in _NON_LIVING_NOUNS_R05B
+                _canon_is_nonliving_05b = _canon_last_05b in _NON_LIVING_NOUNS_R05B
                 if _canon_lower_05b.startswith("the ") and alias_lower.startswith("the "):
-                    # Strip parenthetical annotations before extracting last word
-                    # e.g., "the blind father (de lacey)" → "the blind father" → "father"
-                    import re as _re_05b
-                    _canon_stripped_05b = _re_05b.sub(r'\s*\([^)]*\)\s*', ' ', _canon_lower_05b).strip()
-                    _alias_stripped_05b = _re_05b.sub(r'\s*\([^)]*\)\s*', ' ', alias_lower).strip()
-                    _canon_parts_05b = _canon_stripped_05b.split()
-                    _alias_parts_05b = _alias_stripped_05b.split()
-                    _canon_last_05b = _canon_parts_05b[-1] if _canon_parts_05b else _canon_lower_05b.split()[-1]
-                    _alias_last_05b = _alias_parts_05b[-1] if _alias_parts_05b else alias_lower.split()[-1]
-                    _canon_is_person_05b = _canon_last_05b in _PERSON_NOUNS_R05B
-                    _alias_is_person_05b = _alias_last_05b in _PERSON_NOUNS_R05B
                     if _canon_is_person_05b != _alias_is_person_05b:
                         logger.warning(
                             f"BLOCKED alias: '{alias}' (core: '{_alias_last_05b}') is "
@@ -1115,6 +1126,23 @@ class MainCastExtractor:
                             f"(core: '{_canon_last_05b}') — person/non-person mismatch"
                         )
                         continue
+                # Fix DD: Also block when canonical is a "the"-prefixed person entity and alias
+                # is an environmental/non-living noun (even without "the" prefix).
+                # E.g., "Arctic ice" cannot be alias of "the creature".
+                if _canon_lower_05b.startswith("the ") and _canon_is_person_05b and _alias_is_nonliving_05b:
+                    logger.warning(
+                        f"BLOCKED alias: '{alias}' (non-living: '{_alias_last_05b}') cannot be "
+                        f"alias of person entity '{profile.canonical_name}' — Fix DD"
+                    )
+                    continue
+                # Fix DD (reverse): Also block when alias is a "the"-prefixed person entity and
+                # canonical is non-living.
+                if alias_lower.startswith("the ") and _alias_is_person_05b and _canon_is_nonliving_05b:
+                    logger.warning(
+                        f"BLOCKED alias: '{alias}' (person: '{_alias_last_05b}') cannot be "
+                        f"alias of non-living entity '{profile.canonical_name}' — Fix DD reverse"
+                    )
+                    continue
 
                 # RULE 0.5c: Possessive-reference blocker.
                 # An alias of the form "{CharacterName}'s {noun}" describes a POSSESSION
