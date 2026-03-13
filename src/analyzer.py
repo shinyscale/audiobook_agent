@@ -1535,16 +1535,29 @@ class AudiobookAnalyzer:
                         # Fix OO: Check candidate against aliases after stripping parenthetical.
                         # E.g., candidate "De Lacey" vs alias "De Lacey (Old man)" →
                         # strip to "de lacey" == candidate "de lacey" → match.
-                        for _alias in (char.aliases or []):
-                            _alias_clean = _alias.lower().strip()
-                            if "(" in _alias_clean:
-                                _alias_clean = _alias_clean.split("(")[0].strip()
-                            if clean_lower == _alias_clean and _alias_clean:
-                                logger.info(
-                                    f"F6 Fix OO: '{name}' matches alias '{_alias}' of "
-                                    f"'{char.canonical_name}' after stripping alias parenthetical"
-                                )
-                                return True
+                        # Guard: an alias match only blocks F6 if the character's canonical
+                        # name shares at least one word with the candidate. This prevents
+                        # family-surname aliases (e.g., "De Lacey" on Felix) from blocking
+                        # a DIFFERENT family member (the old man De Lacey) who shares only
+                        # the surname. Universal: surnames are shared; name-component overlap
+                        # confirms it's the same person, not merely the same family.
+                        _canonical_words_oo = set(char_canonical_clean.split())
+                        _candidate_words_oo = set(clean_lower.split())
+                        if not (_canonical_words_oo & _candidate_words_oo):
+                            # No shared name component → alias-only match is too weak to block.
+                            # Fall through to let F6 add the candidate as a new character.
+                            pass
+                        else:
+                            for _alias in (char.aliases or []):
+                                _alias_clean = _alias.lower().strip()
+                                if "(" in _alias_clean:
+                                    _alias_clean = _alias_clean.split("(")[0].strip()
+                                if clean_lower == _alias_clean and _alias_clean:
+                                    logger.info(
+                                        f"F6 Fix OO: '{name}' matches alias '{_alias}' of "
+                                        f"'{char.canonical_name}' after stripping alias parenthetical"
+                                    )
+                                    return True
 
                         # Check if summary name is "FirstName LastName" and existing char is "FirstName"
                         # e.g., "Herbert White" should match "Herbert"
@@ -3183,12 +3196,19 @@ class AudiobookAnalyzer:
         # (Victor) has is_narrator=True but the outer narrator (Walton) wasn't matched to
         # a character, so narrator_detected stayed None.
         if narrator_detected is None and pipeline_char_map and pipeline_char_map.characters:
-            # Collect all is_narrator candidates (excluding placeholder names)
+            # Collect all is_narrator candidates (excluding placeholder names).
+            # Fix XX: Also exclude the blocked outer narrator (_blocked_narrator_45), which was
+            # identified as a non-pervasive frame narrator (e.g., Robert Walton in Frankenstein).
+            # Picking the blocked narrator here would cause global "the narrator" substitution
+            # to wrongly replace ALL inner-narrator chapter summaries with the outer narrator's name.
+            _blocked_canon_xx = (locals().get('_blocked_narrator_45') or '').strip().lower()
             _pre69_candidates = [
                 c for c in pipeline_char_map.characters
                 if getattr(c, 'is_narrator', False)
                 and c.canonical_name
                 and c.canonical_name.strip().lower() not in ('the narrator', 'narrator', '')
+                # Fix XX: skip the outer/frame narrator that was explicitly blocked as non-pervasive
+                and c.canonical_name.strip().lower() != _blocked_canon_xx
             ]
             if _pre69_candidates:
                 if len(_pre69_candidates) == 1:
@@ -3229,15 +3249,27 @@ class AudiobookAnalyzer:
                         if _pre69_counts:
                             narrator_detected = max(_pre69_counts, key=_pre69_counts.get)
                         else:
-                            # Fallback: highest mention_count
+                            # Fallback: highest mention_count.
+                            # Fix XX-b: prefer proper-name (uppercase first char) narrator over
+                            # descriptive narrator (e.g., "Victor Frankenstein" over "the creature").
+                            # Inner/primary narrators have proper names; creature/symbolic narrators
+                            # use lowercase descriptors. Picking by mention_count alone risks picking
+                            # the creature (which narrates only 6 chapters) over Victor (18 chapters).
+                            _pre69_proper_xx = [
+                                c for c in _pre69_candidates
+                                if c.canonical_name[:1].isupper()
+                            ]
+                            _pre69_pool_xx = _pre69_proper_xx if _pre69_proper_xx else _pre69_candidates
                             narrator_detected = max(
-                                _pre69_candidates,
+                                _pre69_pool_xx,
                                 key=lambda c: getattr(c, 'mention_count', 0) or 0
                             ).canonical_name.strip()
                     else:
-                        # No summary info — use highest mention_count
+                        # No summary info — use highest mention_count with Fix XX-b
+                        _pre69_proper_xx2 = [c for c in _pre69_candidates if c.canonical_name[:1].isupper()]
+                        _pre69_pool_xx2 = _pre69_proper_xx2 if _pre69_proper_xx2 else _pre69_candidates
                         narrator_detected = max(
-                            _pre69_candidates,
+                            _pre69_pool_xx2,
                             key=lambda c: getattr(c, 'mention_count', 0) or 0
                         ).canonical_name.strip()
                 print(f"   Step 6.9 fallback: using is_narrator char '{narrator_detected}'")

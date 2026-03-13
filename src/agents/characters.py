@@ -3549,12 +3549,19 @@ class CharacterAgent(Agent):
                         for c in characters
                     )
                     if _conflict:
-                        logger.info(
-                            f"Fix EE: Skipping promotion of '{best_alias_canonical}' for '{desc_char.canonical_name}' "
-                            f"— alias is shared with another character (ambiguous surname)"
-                        )
-                        # Fall through to merge-target search below
-                    else:
+                        # Fix YY: remove surname alias from another char if it's a trailing-word subset of their canonical
+                        _aw = _best_alias_lower.split()
+                        for _c_yy in list(characters):
+                            if _c_yy is desc_char or _best_alias_lower not in [a.lower() for a in (_c_yy.aliases or [])]:
+                                continue
+                            _cw = _c_yy.canonical_name.lower().split()
+                            if len(_aw) <= len(_cw) and _cw[-len(_aw):] == _aw:
+                                _c_yy.aliases = [a for a in (_c_yy.aliases or []) if a.lower() != _best_alias_lower]
+                                logger.info(f"Fix YY: Removed surname alias '{best_alias_canonical}' from '{_c_yy.canonical_name}'")
+                                _conflict = False
+                        if _conflict:
+                            logger.info(f"Fix EE: Skipping '{best_alias_canonical}' for '{desc_char.canonical_name}' — shared alias")
+                    if not _conflict:
                         old_canonical = desc_char.canonical_name
                         logger.info(
                             f"Fix EE/PP: Promoting '{best_alias_canonical}' to canonical for '{old_canonical}' "
@@ -3569,10 +3576,8 @@ class CharacterAgent(Agent):
                         # Also remove the parenthetical-stripped version if it was added separately
                         if best_alias_canonical != best_alias and best_alias_canonical in desc_char.aliases:
                             desc_char.aliases.remove(best_alias_canonical)
-                        # Re-classify: now has a proper noun, no longer needs merge
                         proper_name_chars.append(desc_char)
                         continue  # Skip merge attempt; now it's a proper-name char
-
             # Find proper-name candidates with matching role + gender + fewer mentions
             candidates = [
                 p for p in proper_name_chars
