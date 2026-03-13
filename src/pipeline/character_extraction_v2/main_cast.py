@@ -1091,6 +1091,9 @@ class MainCastExtractor:
                     # Antagonist/monster descriptors — all refer to character entities, not objects
                     "monster", "daemon", "dæmon", "demon", "fiend", "wretch", "villain",
                     "beast", "devil", "ogre", "brute",
+                    # Family/human roles — unambiguously person entities
+                    "father", "mother", "son", "daughter", "brother", "sister",
+                    "husband", "wife", "child", "gentleman", "lady", "sailor",
                 }
                 _canon_lower_05b = profile.canonical_name.lower()
                 if _canon_lower_05b.startswith("the ") and alias_lower.startswith("the "):
@@ -1664,6 +1667,35 @@ class MainCastExtractor:
                         f"ALIAS MERGE: '{profile_b.canonical_name}' matches alias in '{profile_a.canonical_name}' "
                         f"(aliases: {profile_a.aliases})"
                     )
+
+                if should_merge:
+                    # Guard CC3: Block alias-based merge if one entity is a person/being and
+                    # the other is a non-living environment/object. Universal invariant:
+                    # "the creature" and "the Arctic ice" are different entity categories.
+                    _PERSON_NOUNS_CC3 = {
+                        "creature", "being", "monster", "daemon", "dæmon", "demon", "fiend",
+                        "wretch", "phantom", "specter", "spectre", "ghost", "spirit",
+                        "man", "woman", "boy", "girl", "person", "figure", "stranger",
+                        "visitor", "father", "mother", "son", "daughter", "brother", "sister",
+                    }
+                    _NON_LIVING_NOUNS_CC3 = {
+                        "ice", "sea", "ocean", "water", "river", "lake", "mist", "fog",
+                        "wind", "storm", "forest", "wood", "mountain", "snow", "frost",
+                        "darkness", "light", "fire", "void", "abyss", "shadow", "cold",
+                    }
+                    _a_last = canonical_a_norm.split()[-1] if canonical_a_norm.strip() else ""
+                    _b_last = canonical_b_norm.split()[-1] if canonical_b_norm.strip() else ""
+                    _a_is_person = _a_last in _PERSON_NOUNS_CC3
+                    _b_is_person = _b_last in _PERSON_NOUNS_CC3
+                    _a_is_nonliving = _a_last in _NON_LIVING_NOUNS_CC3
+                    _b_is_nonliving = _b_last in _NON_LIVING_NOUNS_CC3
+                    if (_a_is_person and _b_is_nonliving) or (_b_is_person and _a_is_nonliving):
+                        logger.warning(
+                            f"ALIAS MERGE BLOCKED (Guard CC3): '{profile_a.canonical_name}' and "
+                            f"'{profile_b.canonical_name}' are different entity categories "
+                            f"(person/non-living) — skipping merge"
+                        )
+                        should_merge = False
 
                 if should_merge:
                     alias_merge_pairs.append((profile_a, profile_b))

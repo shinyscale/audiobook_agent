@@ -43,6 +43,26 @@ class Commit:
 
 
 @dataclass
+class ScoreHistoryEntry:
+    """A single attempt's score in the score history."""
+    attempt: int
+    score: str  # May contain "~" prefix
+    notes: str = ""
+    attempt_label: str = ""  # Original label like "9-11" for ranges
+
+
+@dataclass
+class ManifestText:
+    """A text entry from manifest.json."""
+    name: str
+    attempts: int = 0
+    final_score: Optional[float] = None
+    complete: bool = False
+    skipped: bool = False
+    skip_reason: str = ""
+
+
+@dataclass
 class ClaudeActivity:
     """Activity from Claude during evaluation/fix phases."""
     tool_name: str
@@ -159,6 +179,15 @@ class OracleState:
     diagnostic_timestamp: str = ""  # When diagnostic was last run
     diagnostic_running: bool = False  # Is batch-diagnostic.sh running
 
+    # Score history (from EVALUATION_STATE.md Score History table)
+    score_history: list[ScoreHistoryEntry] = field(default_factory=list)
+
+    # Manifest texts (all texts with their status)
+    manifest_texts: list[ManifestText] = field(default_factory=list)
+
+    # Baseline scores per text (from checkpoints.json)
+    baseline_scores: dict = field(default_factory=dict)  # {text_name: {score, category_scores}}
+
 
 class StateParser:
     """Parse state from various data sources."""
@@ -230,6 +259,36 @@ class StateParser:
         if model_match:
             result['model'] = model_match.group(1)
 
+        # Parse score history table (may be called "Score History" or "Latest Scores")
+        # Format: | Attempt | Score | Notes |
+        #         | 1 | 7.35 | Baseline |
+        score_history = []
+        history_match = re.search(r'## (?:Score History|Latest Scores).*?\n\|.*?\n\|[-| ]+\n(.*?)(?:\n\n|\n##|\Z)', content, re.DOTALL)
+        if history_match:
+            for row in history_match.group(1).strip().split('\n'):
+                row = row.strip()
+                if not row or not row.startswith('|'):
+                    continue
+                cells = [c.strip() for c in row.split('|')]
+                # cells[0] is empty (before first |), cells[1]=attempt, cells[2]=score, cells[3]=notes
+                if len(cells) >= 4:
+                    try:
+                        attempt_str = cells[1].strip()
+                        # Handle ranges like "9-11"
+                        if '-' in attempt_str:
+                            attempt_num = int(attempt_str.split('-')[0])
+                        else:
+                            attempt_num = int(attempt_str)
+                        score_history.append(ScoreHistoryEntry(
+                            attempt=attempt_num,
+                            score=cells[2],
+                            notes=cells[3] if len(cells) > 3 else "",
+                            attempt_label=attempt_str,
+                        ))
+                    except (ValueError, IndexError):
+                        pass
+        result['score_history'] = score_history
+
         # Parse issues
         issues = []
         # Look for issue patterns: "CRITICAL | description" or "### CRITICAL" followed by numbered items
@@ -279,6 +338,18 @@ class StateParser:
         competitive_stages = data.get('competitive_stages', [])
         competitive_models = data.get('competitive_models', [])
 
+        # Build manifest text entries
+        manifest_texts = []
+        for t in texts:
+            manifest_texts.append(ManifestText(
+                name=t.get('name', ''),
+                attempts=t.get('attempts', 0),
+                final_score=t.get('final_score'),
+                complete=t.get('complete', False),
+                skipped=t.get('skipped', False),
+                skip_reason=t.get('skip_reason', ''),
+            ))
+
         return {
             'total_texts': total,
             'completed_texts': completed,
@@ -286,6 +357,7 @@ class StateParser:
             'competitive_mode': competitive_mode,
             'competitive_stages': competitive_stages,
             'competitive_models': competitive_models,
+            'manifest_texts': manifest_texts,
         }
 
     def parse_git_log(self, count: int = 5) -> list[Commit]:
@@ -784,6 +856,35 @@ class StateParser:
         except (json.JSONDecodeError, IOError):
             return {}
 
+    def _parse_all_baselines(self) -> dict:
+        """Get all baseline scores from checkpoints.json."""
+        possible_paths = [
+            self.base_dir / "state" / "checkpoints.json",
+            self.base_dir / "checkpoints.json",
+            self.base_dir.parent / "state" / "checkpoints.json",
+        ]
+        checkpoints_file = None
+        for path in possible_paths:
+            if path.exists():
+                checkpoints_file = path
+                break
+
+        if not checkpoints_file:
+            return {}
+
+        try:
+            with open(checkpoints_file) as f:
+                data = json.load(f)
+            baselines = {}
+            for text_name, info in data.get('known_good_baseline', {}).items():
+                baselines[text_name] = {
+                    'score': info.get('score'),
+                    'category_scores': info.get('category_scores', {}),
+                }
+            return baselines
+        except (json.JSONDecodeError, IOError):
+            return {}
+
     def check_analysis_running(self) -> tuple[bool, Optional[int]]:
         """Check if audiobook-prep analysis is currently running.
 
@@ -953,6 +1054,7 @@ class StateParser:
         state.presentation_score = eval_state.get('presentation_score')
         state.overall_score = eval_state.get('overall_score')
         state.issues = eval_state.get('issues', [])
+        state.score_history = eval_state.get('score_history', [])
 
         # Parse manifest
         manifest = self.parse_manifest()
@@ -965,6 +1067,12 @@ class StateParser:
         state.competitive_mode = manifest.get('competitive_mode', 'none')
         state.competitive_stages = manifest.get('competitive_stages', [])
         state.competitive_models = manifest.get('competitive_models', [])
+
+        # Manifest texts list
+        state.manifest_texts = manifest.get('manifest_texts', [])
+
+        # Baseline scores from checkpoints.json
+        state.baseline_scores = self._parse_all_baselines()
 
         # Parse live votes
         state.recent_votes = self.parse_live_votes()

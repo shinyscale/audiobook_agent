@@ -40,6 +40,7 @@ from .panels import (
     StderrPanel,
     IssuesPanel,
     CommitsPanel,
+    ScoreHistoryPanel,
 )
 
 
@@ -176,6 +177,18 @@ class OracleMonitorApp(App):
         max-height: 40;
     }
 
+    ScoreHistoryPanel {
+        height: auto;
+        max-height: 20;
+        border: solid $success;
+        padding: 0 1;
+        margin: 0 0 1 0;
+    }
+
+    ScoreHistoryPanel.expanded {
+        max-height: 50;
+    }
+
     DiagnosticMatrixPanel {
         height: auto;
         max-height: 5;
@@ -213,6 +226,7 @@ class OracleMonitorApp(App):
         Binding("e", "toggle_experiment", "Experiment", show=True),
         Binding("x", "export_thinking", "Export", show=True),
         Binding("g", "toggle_graph", "Graph", show=True),
+        Binding("h", "toggle_history", "History", show=True),
         Binding("d", "toggle_diagnostic", "Diagnostic", show=True),
         Binding("1", "switch_tab('tab-dashboard')", "Dashboard", show=True),
         Binding("2", "switch_tab('tab-analysis')", "Analysis", show=True),
@@ -225,6 +239,7 @@ class OracleMonitorApp(App):
     votes_expanded = reactive(False)
     experiment_expanded = reactive(False)
     graph_expanded = reactive(False)
+    history_expanded = reactive(False)
     diagnostic_expanded = reactive(False)
 
     def __init__(self, base_dir: Path = None, polling_interval: float = 2.0):
@@ -259,6 +274,7 @@ class OracleMonitorApp(App):
                     yield StderrPanel(self.state)
             with TabPane("History", id="tab-history"):
                 with VerticalScroll():
+                    yield ScoreHistoryPanel(self.state, expanded=self.history_expanded)
                     yield DiagnosticMatrixPanel(self.state, expanded=self.diagnostic_expanded)
                     yield CommitsPanel(self.state)
 
@@ -317,6 +333,7 @@ class OracleMonitorApp(App):
             self.query_one(ClaudeActivityPanel).update_state(self.state)
             self.query_one(ClaudeThinkingPanel).update_state(self.state, expanded=self.thinking_expanded)
             self.query_one(StderrPanel).update_state(self.state)
+            self.query_one(ScoreHistoryPanel).update_state(self.state, expanded=self.history_expanded)
             self.query_one(DiagnosticMatrixPanel).update_state(self.state, expanded=self.diagnostic_expanded)
             self.query_one(CommitsPanel).update_state(self.state)
             self.query_one(FooterInfo).update_state(self.state)
@@ -419,6 +436,20 @@ class OracleMonitorApp(App):
             else:
                 graph_panel.remove_class("expanded")
             graph_panel.update_state(self.state, expanded=self.graph_expanded)
+        except Exception:
+            pass
+
+    def action_toggle_history(self):
+        """Toggle score history panel expanded/collapsed. Auto-switches to History tab."""
+        self._switch_to_tab("tab-history")
+        self.history_expanded = not self.history_expanded
+        try:
+            history_panel = self.query_one(ScoreHistoryPanel)
+            if self.history_expanded:
+                history_panel.add_class("expanded")
+            else:
+                history_panel.remove_class("expanded")
+            history_panel.update_state(self.state, expanded=self.history_expanded)
         except Exception:
             pass
 

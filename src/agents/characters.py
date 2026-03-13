@@ -3369,6 +3369,30 @@ class CharacterAgent(Agent):
             if desc_mentions < target_mentions * 2:
                 continue
 
+            # Guard CC2: Person-entity descriptor must not merge into non-person entity target.
+            # Universal invariant: "the creature" ≠ "the Arctic ice" — different entity categories.
+            # Mirrors Rule 0.5b in verify_aliases: person last-nouns cannot merge into non-person targets.
+            _PERSON_NOUNS_MERGE_GUARD_CC2 = {
+                "man", "woman", "boy", "girl", "person", "figure", "stranger",
+                "visitor", "creature", "being", "fellow", "ghost", "spirit", "phantom",
+                "specter", "spectre", "soul", "voice", "monster", "daemon", "dæmon",
+                "demon", "fiend", "wretch", "villain", "beast", "devil", "ogre", "brute",
+                "father", "mother", "son", "daughter", "brother", "sister",
+                "husband", "wife", "child", "gentleman", "lady",
+            }
+            _desc_last_cc2 = desc_char.canonical_name.lower().split()[-1] if desc_char.canonical_name.strip() else ""
+            _target_last_cc2 = target.canonical_name.lower().split()[-1] if target.canonical_name.strip() else ""
+            _desc_is_person_cc2 = _desc_last_cc2 in _PERSON_NOUNS_MERGE_GUARD_CC2
+            _target_is_person_cc2 = _target_last_cc2 in _PERSON_NOUNS_MERGE_GUARD_CC2
+            if _desc_is_person_cc2 and not _target_is_person_cc2:
+                logger.warning(
+                    f"Descriptor merge BLOCKED (Guard CC2): '{desc_char.canonical_name}' is a "
+                    f"person entity (last word: '{_desc_last_cc2}') but target "
+                    f"'{target.canonical_name}' is not (last word: '{_target_last_cc2}') — "
+                    f"person/non-person category mismatch"
+                )
+                continue
+
             # Add descriptor's canonical name as alias of target (but NOT its other aliases)
             if target.aliases is None:
                 target.aliases = []
@@ -4089,7 +4113,9 @@ class CharacterAgent(Agent):
 
         # Define semantic conflict groups
         # Group 1: Supernatural/created beings
-        creature_terms = {"creature", "monster", "fiend", "daemon", "wretch", "being"}
+        creature_terms = {"creature", "monster", "fiend", "daemon", "dæmon", "wretch", "being",
+                          "demon", "devil", "beast", "brute", "ogre", "phantom", "specter",
+                          "spectre", "ghost", "spirit"}
 
         # Group 2: Human descriptors (when used in "the X" pattern)
         # These should NOT merge with creature terms.
@@ -4116,6 +4142,26 @@ class CharacterAgent(Agent):
             "magistrate",
             "officer",
             "soldier",
+            # Family roles — unambiguously human
+            "father",
+            "mother",
+            "son",
+            "daughter",
+            "brother",
+            "sister",
+            "husband",
+            "wife",
+        }
+
+        # Group 3: Non-living environment/object terms.
+        # These should NEVER have creature/person aliases — they represent settings or things.
+        # Universal invariant: natural phenomena and objects are distinct from sentient beings.
+        non_living_terms = {
+            "ice", "sea", "ocean", "water", "river", "lake", "mist", "fog", "wind", "storm",
+            "forest", "wood", "mountain", "cliff", "cave", "snow", "frost", "darkness",
+            "light", "fire", "void", "abyss", "shadow", "nature", "earth", "sky", "air",
+            "wave", "tide", "current", "glacier", "wilderness", "landscape", "terrain",
+            "cold", "heat", "silence", "night",
         }
 
         split_count = 0
@@ -4141,6 +4187,14 @@ class CharacterAgent(Agent):
                 canonical_descriptor == desc or canonical_descriptor.endswith(" " + desc)
                 for desc in human_descriptors
             )
+            # Non-living: check if last word of canonical descriptor is an environment/object term
+            _canon_desc_last = canonical_descriptor.split()[-1] if canonical_descriptor else ""
+            canonical_is_non_living = (
+                canonical_descriptor is not None
+                and _canon_desc_last in non_living_terms
+                and not canonical_is_creature
+                and not canonical_is_human
+            )
 
             # Check each alias for semantic conflicts
             aliases_to_split = []
@@ -4164,6 +4218,13 @@ class CharacterAgent(Agent):
                     alias_descriptor == desc or alias_descriptor.endswith(" " + desc)
                     for desc in human_descriptors
                 )
+                _alias_desc_last = alias_descriptor.split()[-1] if alias_descriptor else ""
+                alias_is_non_living = (
+                    alias_descriptor is not None
+                    and _alias_desc_last in non_living_terms
+                    and not alias_is_creature
+                    and not alias_is_human
+                )
 
                 # Check for semantic conflict
                 conflict = False
@@ -4178,6 +4239,23 @@ class CharacterAgent(Agent):
                     logger.warning(
                         f"SEMANTIC CONFLICT: '{alias}' (creature-related term) cannot be alias of "
                         f"'{char.canonical_name}' (human descriptor)"
+                    )
+                elif canonical_is_non_living and (alias_is_creature or alias_is_human):
+                    # Non-living environment/object cannot have sentient-being aliases.
+                    # Universal invariant: "the Arctic ice" ≠ "the creature" or "the man".
+                    conflict = True
+                    _alias_type = "creature" if alias_is_creature else "human descriptor"
+                    logger.warning(
+                        f"SEMANTIC CONFLICT: '{alias}' ({_alias_type}) cannot be alias of "
+                        f"'{char.canonical_name}' (non-living entity, last word: '{_canon_desc_last}')"
+                    )
+                elif (alias_is_non_living) and (canonical_is_creature or canonical_is_human):
+                    # Reverse: non-living alias cannot describe a sentient being canonical.
+                    conflict = True
+                    _canon_type = "creature" if canonical_is_creature else "human descriptor"
+                    logger.warning(
+                        f"SEMANTIC CONFLICT: '{alias}' (non-living entity, last word: '{_alias_desc_last}') "
+                        f"cannot be alias of '{char.canonical_name}' ({_canon_type})"
                     )
 
                 if conflict:

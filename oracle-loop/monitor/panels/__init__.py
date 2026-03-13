@@ -5,7 +5,7 @@ from .scores import ScorePanel, OverallProgress
 from .experiment import ExperimentStatusPanel
 from .analysis import OllamaActivityPanel, CompetitiveConsensusPanel, IdentityGraphPanel
 from .claude import ClaudeActivityPanel, ClaudeThinkingPanel
-from .diagnostics import DiagnosticMatrixPanel, StderrPanel, IssuesPanel, CommitsPanel
+from .diagnostics import DiagnosticMatrixPanel, StderrPanel, IssuesPanel, CommitsPanel, ScoreHistoryPanel
 
 __all__ = [
     "StatusBar",
@@ -22,4 +22,5 @@ __all__ = [
     "StderrPanel",
     "IssuesPanel",
     "CommitsPanel",
+    "ScoreHistoryPanel",
 ]

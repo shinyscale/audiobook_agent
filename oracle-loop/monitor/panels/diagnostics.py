@@ -1,4 +1,4 @@
-"""DiagnosticMatrixPanel, StderrPanel, IssuesPanel, and CommitsPanel."""
+"""DiagnosticMatrixPanel, StderrPanel, IssuesPanel, CommitsPanel, and ScoreHistoryPanel."""
 
 from textual.widgets import Static
 from rich.text import Text
@@ -378,4 +378,207 @@ class CommitsPanel(Static):
 
     def update_state(self, state: OracleState):
         self.state = state
+        self.refresh()
+
+
+class ScoreHistoryPanel(Static):
+    """Panel showing score history for current text and overall manifest progress."""
+
+    def __init__(self, state: OracleState, expanded: bool = False):
+        super().__init__()
+        self.state = state
+        self.expanded = expanded
+
+    def _score_style(self, score_val: float, threshold: float = 8.0) -> str:
+        if score_val >= threshold:
+            return "bold green"
+        elif score_val >= threshold - 1.0:
+            return "yellow"
+        else:
+            return "bold red"
+
+    def _parse_score_float(self, score_str: str) -> float | None:
+        """Parse a score string like '7.35' or '~5.0' into a float."""
+        cleaned = score_str.strip().lstrip('~')
+        try:
+            return float(cleaned)
+        except ValueError:
+            return None
+
+    def render(self) -> Text:
+        text = Text()
+        threshold = self.state.threshold
+
+        has_history = bool(self.state.score_history)
+        has_texts = bool(self.state.manifest_texts)
+
+        if not has_history and not has_texts:
+            text.append("SCORE HISTORY ", style="bold white")
+            text.append("[no data]", style="dim")
+            return text
+
+        # --- Active text score history ---
+        if has_history:
+            text.append("SCORE HISTORY", style="bold white")
+            if self.state.text_name:
+                text.append(f"  [{self.state.text_name}]", style="bold cyan")
+            text.append("\n")
+
+            # Build a simple sparkline / table of attempts
+            text.append("  ", style="")
+            text.append(f"{'Att':>5}", style="bold white")
+            text.append(f"{'Score':>8}", style="bold white")
+            text.append(f"  {'Trend':>5}", style="bold white")
+            text.append(f"  {'Notes'}", style="bold white")
+            text.append("\n")
+            text.append("  " + "─" * 74, style="dim")
+            text.append("\n")
+
+            prev_score = None
+            best_score = None
+            for entry in self.state.score_history:
+                score_val = self._parse_score_float(entry.score)
+
+                text.append("  ", style="")
+                label = entry.attempt_label or str(entry.attempt)
+                text.append(f"{label:>5}", style="white")
+
+                # Score value with color
+                if score_val is not None:
+                    style = self._score_style(score_val, threshold)
+                    text.append(f"{entry.score:>8}", style=style)
+
+                    # Trend arrow
+                    if prev_score is not None:
+                        delta = score_val - prev_score
+                        if delta > 0.1:
+                            text.append(f"  {'▲':>5}", style="green")
+                        elif delta < -0.1:
+                            text.append(f"  {'▼':>5}", style="red")
+                        else:
+                            text.append(f"  {'─':>5}", style="dim")
+                    else:
+                        text.append(f"  {'':>5}", style="dim")
+
+                    if best_score is None or score_val > best_score:
+                        best_score = score_val
+                    prev_score = score_val
+                else:
+                    text.append(f"{entry.score:>8}", style="dim")
+                    text.append(f"  {'':>5}", style="dim")
+
+                # Notes (truncated)
+                notes = entry.notes.strip()
+                if notes:
+                    max_notes = 52
+                    if len(notes) > max_notes:
+                        notes = notes[:max_notes - 3] + "..."
+                    text.append(f"  {notes}", style="dim white")
+
+                text.append("\n")
+
+            # Summary line
+            text.append("  " + "─" * 74, style="dim")
+            text.append("\n")
+            if best_score is not None:
+                text.append("  Best: ", style="bold white")
+                text.append(f"{best_score:.2f}", style=self._score_style(best_score, threshold))
+                if prev_score is not None:
+                    text.append(f"  Latest: ", style="bold white")
+                    text.append(f"{prev_score:.2f}", style=self._score_style(prev_score, threshold))
+                text.append(f"  Target: ", style="bold white")
+                text.append(f"{threshold:.1f}", style="cyan")
+                gap = threshold - (prev_score or 0)
+                if gap > 0:
+                    text.append(f"  (need +{gap:.2f})", style="yellow")
+                else:
+                    text.append(f"  (met!)", style="bold green")
+            text.append("\n\n")
+
+        # --- All texts overview ---
+        if has_texts:
+            text.append("ALL TEXTS OVERVIEW", style="bold white")
+            if not self.expanded:
+                # Compact: just show completed/total and active
+                completed = sum(1 for t in self.state.manifest_texts if t.complete)
+                total = len(self.state.manifest_texts)
+                skipped = sum(1 for t in self.state.manifest_texts if t.skipped)
+                text.append(f"  {completed}/{total} complete", style="white")
+                if skipped:
+                    text.append(f"  ({skipped} skipped)", style="dim yellow")
+                text.append("  [h to expand]", style="dim cyan")
+            else:
+                text.append("  [h to collapse]\n", style="dim cyan")
+                text.append("  ", style="")
+                text.append(f"{'Text':<28}", style="bold white")
+                text.append(f"{'Att':>5}", style="bold white")
+                text.append(f"{'Score':>8}", style="bold white")
+                text.append(f"{'Baseline':>10}", style="bold white")
+                text.append(f"  {'Status':<12}", style="bold white")
+                text.append("\n")
+                text.append("  " + "─" * 74, style="dim")
+                text.append("\n")
+
+                for mt in self.state.manifest_texts:
+                    text.append("  ", style="")
+
+                    # Name
+                    display_name = mt.name.replace('_', ' ').title()[:26]
+                    name_style = "white"
+                    if mt.name == self.state.text_name:
+                        name_style = "bold cyan"
+                    text.append(f"{display_name:<28}", style=name_style)
+
+                    # Attempts
+                    text.append(f"{mt.attempts:>5}", style="white")
+
+                    # Final score
+                    if mt.final_score is not None:
+                        style = self._score_style(mt.final_score, threshold)
+                        text.append(f"{mt.final_score:>8.2f}", style=style)
+                    else:
+                        text.append(f"{'—':>8}", style="dim")
+
+                    # Baseline
+                    baseline = self.state.baseline_scores.get(mt.name, {})
+                    baseline_score = baseline.get('score')
+                    if baseline_score is not None:
+                        text.append(f"{baseline_score:>10.2f}", style="dim cyan")
+                    else:
+                        text.append(f"{'—':>10}", style="dim")
+
+                    # Status
+                    text.append("  ", style="")
+                    if mt.complete:
+                        text.append("PASS", style="bold green")
+                    elif mt.skipped:
+                        text.append("SKIPPED", style="yellow")
+                    elif mt.attempts > 0:
+                        if mt.name == self.state.text_name:
+                            text.append("ACTIVE", style="bold cyan")
+                        else:
+                            text.append("IN PROGRESS", style="yellow")
+                    else:
+                        text.append("PENDING", style="dim")
+
+                    text.append("\n")
+
+                # Summary
+                text.append("  " + "─" * 74, style="dim")
+                text.append("\n")
+                completed = sum(1 for t in self.state.manifest_texts if t.complete)
+                total = len(self.state.manifest_texts)
+                in_progress = sum(1 for t in self.state.manifest_texts if not t.complete and t.attempts > 0 and not t.skipped)
+                total_attempts = sum(t.attempts for t in self.state.manifest_texts)
+                text.append(f"  {completed} passed", style="green")
+                text.append(f"  {in_progress} in progress", style="yellow")
+                text.append(f"  {total - completed - in_progress} pending", style="dim")
+                text.append(f"  ({total_attempts} total attempts)", style="dim")
+
+        return text
+
+    def update_state(self, state: OracleState, expanded: bool = None):
+        self.state = state
+        if expanded is not None:
+            self.expanded = expanded
         self.refresh()
