@@ -4812,7 +4812,14 @@ Return ONLY the JSON object."""
                         # to ensure characters with rich summary context but thin text mentions
                         # (e.g., supporting characters) still get relationship extraction.
                         _f9_evidence = validated_evidence or []
-                        if len(_f9_evidence) < 3 and summary_evidence and summary_evidence.evidence:
+                        # Fix TT: Always augment F9 evidence with F2 summary items (not just when <3).
+                        # Raw text evidence for non-narrator characters in 1st-person narratives only
+                        # contains pronouns ("I", "my") for the narrator — not their canonical name.
+                        # F2 summary evidence uses proper names throughout and captures explicit
+                        # relationship statements (e.g. "Victor Frankenstein proceeds with plans to
+                        # marry Elizabeth"). Without this, Elizabeth's profile lacks any mention of
+                        # "Victor Frankenstein" in F9 evidence → relationships stay empty.
+                        if summary_evidence and summary_evidence.evidence:
                             # Augment with F2 summary evidence items (converted to evidence format)
                             _f2_items = [
                                 {"statement": ev.statement, "quote": "", "position": 0}
@@ -4822,9 +4829,9 @@ Return ONLY the JSON object."""
                             if _f2_items:
                                 _f9_evidence = _f9_evidence + _f2_items
                                 logger.info(
-                                    f"F9/Fix HH: Augmented evidence for {character.canonical_name} "
+                                    f"F9/Fix TT: Augmented evidence for {character.canonical_name} "
                                     f"with {len(_f2_items)} F2 summary items "
-                                    f"(was {len(validated_evidence)} profile items)"
+                                    f"(total F9 evidence: {len(_f9_evidence)} items)"
                                 )
                         if (not relationships or not isinstance(relationships, dict) or len(relationships) == 0) and _f9_evidence and all_character_names:
                             logger.info(f"Attempting focused relationship extraction for {character.canonical_name}")
