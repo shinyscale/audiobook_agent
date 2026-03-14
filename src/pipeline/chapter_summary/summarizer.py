@@ -1449,7 +1449,7 @@ class ChapterSummarizer:
         # name detection to handle summaries starting with "The chapter describes [Name]".
         if chapter_text:
             _quoted_any_re = re.compile(
-                r'(?:Chapter|Letter)\s+\w+\.?\s*\n\s*[\u201c"]',  # Chapter N.\n" (any quoted opening)
+                r'(?:(?:Chapter|Letter)\s+\w+\.?\s*\n\s*|\A\s*)[\u201c"]',  # Chapter N.\n" OR text starts with quote
                 re.IGNORECASE,
             )
             _heading_match = _quoted_any_re.search(chapter_text[:1000])  # Fix RR: extended to 1000

@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 24
-- **Phase:** awaiting_fix
+- **Attempt:** 25
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 
 ## Score History
@@ -110,6 +110,20 @@
     - Problem: Ch1 (index 5), Ch10 (index 14), Ch21 (index 25) still say "the narrator" instead of "Victor Frankenstein"
     - Evidence: These are Victor's chapters. While "the narrator" is not factually wrong, it's inconsistent with the other 12+ Victor chapters that correctly say "Victor Frankenstein"
     - Fix: Minor polish — Step 6.9 substitution may not catch all instances
+
+## Attempt 25 Fixes
+
+### Fix ZZ (summarizer.py): Ch16 narrator misattribution
+- **File:** `src/pipeline/chapter_summary/summarizer.py` line 1451-1454
+- **Change:** Extended `_quoted_any_re` to match chapter text starting directly with a quote character (no "Chapter N" heading): `r'(?:(?:Chapter|Letter)\s+\w+\.?\s*\n\s*|\A\s*)[\u201c"]'`
+- **Why:** Frankenstein ebook chapters (Ch11-16) start with `"Cursed...` directly — no "Chapter XVI\n" heading before the curly quote. The old pattern required "Chapter" prefix → no match → Fix 6 never fired → Ch16 kept "Victor Frankenstein" instead of reverting to "the narrator"
+- **Expected effect:** Ch16 Fix 6 fires: detects high FP count in `"Cursed, cursed creator! Why did I live?..."` → replaces "Victor Frankenstein" → "The narrator" in Ch16 summary
+
+### Fix AAA (analyzer.py): Elizabeth/Clerval empty relationships
+- **File:** `src/analyzer.py` lines 4861-4868 (inside Fix TT block)
+- **Change:** After building F2 items, substitute `narrator_name` for "the narrator" in evidence statements
+- **Why:** F2 evidence extracted at Step 4.6 (before Step 6.9 substitution). For epistolary Frankenstein, pov="epistolary" → Step 4.5 doesn't run. So F2 evidence says "the narrator proceeds to marry Elizabeth" instead of "Victor Frankenstein proceeds to marry Elizabeth". F9 looks for "Victor"/"Frankenstein" → finds nothing → relationships = {} → `clean_unknown_relationships` removes "associated" fallback → Elizabeth ends up with no relationships.
+- **Expected effect:** F9 evidence for Elizabeth/Clerval has "Victor Frankenstein" → F9 extracts "Victor Frankenstein: fiancé/husband" for Elizabeth and "Victor Frankenstein: close friend" for Clerval → profiles score improves from 6→8
 
 ## Fix History
 - Attempts 1-13: Various narrator detection fixes (Steps 4.5, 5.8.6, 6.9)

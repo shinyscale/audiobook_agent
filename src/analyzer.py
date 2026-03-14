@@ -4859,6 +4859,18 @@ Return ONLY the JSON object."""
                                 if ev.statement and len(ev.statement) > 20
                             ]
                             if _f2_items:
+                                # Fix AAA: Replace "the narrator" with narrator_name in F2 items.
+                                # F2 evidence is extracted at Step 4.6 BEFORE Step 6.9 substitution,
+                                # so epistolary/1st-person texts have "the narrator" instead of the
+                                # narrator's canonical name. F9 looks for the canonical name in evidence
+                                # to detect relationships — if it only sees "the narrator" it finds nothing.
+                                if narrator_name:
+                                    import re as _re_f9tt
+                                    _narrator_re_f9tt = _re_f9tt.compile(r'\bthe narrator\b', _re_f9tt.IGNORECASE)
+                                    _f2_items = [
+                                        {**item, "statement": _narrator_re_f9tt.sub(narrator_name, item["statement"])}
+                                        for item in _f2_items
+                                    ]
                                 _f9_evidence = _f9_evidence + _f2_items
                                 logger.info(
                                     f"F9/Fix TT: Augmented evidence for {character.canonical_name} "
