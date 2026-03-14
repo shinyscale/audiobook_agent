@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 25
-- **Phase:** awaiting_fix
+- **Attempt:** 26
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 
 ## Score History
@@ -123,6 +123,23 @@
 12. **Letter 3 "R.W narrator" odd phrasing** [Summaries]
 13. **Ch8 "their family" pronoun mismatch** [Summaries]
 
+## Attempt 26 Fixes (Applied, Awaiting Analysis)
+
+### Fix BBB (summarizer.py): Ch16 narrator misattribution — narrator_detected fallback in Fix 6
+- Root cause: Fix 6's name detection found "De Lacey" (first multi-word capitalized name in first sentence of summary "After being rejected from the **De Lacey** cottage, Victor Frankenstein burns..."). "De Lacey" appears only once in the summary → count guard sets wrong_name3=None → fix doesn't apply.
+- Fix: After existing detection fails, check if narrator_detected appears ≥2 times in summary. If so, use narrator_detected as wrong_name3. Universal: only fires for inner-narrator chapters (Fix 6 condition: quoted opening + FP density) when the primary narrator's name was substituted by Step 6.9.
+- Location: `summarizer.py:_fix_narrator_attribution():~line 1492`
+
+### Fix CCC (post_corrections.py): Add "none" to uninformative relationship labels
+- Added "none" to `clean_unknown_relationships._uninformative` set
+- Removes "William: none", "Felix: none", "Elizabeth: none" etc. from character profiles
+- Location: `post_corrections.py:clean_unknown_relationships():~line 3322`
+
+### Fix DDD (main_cast.py): CHARACTER_IDENTIFICATION_PROMPT geographic setting examples
+- Expanded Rule 1 examples to include outdoor geographic features (ship, arctic landscape, mountain, sea)
+- Prevents LLM from extracting environmental settings as characters in future runs
+- Location: `main_cast.py:CHARACTER_IDENTIFICATION_PROMPT:~line 86`
+
 ## Attempt 25 Fixes (Results)
 
 ### Fix ZZ (summarizer.py): Ch16 narrator misattribution — FAILED
@@ -154,6 +171,9 @@
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 26 | Ch16 narrator (narrator_detected fallback) | summarizer.py (Fix BBB) | Pending |
+| 26 | "none" relationship cleanup | post_corrections.py (Fix CCC) | Pending |
+| 26 | Geographic setting examples in prompt | main_cast.py (Fix DDD) | Pending |
 | 25 | Ch16 creature narrator misattribution | summarizer.py (Fix ZZ) | FAILED — Step 6.9 overwrites, fix was in wrong layer |
 | 25 | Elizabeth/Clerval empty relationships | analyzer.py (Fix AAA) | PARTIAL — Clerval fixed ✓, Elizabeth still empty |
 | 24 | narrator.py outputs outer narrator | narrator.py (Fix XX) | MOSTLY FIXED ✓ |

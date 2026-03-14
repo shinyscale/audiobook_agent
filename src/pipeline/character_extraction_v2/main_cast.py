@@ -83,7 +83,7 @@ TASK: Identify the 10-15 most important characters based on the chapter summarie
 NOTE: When chapter summaries include a `characters_present` list, treat each entry as a distinct character even if names are similar (e.g., "John" and "John Donaldson" are separate if both are in the list).
 
 IMPORTANT RULES:
-1. Include plot-central people/creatures AND symbolic objects/forces that have AGENCY or POWER (e.g., a cursed object that grants wishes, a haunting presence that affects characters). Do NOT include settings/locations where events happen (e.g., a library, a house, a garden, a room) - these are backdrops, not characters. Set `is_symbolic: true` for non-person entities (objects, forces, supernatural presences); leave it `false` for people and creatures.
+1. Include plot-central people/creatures AND symbolic objects/forces that have AGENCY or POWER (e.g., a cursed object that grants wishes, a haunting presence that affects characters). Do NOT include settings/locations where events happen (e.g., a library, a house, a garden, a room, a ship, an arctic landscape, a mountain, a sea) - these are backdrops, not characters, even if mentioned frequently. Set `is_symbolic: true` for non-person entities (objects, forces, supernatural presences); leave it `false` for people and creatures.
 2. Always include the narrator (if a character) and the title character/entity if applicable
 3. Use the most common name form in the summaries as canonical_name (or a distinctive descriptive handle)
 4. Do NOT invent names not supported by the summaries

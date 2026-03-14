@@ -3319,7 +3319,7 @@ class OutputCharacterCorrector:
         Runs last so all other corrections (verify_relationships, enforce_gender) have
         already run and may have resolved some entries.
         """
-        _uninformative = {"unknown", "associated", "associate", "acquaintance"}
+        _uninformative = {"unknown", "associated", "associate", "acquaintance", "none"}
         for char in characters:
             if not char.relationships:
                 continue

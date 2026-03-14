@@ -1490,6 +1490,20 @@ class ChapterSummarizer:
                         ))
                         if _name_count_in_summary < 2:
                             wrong_name3 = None
+                    # Fix BBB: If the regex-based detection failed (e.g. found a
+                    # co-mentioned character name that appears only once), fall back to
+                    # narrator_detected. Step 6.9 substitutes narrator_detected throughout
+                    # ALL chapter summaries, including inner-narrator (creature) chapters.
+                    # If narrator_detected appears ≥2 times in an inner-narrator chapter,
+                    # it was misattributed by Step 6.9 and must be replaced with "The narrator".
+                    # Universal: only fires when narrator_detected is known (primary narrator
+                    # confirmed) AND chapter is an inner-narrator chapter (quoted + FP density).
+                    if not wrong_name3 and narrator_detected:
+                        _nd_count_bbb = len(re.findall(
+                            r'\b' + re.escape(narrator_detected) + r'\b', summary
+                        ))
+                        if _nd_count_bbb >= 2:
+                            wrong_name3 = narrator_detected
                     if wrong_name3:
                         # Outer-quote chapters are innermost-narrator chapters (e.g. the
                         # creature in Frankenstein speaking within Victor's narration).
