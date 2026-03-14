@@ -1,0 +1,191 @@
+TOC validation: 31 entries seems too many, likely includes page numbers or metadata
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+LLM marker proposer returned non-list: <class 'dict'>
+TOC enforcement: Only 27 total boundaries found but TOC expects 31. This may indicate missed chapter markers. Returning all 27 clusters.
+StructureAgent: 1 errors found but refinement not yet implemented
+StructureAgent: 2 errors found but refinement not yet implemented
+BLOCKED alias: 'R.W.' and 'Robert Walton' appear in summaries but NEVER co-occur in the same chapter and have no name overlap
+BLOCKED alias: 'the narrator' is a meta-reference (storytelling device), not a valid character alias for 'Robert Walton'
+BLOCKED alias: 'the narrator' is a meta-reference (storytelling device), not a valid character alias for 'Victor Frankenstein'
+BLOCKED alias: 'the Genevese man' for 'Victor Frankenstein' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the creator' for 'Victor Frankenstein' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the monster's maker' for 'Victor Frankenstein' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the dæmon's creator' for 'Victor Frankenstein' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the creature' is already claimed as a name or alias by another character in this cast — cannot be an alias for 'the dæmon'
+BLOCKED alias: 'the wretch' for 'the dæmon' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the demon' for 'the dæmon' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the giant' (core: 'giant') is semantically incompatible with 'the dæmon' (core: 'dæmon') — person/non-person mismatch
+BLOCKED alias: 'the gigantic being' for 'the dæmon' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the ugly spectre' for 'the dæmon' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the horrible phantom' for 'the dæmon' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the monster he created' (core: 'created') is semantically incompatible with 'the dæmon' (core: 'dæmon') — person/non-person mismatch
+BLOCKED alias: 'the animated corpse' (core: 'corpse') is semantically incompatible with 'the dæmon' (core: 'dæmon') — person/non-person mismatch
+BLOCKED alias: 'the devil' for 'the dæmon' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the apostate angel' (core: 'angel') is semantically incompatible with 'the dæmon' (core: 'dæmon') — person/non-person mismatch
+BLOCKED alias: 'the enemy' (core: 'enemy') is semantically incompatible with 'the dæmon' (core: 'dæmon') — person/non-person mismatch
+BLOCKED alias: 'the adversary' (core: 'adversary') is semantically incompatible with 'the dæmon' (core: 'dæmon') — person/non-person mismatch
+BLOCKED alias: 'the spectre' for 'the dæmon' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the figure' for 'the dæmon' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the thing' (core: 'thing') is semantically incompatible with 'the dæmon' (core: 'dæmon') — person/non-person mismatch
+BLOCKED alias: 'it' is a pronoun, not a valid alias for 'the dæmon'
+BLOCKED alias: 'the narrator's 'more than sister'' for 'Elizabeth Lavenza' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the fair-haired orphan girl' for 'Elizabeth Lavenza' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the creature’s wedding-night victim' for 'Elizabeth Lavenza' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the beloved servant' for 'Elizabeth Lavenza' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the young woman' is already claimed as a name or alias by another character in this cast — cannot be an alias for 'Elizabeth Lavenza'
+BLOCKED alias: 'Clerval, who travels with him' contains a comma — dialogue phrase, not a character alias for 'Henry Clerval'
+BLOCKED alias: 'Clerval’s companionship' is a possessive reference (describes 'Henry Clerval's possession, not the character)
+BLOCKED alias: 'Clerval, who offers sympathy' contains a comma — dialogue phrase, not a character alias for 'Henry Clerval'
+BLOCKED alias: 'Clerval, who is forbidden by his narrow-minded trader father' contains a comma — dialogue phrase, not a character alias for 'Henry Clerval'
+BLOCKED alias: 'Clerval, whose companionship restores his connection to nature' contains a comma — dialogue phrase, not a character alias for 'Henry Clerval'
+BLOCKED alias: 'Clerval, who arrives by Swiss diligence' contains a comma — dialogue phrase, not a character alias for 'Henry Clerval'
+BLOCKED alias: 'Clerval, who accompanies him on foot' contains a comma — dialogue phrase, not a character alias for 'Henry Clerval'
+BLOCKED alias: 'Clerval, who travels with him down the Rhine' contains a comma — dialogue phrase, not a character alias for 'Henry Clerval'
+BLOCKED alias: 'Clerval, who is joined by the narrator' contains a comma — dialogue phrase, not a character alias for 'Henry Clerval'
+BLOCKED alias: 'Clerval, who is found murdered' contains a comma — dialogue phrase, not a character alias for 'Henry Clerval'
+BLOCKED alias: 'Henry Clerval, who is murdered by the creature' contains a comma — dialogue phrase, not a character alias for 'Henry Clerval'
+BLOCKED alias: 'father' is already claimed as a name or alias by another character in this cast — cannot be an alias for 'Alphonse Frankenstein'
+BLOCKED alias: 'the servant' for 'Justine Moritz' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'beloved servant' is already claimed as a name or alias by another character in this cast — cannot be an alias for 'Justine Moritz'
+BLOCKED alias: 'the accused' for 'Justine Moritz' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the condemned' for 'Justine Moritz' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the beautiful woman' for 'Caroline Beaufort' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the old man' is already claimed as a name or alias by another character in this cast — cannot be an alias for 'Felix De Lacey'
+BLOCKED alias: 'the blind man' is already claimed as a name or alias by another character in this cast — cannot be an alias for 'Felix De Lacey'
+BLOCKED alias: 'the gentle young woman' for 'Agatha De Lacey' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the young woman' is already claimed as a name or alias by another character in this cast — cannot be an alias for 'Agatha De Lacey'
+BLOCKED alias: 'blind father' is already claimed as a name or alias by another character in this cast — cannot be an alias for 'the old man (De Lacey)'
+BLOCKED alias: 'the blind man' is already claimed as a name or alias by another character in this cast — cannot be an alias for 'the old man (De Lacey)'
+BLOCKED alias: 'the elderly man' for 'the old man (De Lacey)' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the veiled lady' for 'Safie' not found in any chapter summary (likely hallucinated)
+BLOCKED alias: 'the journal' for 'the creature’s journal' not found in any chapter summary (likely hallucinated)
+Narrator 'Robert Walton' has only 3 mention(s) — too few to be a first-person narrator (need > 5); skipping narrator assignment
+No passages provided for Father, returning UNCERTAIN
+Removing contradictory relationship: 'Victor Frankenstein'→'Alphonse Frankenstein'='parent' AND 'Alphonse Frankenstein'→'Victor Frankenstein'='parent' (identical non-symmetric label is logically impossible)
+Removing contradictory relationship: 'Victor Frankenstein'→'Father'='parent' AND 'Father'→'Victor Frankenstein'='parent' (identical non-symmetric label is logically impossible)
+LLM validation failed (got dict), keeping batch candidates
+Ollama json_mode validation error: The requested response format requires a JSON array, but the provided example output is a JSON object. Please correct the format to match the required structure.
+Ollama json_mode validation error: The requested output must be a JSON array, but the provided response is not in the correct format. Please ensure the output is strictly a JSON array with one object per word, using the required keys: 'word', 'ipa', 'phonetic_spelling', and 'notes'.
+Ollama json_mode validation error: Invalid JSON format. Expected an array.
+Ollama json_mode validation error: Invalid JSON format. The response must be a JSON array containing one object per word, even if there is only one word.
+Ollama json_mode validation error: The requested output must be a JSON array, but the provided response is not in the correct format. Please ensure the output is a valid JSON array with one object per word, using the exact structure specified.
+Ollama json_mode validation error: The requested JSON array must be returned as a single, valid JSON structure with one object per word, but the current response is not formatted as such. Please ensure the output is purely the JSON array without any additional text or formatting errors.
+Ollama json_mode validation error: The requested output must be a JSON array, but the provided response is not in the correct format. Please ensure the output is strictly a JSON array with one object per word, using the required keys: "word", "ipa", "phonetic_spelling", and "notes".
+Ollama json_mode validation error: The requested response format requires a JSON array, but the provided example output is invalid JSON. I must return only a valid JSON array as specified.
+   structure agent: qwen3-next:80b-a3b-instruct-q8_0
+   characters agent: qwen3-next:80b-a3b-instruct-q8_0
+   summaries agent: qwen3-next:80b-a3b-instruct-q8_0
+   pronunciation agent: qwen3-next:80b-a3b-instruct-q8_0
+📖 Ingesting: Frankenstein_ebook.txt
+   Extracted 75,060 words
+🔧 Refining text (may download word data on first run)...
+   ⚠️  Removed 45 chars of Gutenberg license boilerplate from end
+   ⚠️  Removed 48 chars of Gutenberg header boilerplate from beginning
+   ⚠️  Total Gutenberg boilerplate removed: 93 chars (0.0%)
+📑 Detecting chapters...
+   Found 28 chapters
+👥 Character extraction: will run after summaries...
+📝 Generating chapter summaries...
+   Generated 28 summaries
+👥 Extracting characters (summary-driven)...
+   Narrator (from V2 pipeline): Robert Walton
+   Found 24 characters
+🔗 Applying summary-driven character merges (F1)...
+🏷️  Extracting tag identities (F5)...
+🔍 Reconciling characters from chapter summaries...
+   Added 1 referenced character(s) from summaries: ['America']
+🎭 Detecting narrator from summaries...
+   Narrator skipped: Robert Walton (already_found=True, had_narrator=True, rate=14%)
+   Post-4.5.9 re-check added 1 character(s): ['Father']
+📋 Generating character profiles...
+   Generated 20 profiles for 20 eligible characters
+🗣️  Generating pronunciation guide...
+   Flagged 235 words
+📊 Generating overview...
+   Overview generated successfully
+🎭 Finalizing narrator detection...
+   Confirmed narrator: Victor Frankenstein (first-person)
+📦 Building analysis result...
+✅ Analysis complete in 190m 52s!
+
+=== Pipeline Profiling Report ===
+
+Stage                    |     Time | LLM Calls |   Tokens | Items | Confidence  
+---------------------------------------------------------------------------------
+Chapter Detection        |    38m4s |        61 |  143,959 |    28 | 27H/1M/0L   
+Chapter Summaries        |   51m18s |        46 |  162,111 |    28 | 28H/0M/0L   
+Character Extraction     |   15m16s |        18 |  130,034 |    24 | 12H/12M/0L  
+Character Profiles       |    58m7s |        59 |  291,061 |    20 | 20H/0M/0L   
+Pronunciation Guide      |   23m11s |       231 |   96,229 |   235 | 40H/195M/0L 
+---------------------------------------------------------------------------------
+TOTAL                    |  190m53s |       415 |  823,394 |     - | -           
+
+Bottleneck: Character Profiles (30.4% of time)
+
+📊 Quality report: output/Frankenstein_ebook_20260314_094823/quality.md
+📁 Output directory: output/Frankenstein_ebook_20260314_094823
+
+============================================================
+ANALYSIS SUMMARY
+============================================================
+
+📖 Frankenstein_ebook
+   by Mary Wollstonecraft (Godwin) Shelley
+
+⏱️  Estimated duration: 8h 19m
+   (75,042 words at 150 WPM)
+
+📑 Structure:
+   chapter: 28
+
+👥 Characters: 20
+   • Robert Walton (aka R. Walton, Captain Walton) - 8 mentions
+   • Victor Frankenstein (aka the stranger, Victor) - 71 mentions
+   • the old man (aka the monster, the fiend) - 103 mentions
+   • Elizabeth (aka Elizabeth Lavenza) - 92 mentions
+   • Clerval (aka Henry, Henry Clerval) - 82 mentions
+   ... and 15 more
+
+🗣️  Pronunciation flags: 235
+   unknown: 162
+   proper_noun: 43
+   foreign: 15
+   homograph: 15
+
+⚠️  Warnings:
+   Removed 45 chars of Gutenberg license boilerplate from end
+   Removed 48 chars of Gutenberg header boilerplate from beginning
+   Total Gutenberg boilerplate removed: 93 chars (0.0%)
+
+============================================================
+
+✅ Analysis saved to: ../output/frankenstein/analysis.json
+HTML report saved to: ../output/frankenstein/report.html
