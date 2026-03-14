@@ -2585,6 +2585,33 @@ class AudiobookAnalyzer:
             except Exception as _e:
                 logger.warning(f"Post-4.5.9 F6 re-check failed: {_e}")
 
+        # Fix HHH: Early inner narrator selection for nested/epistolary narratives.
+        # narrator_detected may be None here because the outer/frame narrator was blocked
+        # at Step 4.5 (non-pervasive, e.g., Robert Walton in Frankenstein). For profiling
+        # (Step 4.6), narrator_name must be the INNER narrator so that Fix AAA can replace
+        # "the narrator" placeholders with the narrator's actual name in F2 evidence items.
+        # Universal invariant: if narrator_detected is None and is_narrator characters
+        # exist (excluding the blocked outer narrator), pick the most prominent proper-name one.
+        if narrator_detected is None and pipeline_char_map and pipeline_char_map.characters:
+            _blocked_canon_hhh = (locals().get('_blocked_narrator_45') or '').strip().lower()
+            _inner_narrators_hhh = [
+                c for c in pipeline_char_map.characters
+                if getattr(c, 'is_narrator', False)
+                and c.canonical_name
+                and c.canonical_name[:1].isupper()  # proper name (excludes "the creature")
+                and c.canonical_name.strip().lower() not in ('the narrator', 'narrator', '')
+                and c.canonical_name.strip().lower() != _blocked_canon_hhh
+            ]
+            if _inner_narrators_hhh:
+                narrator_detected = max(
+                    _inner_narrators_hhh,
+                    key=lambda c: getattr(c, 'mention_count', 0) or 0
+                ).canonical_name
+                logger.info(
+                    f"Fix HHH: Early inner narrator selection for profiling: "
+                    f"'{narrator_detected}' (blocked outer: '{_blocked_canon_hhh}')"
+                )
+
         # Step 4.6: Generate Character Profiles with Summary Evidence and Moral Valence (F2, F3)
         # Adaptive threshold based on text length
         # For short texts (< 5000 words), use a lower threshold
@@ -3484,7 +3511,12 @@ class AudiobookAnalyzer:
                         if not _is_nested_sum and _sum.summary and 'narrator' in _sum.summary.lower():
                             _sum.summary = _nn_pat.sub(_nn_final, _sum.summary)
                         # Replace blocked outer narrator with inner narrator in non-letter chapters.
-                        if not _is_nested_sum and _blocked_pat_69 and _sum.summary:
+                        # Note: _is_nested_sum guard intentionally removed — the blocked outer
+                        # narrator's name (e.g., "Robert Walton") should not appear in embedded
+                        # chapters (creature chapters), so this substitution is safe to run on all
+                        # non-letter chapters. The nested guard was causing Victor's chapters to be
+                        # skipped when dialogue in the first 2000 chars triggered the FP-count check.
+                        if _blocked_pat_69 and _sum.summary:
                             _title_69c = getattr(_sum, 'title', '') or ''
                             _is_letter_69c = bool(
                                 re.match(r'^Letter\s+\w+', _title_69c, re.IGNORECASE)

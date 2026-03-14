@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 27
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 
 ## Output Files
@@ -148,10 +148,50 @@
 - Attempt 26: Fix BBB (Ch16 narrator) ✓, Fix CCC (none cleanup) ✓, Fix DDD (Arctic Ice prompt) ✗
 - Attempt 27: Fix EEE (Victor unified ✓, but caused Walton substitution regression), Fix FFF (Alphonse rels fixed ✓, Elizabeth still empty), Fix GGG (narrator roles ✓)
 
+## Root Cause Analysis
+
+The TWO remaining blockers are **Summaries (6.0)** and **Profiles (6.5)**.
+
+**Summary regression root cause:** Fix EEE correctly made Victor a narrator (is_narrator=True). But Step 6.9 in summarizer.py now has MULTIPLE narrators (Walton, Victor, Creature) and is substituting the WRONG one (Walton) into Victor's chapters. The substitution logic needs to be chapter-aware: each chapter should only be substituted with its OWN narrator's name, not the frame narrator.
+
+**Profile root cause (unchanged from attempt 26):** F9 relationship extraction is systematically failing for characters whose relationships are described through first-person narration pronouns. Elizabeth's relationships with Victor are described as "my love", "my dear cousin" — F2 evidence may not link her name directly to Victor.
+
+**Priority for next fix:**
+1. **Fix Step 6.9 narrator substitution** — must pick per-chapter narrator, not global frame narrator. When multiple narrators exist, either (a) use the narrator_detected field per chapter, or (b) don't substitute at all (safer than wrong name). → Summaries 6→8
+2. **Reciprocal relationship injection** — if Victor→Elizabeth exists anywhere, create Elizabeth→Victor. → Profiles improvement
+3. **reject_unfounded_familial_labels** for Clerval→William "brother" → Profiles improvement
+
+## Attempt 28 Fixes
+
+### Fix III (analyzer.py): Step 6.9 blocked-narrator replacement guard
+- Root cause: Fix BBB's nested-narrator detection flags Victor's chapters as "nested" (they
+  contain dialogue with FP pronouns after any quote in first 2000 chars). This prevented
+  `_blocked_pat_69` ("Robert Walton" → "Victor Frankenstein") from running on Victor's chapters.
+- Fix: Remove `not _is_nested_sum` guard from the blocked-narrator replacement condition.
+  The blocked outer narrator's name shouldn't appear in creature chapters, so this is safe.
+- Location: analyzer.py line ~3487
+- Smoke test: 332 passed, 0 regressions
+
+### Fix HHH (analyzer.py): Early inner narrator selection for profiling
+- Root cause: narrator_detected = None at Step 4.6 (cleared when outer Walton was blocked).
+  narrator_name = None passed to _generate_character_profile → Fix AAA (narrator→name subs)
+  didn't run → F2 evidence kept "the narrator" placeholder → F9 found no relationships.
+- Fix: Before Step 4.6, if narrator_detected is None and is_narrator chars exist (excluding
+  blocked outer narrator), pick most prominent proper-name narrator → narrator_detected = "Victor Frankenstein"
+- Location: analyzer.py ~line 2588 (before Step 4.6)
+
+### Fix (post_corrections.py): "not mentioned" as uninformative relationship label
+- Added "not mentioned" to _uninformative set (alongside "none", "unknown", "associated")
+- Universal: any relationship valued "not mentioned" is meaningless and should be removed
+- Removes spurious "Felix→William: not mentioned" type entries
+
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
+| 28 | Step 6.9 blocked-narrator guard (nested detection) | analyzer.py (Fix III) | PENDING |
+| 28 | Early inner narrator for profiling narrator_name | analyzer.py (Fix HHH) | PENDING |
+| 28 | "not mentioned" uninformative label cleanup | post_corrections.py | PENDING |
 | 27 | Victor fragmentation (Step 3.95 guard) | characters.py (Fix EEE) | **PARTIAL** — Victor unified ✓, but caused Step 6.9 regression |
 | 27 | Multi-narrator kinship bootstrapping | post_corrections.py (Fix FFF) | **PARTIAL** — Alphonse rels fixed ✓, Elizabeth still empty |
 | 27 | Secondary narrator role floor | narrator.py (Fix GGG) | **WORKED ✓** |
@@ -169,18 +209,5 @@
 | 22 | Walton/De Lacey F6 duplicates | analyzer.py (Fix OO) | Fixed ✓ |
 | 22 | "my father" canonical | characters.py (Fix PP) | Fixed ✓ |
 
-## Root Cause Analysis
-
-The TWO remaining blockers are **Summaries (6.0)** and **Profiles (6.5)**.
-
-**Summary regression root cause:** Fix EEE correctly made Victor a narrator (is_narrator=True). But Step 6.9 in summarizer.py now has MULTIPLE narrators (Walton, Victor, Creature) and is substituting the WRONG one (Walton) into Victor's chapters. The substitution logic needs to be chapter-aware: each chapter should only be substituted with its OWN narrator's name, not the frame narrator.
-
-**Profile root cause (unchanged from attempt 26):** F9 relationship extraction is systematically failing for characters whose relationships are described through first-person narration pronouns. Elizabeth's relationships with Victor are described as "my love", "my dear cousin" — F2 evidence may not link her name directly to Victor.
-
-**Priority for next fix:**
-1. **Fix Step 6.9 narrator substitution** — must pick per-chapter narrator, not global frame narrator. When multiple narrators exist, either (a) use the narrator_detected field per chapter, or (b) don't substitute at all (safer than wrong name). → Summaries 6→8
-2. **Reciprocal relationship injection** — if Victor→Elizabeth exists anywhere, create Elizabeth→Victor. → Profiles improvement
-3. **reject_unfounded_familial_labels** for Clerval→William "brother" → Profiles improvement
-
 ## Next Action
-Run PROMPT_fix.md to fix Step 6.9 narrator substitution regression (Critical #1) and profile issues.
+awaiting_analysis — run analysis to verify fixes
