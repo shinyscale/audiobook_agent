@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 25
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score:** 7.35
 
 ## Score History
@@ -14,170 +14,169 @@
 | 21 | 7.15 | Creature unified ✓, but duplicates (Walton, De Lacey), poor canonicals, empty profiles |
 | 22 | (killed) | Had Fix OO/PP/QQ but missing Fix RR/SS/TT/UU/WW — killed to avoid wasting 2.5h |
 | 23 | 6.45 | Canonicals fixed ✓, duplicates fixed ✓, but systematic narrator substitution errors in summaries; Felix/De Lacey false merge |
-| 24 | 7.50 | Narrator substitution MOSTLY FIXED ✓, De Lacey now separate ✓, Victor→Alphonse fixed ✓. Still: Ch16 misattribution, Ch14 broken text, empty profiles |
+| 24 | 7.50 | Narrator substitution MOSTLY FIXED ✓, De Lacey now separate ✓, Victor→Alphonse fixed ✓ |
+| 25 | 7.25 | Fix ZZ/AAA failed: Ch16 still wrong, Elizabeth still empty. New: Arctic ice as character, De Lacey father missing again |
 
 ## Latest Scores
 - Structure Detection: 8/10 ✓
   - 28 chapters correct (4 letters + 24 chapters)
   - Letter 1 title=null (minor)
-- Character Extraction: 8/10 ✓
-  - Completeness: 9/10 — All major+minor characters present including De Lacey (the old man) as separate character
-  - Identity Resolution: 8/10 — Felix and De Lacey now separate ✓; "De Lacey" alias claimed by BOTH Felix and old man (conflict but not a false merge)
-  - Alias Grouping: 7.5/10 — De Lacey double-alias conflict; "more than sister" borderline alias for Elizabeth
+- Character Extraction: 7/10 ✗
+  - Completeness: 7/10 — "the Arctic ice" (78 mentions) extracted as protagonist character — it's a SETTING not a character. De Lacey father (the old man) MISSING (was main_cast_9 in attempt 24).
+  - Identity Resolution: 7.5/10 — Creature unified ✓, no false merges. But De Lacey father absorbed/missing.
+  - Alias Grouping: 7/10 — "Father" as canonical instead of "Alphonse Frankenstein" (regression from attempt 24). "De Lacey" still alias of Felix only (should belong to the old man).
 - Character Profiles: 6/10 ✗
-  - Victor→Alphonse: "son" ✓ (FIXED from "brother")
-  - Alphonse→Victor: "father" ✓ (FIXED)
-  - the creature role: "protagonist" ✓ (FIXED from "supporting")
-  - Elizabeth (94 mentions): STILL empty relationships {} — should have Victor as fiancé/wife
-  - Clerval (82 mentions): empty relationships {} — should have Victor as friend
-  - the creature: only "Alphonse: target of revenge" — missing Victor as creator
-  - Felix: wrong relationships ("the creature: observer and chronicler", "Clerval: not mentioned")
-  - Safie→Victor: "unaware observer" — WRONG, should relate to Felix
-  - Kirwin→Alphonse: "rival" / Alphonse→Kirwin: "rival" — FABRICATED
-  - Justine: empty relationships
-  - 14/20 with relationships, 7/20 with physical descriptions
+  - Elizabeth (94 mentions): Fix AAA FAILED — only relationship is "the Arctic ice: setting of final demise" (nonsensical). Should have Victor as fiancé/husband.
+  - Clerval: "Victor Frankenstein: close friend" ✓ (IMPROVEMENT from attempt 24). But also has filler "William: none", "Felix: none".
+  - Victor→William: "son" — WRONG. William is Victor's BROTHER, not son. Victor's father is Alphonse.
+  - the creature→Victor: "enemy" — misses the most important relationship: creator.
+  - the creature role: "supporting" — REGRESSION from attempt 24 where it was "protagonist".
+  - "the Arctic ice" has 5 nonsensical relationships ("Elizabeth: none", "Father: none", etc.) polluting profiles.
+  - Felix: only "the creature: observer and learner" — missing De Lacey (father), Agatha (sister), Safie (love interest).
+  - 5 characters with zero relationships (Justine, Agatha, Safie, Ernest, Werter).
+  - 8/20 with physical descriptions. Victor (71 mentions, protagonist) has NO physical description.
 - Chapter Summaries: 7/10 ✗
-  - MAJOR IMPROVEMENT: Most Victor chapters now correctly say "Victor Frankenstein" (Ch2-9, 17-24)
-  - Ch16 (index 20): "Victor Frankenstein burns their hovel" and "Victor Frankenstein strangles the child" — CRITICAL ERROR: these are the CREATURE's actions, not Victor's
-  - Ch14 (index 18): "The narrator family", "The narrator cottage" — broken substitution (should be "the De Lacey family")
-  - Ch1 (index 5), Ch10 (index 14), Ch21 (index 25): still say "the narrator" instead of Victor (minor — not wrong, just not substituted)
-  - Letters 1-4: correctly attributed to Walton ✓
-  - Creature chapters 11-15 (indices 15-19): correctly say "the narrator" ✓
+  - Ch16 (index 20): Fix ZZ FAILED — STILL says "Victor Frankenstein burns their hovel" and "Victor Frankenstein strangles the child". These are the CREATURE's actions. Critical error.
+  - Ch14 (index 18): STILL says "The narrator family", "Felix The narrator" — broken substitution.
+  - Ch15 (index 19): "The narrator" — correct for creature chapter.
+  - Ch1 (index 5), Ch10 (index 14), Ch20 (index 24), Ch21 (index 25): "The narrator" instead of "Victor Frankenstein" — inconsistent but not wrong.
+  - Letter 3 (index 3): "R.W narrator" — odd phrasing.
+  - Ch8 (index 12): "Victor Frankenstein accompanies their family" — pronoun mismatch ("their" should be "his").
+  - Most Victor chapters (2-9, 17-19, 22-28) correctly attributed ✓.
+  - Letters 1-4 correctly attributed to Walton ✓.
 - Pronunciation Guide: 8/10 ✓
-  - 232/235 have IPA; dæmon, Chamounix, Arveiron, Clerval all present
+  - 232/235 have IPA; good coverage of unusual names.
 - HTML Presentation: 8/10 ✓
-- **Overall: 7.50/10** (reference only)
+- **Overall: 7.25/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold: Profiles 6, Summaries 7)
+**Status:** FAIL (3 categories below threshold: Characters 7, Profiles 6, Summaries 7)
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-1. **Ch16 narrator misattribution: creature's actions attributed to Victor Frankenstein** [Summaries]
-   - Problem: Ch16 (index 20) says "Victor Frankenstein burns their hovel" and "Victor Frankenstein strangles the child to death". These are the CREATURE's actions. The creature burns the De Lacey cottage and kills William — not Victor.
-   - Evidence: In the novel, Ch16 is narrated by the creature. The creature is driven from the cottage, burns it, travels to Geneva, and kills William. Victor is not present in this chapter.
-   - Location: `src/analyzer.py` — Step 6.9 narrator substitution. The code replaces "the narrator" with the detected narrator name. For Ch16, it should use "the creature" (or leave as "the narrator"), but instead it's using "Victor Frankenstein".
-   - Root cause: narrator.py correctly identifies Victor as inner narrator for nested narratives (Fix XX). But Ch11-16 are narrated by the creature WITHIN Victor's narration. The per-chapter narrator detection doesn't recognize this second level of nesting.
-   - Fix: Step 6.9 should check if a chapter's narrator_character_id matches a different character (the creature) and substitute accordingly. Or: the summarizer's own narrator detection (Fix RR) should handle creature chapters, and Step 6.9 should not override it.
+1. **Ch16 narrator misattribution PERSISTS — Fix ZZ did not work** [Summaries]
+   - Problem: Ch16 (index 20) still says "Victor Frankenstein burns their hovel" and "Victor Frankenstein strangles the child to death". These are the CREATURE's actions.
+   - Evidence: Fix ZZ extended `_quoted_any_re` to catch chapters starting with a quote character. Either the regex didn't match Ch16's text, or the FP-count heuristic didn't trigger, or the fix was overridden by Step 6.9 substitution afterwards.
+   - Location: `src/pipeline/chapter_summary/summarizer.py` (Fix ZZ regex) AND `src/analyzer.py` Step 6.9 (narrator substitution)
+   - Root cause: Step 6.9 replaces "the narrator" → "Victor Frankenstein" globally for ALL chapters in Victor's frame. Even if the summarizer correctly outputs "the narrator" for creature chapters, Step 6.9 overwrites it. **The fix must be in Step 6.9**, not in summarizer.py.
+   - Fix: Step 6.9 must check per-chapter narrator. Chapters 11-16 (creature's narration within Victor's narration) should NOT substitute Victor's name. Either: (a) use the creature's `is_narrator=True` + chapter range detection, or (b) check if the summary already mentions "the creature" performing actions and skip substitution for that chapter.
+
+2. **Elizabeth still has no meaningful relationships — Fix AAA did not work** [Profiles]
+   - Problem: Elizabeth (94 mentions) has only "the Arctic ice: setting of final demise" — no Victor relationship.
+   - Evidence: Fix AAA was supposed to substitute narrator_name for "the narrator" in F2 evidence before F9 runs. Either the substitution didn't fire (pov check?), or F9 still failed to extract relationships from the evidence.
+   - Location: `src/analyzer.py` — Fix TT/AAA block (~line 4861), then F9 relationship extraction
+   - Fix: Debug whether Fix AAA actually ran. Check if F2 evidence for Elizabeth now contains "Victor Frankenstein" instead of "the narrator". If yes, F9 prompt quality is the issue. If no, the substitution condition didn't fire.
 
 ### HIGH
-2. **Elizabeth empty relationships** [Profiles]
-   - Problem: Elizabeth (94 mentions, main_cast_3) has `relationships: {}`
-   - Evidence: Elizabeth is Victor's fiancée/wife, adopted sister, central character. Should have: Victor (fiancé/husband), Alphonse (adoptive father), William (adoptive brother), Justine (friend)
-   - Location: `src/analyzer.py` — F9 relationship extraction
-   - Fix: The narrator substitution fix helped Victor's relationships (Victor→Alphonse now correct), but Elizabeth's profile generation may still fail. Check if F9 generates relationships for Elizabeth — possible that the LLM prompt doesn't extract reciprocal relationships.
+3. **"the Arctic ice" extracted as protagonist character** [Characters - Completeness]
+   - Problem: "the Arctic ice" (main_cast_2, 78 mentions) is extracted as a character with role "protagonist" and relationships to other characters. It's a geographic SETTING, not a character or symbolic entity.
+   - Evidence: Unlike symbolic forces (Red Death, the monkey's paw), "the Arctic ice" doesn't act as an agent in the narrative. Its relationships are all "none" or "setting of X" — even the LLM knows it's a setting.
+   - Location: `src/pipeline/character_extraction_v2/main_cast.py` — extraction phase. Or post-extraction filtering.
+   - Fix: Add a filter to reject candidates whose relationships are ALL "none"/"setting of" — these are settings not characters. Or add "ice", "ocean", "forest", "mountain" etc. to an exclusion list for non-agent nouns. However, this must be generic (per CLAUDE.md rules).
 
-3. **Clerval empty relationships** [Profiles]
-   - Problem: Clerval (82 mentions, main_cast_4) has `relationships: {}`
-   - Evidence: Henry Clerval is Victor's closest friend. Should have: Victor Frankenstein (close friend)
-   - Location: Same F9 extraction issue as #2
-   - Fix: Part of broader profile quality issue
+4. **"Father" as canonical name instead of "Alphonse Frankenstein"** [Characters - Alias Grouping]
+   - Problem: Alphonse Frankenstein's canonical name is "Father" (a kinship term) with "Alphonse Frankenstein" as an alias. Attempt 24 had "Alphonse Frankenstein" as canonical.
+   - Evidence: This is LLM variability between runs. The pipeline should prefer proper names over kinship terms as canonical.
+   - Location: `src/pipeline/character_extraction_v2/characters.py` — canonical name selection logic
+   - Fix: Existing Fix PP should handle this (prefer proper names over kinship). If it ran but the LLM's initial extraction used "Father" with higher mention count, the mention-based canonical selection may override proper-name preference. Verify Fix PP still applies.
 
-4. **Ch14 broken substitution text** [Summaries]
-   - Problem: "The narrator recounts the tragic history of The narrator family" and "The narrator cottage" — "The narrator" used as possessive noun phrase where it should be "the De Lacey"
-   - Evidence: Ch14 is narrated by the creature, describing the De Lacey family history. The original LLM summary likely said "the narrator's family" meaning the family the creature observes, but substitution mangled it.
-   - Location: Step 6.9 or summarizer prompt
-   - Fix: This is a prompt/substitution issue. The summarizer should use the family's actual name (De Lacey) rather than "the narrator" when referring to observed characters.
+5. **De Lacey father (the old man) MISSING** [Characters - Completeness]
+   - Problem: The old man (De Lacey father, blind man who plays the guitar) was main_cast_9 in attempt 24 but is completely absent in attempt 25. Only Felix, Agatha, and Safie represent the De Lacey family.
+   - Evidence: The old man is a significant character in chapters 11-16 (creature's narration). His encounter with the creature in Ch15 is a pivotal scene.
+   - Location: LLM variability in extraction. The pipeline correctly extracted him in attempt 24; this run he wasn't proposed.
+   - Fix: This is non-deterministic. The old man may or may not appear depending on the LLM run. If the pipeline has F6 reconciliation for summary-mentioned characters, verify "the old man" appears in chapter summaries for Ch11-15.
 
-5. **Fabricated relationships: Kirwin↔Alphonse "rival"** [Profiles]
-   - Problem: Both Mr. Kirwin and Alphonse list each other as "rival" — completely fabricated
-   - Evidence: Mr. Kirwin is the Irish magistrate who examines Victor after Clerval's murder. Alphonse arrives to help Victor. They have no rivalry.
-   - Location: F9 or post_corrections.py relationship extraction
-   - Fix: LLM hallucination in profiler. May need stricter evidence requirements.
+6. **Victor→William: "son" is WRONG** [Profiles]
+   - Problem: Victor lists William as "son" but William is Victor's younger BROTHER, not son. Victor's father is Alphonse.
+   - Evidence: William Frankenstein is the youngest brother, murdered by the creature in Ch7-8.
+   - Location: `src/analyzer.py` F9 or `post_corrections.py`
+   - Fix: LLM hallucination. The text says "my youngest brother" explicitly. This may be a consequence of the narrator substitution — if summaries say "Victor Frankenstein's son William" due to misattribution, F9 picks it up. Check Ch7-8 summaries for this error.
 
-6. **Creature missing Victor as creator** [Profiles]
-   - Problem: the creature's only relationship is "Alphonse Frankenstein: target of revenge". Missing the most important relationship: Victor as creator.
-   - Location: F9 profile generation
-   - Fix: Part of broader profile quality issue
+7. **the creature role = "supporting" (regression from "protagonist" in attempt 24)** [Characters]
+   - Problem: The creature (83 mentions, is_narrator) has role "supporting". In attempt 24 it was correctly "protagonist".
+   - Evidence: The creature is one of the two central characters. LLM variability.
+   - Location: Role assignment in character extraction
+   - Fix: Non-deterministic. May need a rule: characters with `is_narrator=True` should be at least "main" role.
 
 ### MEDIUM
-7. **De Lacey alias conflict** [Alias Grouping]
-   - Problem: "De Lacey" appears as alias of BOTH Felix (main_cast_7) and the old man (main_cast_9). A narrator lookup on "De Lacey" would be ambiguous.
-   - Fix: Remove "De Lacey" from Felix's aliases (keep only "Felix De Lacey" and "the son"). The standalone "De Lacey" should belong only to the old man.
+8. **"none" filler relationships polluting profiles** [Profiles]
+   - Problem: Multiple characters have relationships like "William: none", "Felix: none", "Elizabeth: none". These provide no useful information.
+   - Location: `post_corrections.py` — `clean_unknown_relationships` or F9
+   - Fix: Filter out relationships with label "none" during post-processing.
 
-8. **Felix wrong relationships** [Profiles]
-   - Problem: Felix has "the creature: observer and chronicler" and "Clerval: not mentioned" — both wrong/useless
-   - Evidence: Felix should have: the old man/De Lacey (father), Agatha (sister), Safie (love interest)
-   - Fix: LLM profiler quality issue
+9. **Ch14 broken "The narrator family" substitution** [Summaries]
+   - Problem: Ch14 (index 18) says "The narrator family" and "Felix The narrator" instead of "the De Lacey family".
+   - Evidence: The summarizer used "the narrator" as a noun phrase modifier, and substitution couldn't handle it.
+   - Location: Summarizer prompt or Step 6.9 substitution
+   - Fix: This is a summarizer prompt issue — the LLM should use proper names for the observed family (De Lacey), not "the narrator" as a possessive.
 
-9. **Safie→Victor "unaware observer"** [Profiles]
-   - Problem: Safie's only relationship is to Victor as "unaware observer" — wrong
-   - Evidence: Safie should relate to Felix (love interest) and the De Lacey family
-   - Fix: LLM profiler quality issue
+10. **Inconsistent narrator substitution across Victor chapters** [Summaries]
+    - Ch1, Ch10, Ch20, Ch21 still say "The narrator" while other Victor chapters say "Victor Frankenstein".
+    - Minor inconsistency, not factually wrong.
 
-10. **Inconsistent narrator substitution in some Victor chapters** [Summaries]
-    - Problem: Ch1 (index 5), Ch10 (index 14), Ch21 (index 25) still say "the narrator" instead of "Victor Frankenstein"
-    - Evidence: These are Victor's chapters. While "the narrator" is not factually wrong, it's inconsistent with the other 12+ Victor chapters that correctly say "Victor Frankenstein"
-    - Fix: Minor polish — Step 6.9 substitution may not catch all instances
+11. **Felix missing family relationships** [Profiles]
+    - Felix only has "the creature: observer and learner". Missing: De Lacey (father), Agatha (sister), Safie (love interest).
+    - Part of broader profile quality issue.
 
-## Attempt 25 Fixes
+### LOW
+12. **Letter 3 "R.W narrator" odd phrasing** [Summaries]
+13. **Ch8 "their family" pronoun mismatch** [Summaries]
 
-### Fix ZZ (summarizer.py): Ch16 narrator misattribution
-- **File:** `src/pipeline/chapter_summary/summarizer.py` line 1451-1454
-- **Change:** Extended `_quoted_any_re` to match chapter text starting directly with a quote character (no "Chapter N" heading): `r'(?:(?:Chapter|Letter)\s+\w+\.?\s*\n\s*|\A\s*)[\u201c"]'`
-- **Why:** Frankenstein ebook chapters (Ch11-16) start with `"Cursed...` directly — no "Chapter XVI\n" heading before the curly quote. The old pattern required "Chapter" prefix → no match → Fix 6 never fired → Ch16 kept "Victor Frankenstein" instead of reverting to "the narrator"
-- **Expected effect:** Ch16 Fix 6 fires: detects high FP count in `"Cursed, cursed creator! Why did I live?..."` → replaces "Victor Frankenstein" → "The narrator" in Ch16 summary
+## Attempt 25 Fixes (Results)
 
-### Fix AAA (analyzer.py): Elizabeth/Clerval empty relationships
-- **File:** `src/analyzer.py` lines 4861-4868 (inside Fix TT block)
-- **Change:** After building F2 items, substitute `narrator_name` for "the narrator" in evidence statements
-- **Why:** F2 evidence extracted at Step 4.6 (before Step 6.9 substitution). For epistolary Frankenstein, pov="epistolary" → Step 4.5 doesn't run. So F2 evidence says "the narrator proceeds to marry Elizabeth" instead of "Victor Frankenstein proceeds to marry Elizabeth". F9 looks for "Victor"/"Frankenstein" → finds nothing → relationships = {} → `clean_unknown_relationships` removes "associated" fallback → Elizabeth ends up with no relationships.
-- **Expected effect:** F9 evidence for Elizabeth/Clerval has "Victor Frankenstein" → F9 extracts "Victor Frankenstein: fiancé/husband" for Elizabeth and "Victor Frankenstein: close friend" for Clerval → profiles score improves from 6→8
+### Fix ZZ (summarizer.py): Ch16 narrator misattribution — FAILED
+- Extended `_quoted_any_re` to match chapters starting with quote character without "Chapter N" heading
+- Result: Ch16 STILL says "Victor Frankenstein" — the fix either didn't match or Step 6.9 overwrites it afterward
+- **Root cause confirmed**: The problem is in Step 6.9, not summarizer.py. Step 6.9 globally replaces "the narrator" → "Victor Frankenstein" for all chapters, including creature chapters.
+
+### Fix AAA (analyzer.py): Elizabeth/Clerval empty relationships — PARTIAL
+- Substituted narrator_name for "the narrator" in F2 evidence statements
+- Result: Clerval now has "Victor Frankenstein: close friend" ✓ (was empty). Elizabeth STILL has no meaningful relationships (only "Arctic ice" nonsense). Fix worked for Clerval but not Elizabeth.
+- **Possible cause**: Elizabeth's F2 evidence may not contain "the narrator" in the right context, or F9 extraction failed for her specifically.
 
 ## Fix History
 - Attempts 1-13: Various narrator detection fixes (Steps 4.5, 5.8.6, 6.9)
 - Attempt 14: Step 6.9 picked Walton not Victor
 - Attempt 15: Fix T (epistolary exclusion), Fix U (prominent narrator selection)
 - Attempt 16: Fix V/W (narrator.py symbolic/mention guards)
-- Attempt 17: Fix X/Y/AA (title patterns, Unicode tokenization, narrator ID selection) — REGRESSED (dæmon narrator)
-- Attempt 18: Fix BB (stop word filter in preamble) — REGRESSED (Arctic ice merge)
+- Attempt 17: Fix X/Y/AA (title patterns, Unicode tokenization, narrator ID selection) — REGRESSED
+- Attempt 18: Fix BB (stop word filter in preamble) — REGRESSED
 - Attempt 19: Guards CC2/CC3, Step 3.8 extended, Rule 0.5b extended
-- Attempt 20: Fix DD/EE/FF/GG/HH — no improvement (creature fragmentation, profile gaps)
-- Attempt 21: Fix KK (creature fragment merge), Fix LL (kinship→relationship), Fix MM (gender from kinship), Fix NN (Fix EE surname guard) — creature unified ✓ but new issues
-- Attempt 22: Fix OO/PP/QQ committed; killed at 1h14m because Fix RR/SS/TT/UU/WW also needed
-- Attempt 23: ALL fixes committed (OO/PP/QQ/RR/SS/TT/UU/WW) — canonicals fixed ✓, Walton dup removed ✓, but systematic narrator substitution errors
-- Attempt 24: Fix XX (narrator.py: inner narrator for nested narratives), Fix YY (Fix OO alias guard) — narrator substitution MOSTLY FIXED ✓, De Lacey separate ✓, Victor→Alphonse fixed ✓
+- Attempt 20: Fix DD/EE/FF/GG/HH — no improvement
+- Attempt 21: Fix KK (creature fragment merge), Fix LL (kinship→relationship), Fix MM (gender), Fix NN — creature unified ✓
+- Attempt 22: Fix OO/PP/QQ committed; killed
+- Attempt 23: ALL fixes (OO/PP/QQ/RR/SS/TT/UU/WW) — canonicals fixed ✓
+- Attempt 24: Fix XX (narrator.py inner narrator), Fix YY (alias guard) — narrator MOSTLY FIXED ✓
+- Attempt 25: Fix ZZ (summarizer regex), Fix AAA (F2 evidence substitution) — ZZ failed, AAA partial (Clerval ✓, Elizabeth ✗)
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 24 | narrator.py outputs outer narrator (Walton) → used globally | narrator.py (Fix XX) | MOSTLY FIXED ✓ — Victor chapters correct, but creature Ch16 got "Victor" instead of "creature" |
-| 24 | Felix/De Lacey false merge via alias surname match | analyzer.py (Fix YY) | Fixed ✓ — De Lacey now separate character (main_cast_9) |
-| 23 | Ch11 nested narrator error | summarizer.py (Fix RR) | Partial ✓ — Ch11 fixed, but Ch16 and all Victor chapters still wrong |
-| 23 | F9 None→{} normalization | analyzer.py (Fix SS) | No visible effect — Elizabeth still empty relationships |
-| 23 | F9 evidence uses pronouns for narrator | analyzer.py (Fix TT) | No visible effect — relationships still wrong |
-| 23 | Canonical parentheticals (proper-name chars) | characters.py (Fix UU) | Fixed ✓ — Robert Walton canonical clean |
-| 23 | "the fiend" canonical | characters.py (Fix WW) | Fixed ✓ — "the creature" is now canonical |
-| 22 | Walton/De Lacey F6 duplicates | analyzer.py (Fix OO) | Mixed — Walton dup removed ✓, De Lacey dup removed but created Felix/De Lacey false merge |
-| 22 | "my father" / "the old man" canonical | characters.py (Fix PP) | Fixed ✓ — Alphonse Frankenstein proper canonical |
-| 22 | Parenthetical aliases | main_cast.py (Fix QQ) | Fixed ✓ — no parenthetical aliases |
-| 21 | Creature fragmentation | characters.py (Fix KK) | Fixed ✓ — creature unified |
-| 21 | Gender from kinship | characters.py (Fix MM) | Fixed ✓ — Elizabeth gender=female |
-| 20 | Canonical promotion | characters.py (Fix EE) | Partial — fixed by Fix PP+QQ in attempt 22 |
+| 25 | Ch16 creature narrator misattribution | summarizer.py (Fix ZZ) | FAILED — Step 6.9 overwrites, fix was in wrong layer |
+| 25 | Elizabeth/Clerval empty relationships | analyzer.py (Fix AAA) | PARTIAL — Clerval fixed ✓, Elizabeth still empty |
+| 24 | narrator.py outputs outer narrator | narrator.py (Fix XX) | MOSTLY FIXED ✓ |
+| 24 | Felix/De Lacey false merge | analyzer.py (Fix YY) | Fixed ✓ |
+| 23 | Ch11 nested narrator error | summarizer.py (Fix RR) | Partial ✓ |
+| 23 | F9 evidence uses pronouns | analyzer.py (Fix TT) | Partial — helped Clerval in attempt 25 |
+| 23 | Canonical parentheticals | characters.py (Fix UU) | Fixed ✓ |
+| 23 | "the fiend" canonical | characters.py (Fix WW) | Fixed ✓ |
+| 22 | Walton/De Lacey F6 duplicates | analyzer.py (Fix OO) | Fixed ✓ |
+| 22 | "my father" canonical | characters.py (Fix PP) | Fixed ✓ (but regressed in attempt 25) |
 
 ## Root Cause Analysis
 
-The two remaining blockers are:
+The THREE remaining blockers require focused fixes:
 
-1. **Ch16 narrator misattribution** (Summaries → 7/10): Fix XX correctly made narrator.py return Victor as the inner narrator for nested narratives. But Frankenstein has THREE levels of nesting: Walton → Victor → creature. Ch11-16 are creature chapters WITHIN Victor's narration. Step 6.9 substitutes "the narrator" → "Victor Frankenstein" for ALL of Victor's frame, including the creature's sub-chapters. The fix needs to either:
-   - Detect creature chapters (Ch11-16) and use "the creature" as narrator for those
-   - Or leave "the narrator" unsubstituted for creature chapters (since the summaries already correctly describe the creature's experiences)
+1. **Ch16 narrator (Summaries → 7/10)**: Fix ZZ targeted summarizer.py but the REAL problem is Step 6.9 in analyzer.py. Step 6.9 globally substitutes "the narrator" → "Victor Frankenstein" for all chapters. It must SKIP creature chapters (11-16). The creature has `is_narrator=True` — Step 6.9 should check if a chapter's content refers to creature actions and leave "the narrator" untouched for those chapters. **Next fix must target analyzer.py Step 6.9, NOT summarizer.py.**
 
-2. **Empty profiles for Elizabeth/Clerval + fabricated relationships** (Profiles → 6/10): The narrator fix helped Victor's relationships (now correct), but Elizabeth, Clerval, Justine still have empty or wrong relationships. This may be an F9 LLM quality issue rather than a code bug — the profiler prompt may not extract reciprocal relationships effectively.
+2. **Elizabeth empty profiles (Profiles → 6/10)**: Fix AAA partially worked (Clerval now has relationships), but Elizabeth still has none. The F9 extraction may need explicit reciprocal relationship injection — if Victor→Elizabeth is found, Elizabeth→Victor should be created automatically. Or Elizabeth's F2 evidence may lack the right context. Debug F2 evidence content for Elizabeth.
 
-## Output Files (Attempt 25)
-- HTML: ../output/frankenstein/report.html
-- JSON: ../output/frankenstein/analysis.json
-
-## Pipeline Notes (Attempt 25)
-- 28 chapters detected (4 letters + 24 chapters)
-- 20 characters found; 235 pronunciation words flagged
-- Robert Walton narrator detection: 3 mentions (below 5 threshold) — skipped
-- Step 6.9 fallback: using Victor Frankenstein as narrator (is_narrator char)
-- Contradictory relationships removed: Victor→Caroline "parent" (both ways), Victor→creature "creator" (both ways), Felix→old man "parent" (both ways)
-- No pipeline errors (exit code 0), runtime 202 minutes
+3. **"the Arctic ice" as character (Characters → 7/10)**: A setting extracted as protagonist. Need a post-extraction filter to remove entries whose relationships are all "none"/"setting of" or whose name matches common geographic/environmental terms. This must be generic per CLAUDE.md.
 
 ## Next Action
-Run PROMPT_evaluate.md to score attempt 25 results.
+Run PROMPT_fix.md to address:
+1. Step 6.9 narrator substitution: skip creature chapters (CRITICAL)
+2. Elizabeth relationship extraction or reciprocal injection (HIGH)
+3. "the Arctic ice" filtering (HIGH)
