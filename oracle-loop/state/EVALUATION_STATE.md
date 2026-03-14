@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 24
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 
 ## Score History
@@ -153,10 +153,10 @@ Fixing narrator substitution alone could lift Summaries to ~8/10 and Profiles to
 
 The **Felix/De Lacey merge** (issue #2) is the second-highest impact. It removes a named character and creates wrong relationships.
 
-## Output Files (Attempt 23)
+## Output Files (Attempt 24)
 - HTML: output/frankenstein/report.html
 - JSON: output/frankenstein/analysis.json
-- Duration: 197m 31s
+- Duration: ~105m (16:59–18:44)
 
 ## Next Action
 Run PROMPT_fix.md to address:
