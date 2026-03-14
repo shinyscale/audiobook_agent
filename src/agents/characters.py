@@ -3567,6 +3567,45 @@ class CharacterAgent(Agent):
                             desc_char.aliases.remove(best_alias_canonical)
                         proper_name_chars.append(desc_char)
                         continue  # Skip merge attempt; now it's a proper-name char
+            # Fix EE2: For bare kinship terms (Father, Mother, etc.), look for a proper-name
+            # character that has a possessive kinship alias matching this term.
+            # E.g., "Father" (134m) → Alphonse has alias "his father" → merge.
+            # This handles the case where multiple candidates exist for role/gender matching
+            # but kinship alias evidence uniquely identifies the correct target.
+            _KINSHIP_TERMS_EE2 = {
+                "father", "mother", "son", "daughter", "brother", "sister",
+                "husband", "wife", "uncle", "aunt", "nephew", "niece",
+                "grandfather", "grandmother",
+            }
+            desc_lower_ee2 = desc_char.canonical_name.lower().strip()
+            if desc_lower_ee2 in _KINSHIP_TERMS_EE2:
+                _POSSESSIVES_EE2 = ("his ", "her ", "my ", "their ", "your ", "the ")
+                _kinship_candidates_ee2 = []
+                for _pc in proper_name_chars:
+                    for _alias in (_pc.aliases or []):
+                        _al = _alias.lower().strip()
+                        for _poss in _POSSESSIVES_EE2:
+                            if _al.startswith(_poss):
+                                _al = _al[len(_poss):]
+                                break
+                        if _al == desc_lower_ee2:
+                            _kinship_candidates_ee2.append(_pc)
+                            break
+                if len(_kinship_candidates_ee2) == 1:
+                    _target_ee2 = _kinship_candidates_ee2[0]
+                    if _target_ee2.aliases is None:
+                        _target_ee2.aliases = []
+                    if desc_char.canonical_name not in _target_ee2.aliases:
+                        _target_ee2.aliases.append(desc_char.canonical_name)
+                    merged_names.append(desc_char.canonical_name)
+                    to_remove.append(desc_char)
+                    logger.info(
+                        f"Fix EE2: Merged kinship descriptor '{desc_char.canonical_name}' "
+                        f"({desc_mentions}m) into '{_target_ee2.canonical_name}' via alias "
+                        f"kinship evidence"
+                    )
+                    continue
+
             # Find proper-name candidates with matching role + gender + fewer mentions
             candidates = [
                 p for p in proper_name_chars

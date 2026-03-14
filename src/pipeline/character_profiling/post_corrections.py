@@ -2178,6 +2178,30 @@ class OutputCharacterCorrector:
                 }
                 if found:
                     best = max(found, key=found.get)
+                    # Tight-window priority: if any sibling/cousin term appears within
+                    # 45 chars of both characters' names, prefer it over a parent/child
+                    # term from a wider 500-char window.  Universal invariant: a sibling
+                    # phrase directly adjacent to two co-named characters is definitive
+                    # evidence; a "father" phrase 300 chars away usually refers to a THIRD
+                    # character (e.g., the old man in a scene with Felix and Agatha).
+                    _TIGHT_SIBLING = 45
+                    _sibling_term_set = {"brother", "sister", "cousin", "sibling", "twin"}
+                    _found_tight_sibling: "str | None" = None
+                    if pat_a and pat_b and source_text and any(t in found for t in _sibling_term_set):
+                        for _ma_t in pat_a.finditer(source_text):
+                            _ws_t = max(0, _ma_t.start() - _TIGHT_SIBLING)
+                            _we_t = min(len(source_text), _ma_t.end() + _TIGHT_SIBLING)
+                            _win_t = source_text[_ws_t:_we_t]
+                            if not pat_b.search(_win_t):
+                                continue
+                            for _sib in _sibling_term_set:
+                                if re.search(r'\b' + _sib + r'\b', _win_t, re.IGNORECASE):
+                                    _found_tight_sibling = _sib
+                                    break
+                            if _found_tight_sibling:
+                                break
+                    if _found_tight_sibling and _found_tight_sibling in found:
+                        best = _found_tight_sibling
                     is_best_family = any(t in best for t in family_set)
                     if best not in cur_lower:
                         # Universal invariant: co-mention windows frequently contain family terms
@@ -3040,7 +3064,14 @@ class OutputCharacterCorrector:
                         ws = max(0, match_a.start() - evidence_window)
                         we = min(len(source_text), match_a.end() + evidence_window)
                         win = source_text[ws:we]
-                        if (pat_b.search(win) and _rel_phrase_re.search(win)
+                        # For sibling/cousin (45-char window): bare appositive
+                        # constructions like "Felix, brother, or son" don't use
+                        # possessive phrases, so _rel_phrase_re is not required.
+                        # The tight window + both names + specific term is sufficient.
+                        phrase_ok = (
+                            _rel_phrase_re.search(win) or is_sibling_or_cousin
+                        )
+                        if (pat_b.search(win) and phrase_ok
                                 and (specific_re is None or specific_re.search(win))):
                             has_evidence = True
                             break

@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 28
-- **Phase:** awaiting_fix
+- **Attempt:** 29
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 
 ## Output Files

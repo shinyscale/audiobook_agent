@@ -1139,6 +1139,28 @@ class MainCastExtractor:
                             f"(core: '{_canon_last_05b}') — person/non-person mismatch"
                         )
                         continue
+                    # Rule 0.5c: Both nouns may be "person" nouns but belong to incompatible
+                    # semantic categories — e.g., "man" (human) ≠ "monster" (creature/antagonist).
+                    # A human-descriptor character and a creature-descriptor character can never
+                    # be the same entity. Universal invariant: humans are not monsters.
+                    _HUMAN_ONLY_NOUNS_05C = {
+                        "man", "woman", "boy", "girl", "person", "gentleman", "lady", "child",
+                    }
+                    _CREATURE_ONLY_NOUNS_05C = {
+                        "monster", "creature", "daemon", "dæmon", "demon", "fiend",
+                        "wretch", "beast", "brute", "devil", "ogre",
+                    }
+                    _is_human_canon = _canon_last_05b in _HUMAN_ONLY_NOUNS_05C
+                    _is_human_alias = _alias_last_05b in _HUMAN_ONLY_NOUNS_05C
+                    _is_creature_canon = _canon_last_05b in _CREATURE_ONLY_NOUNS_05C
+                    _is_creature_alias = _alias_last_05b in _CREATURE_ONLY_NOUNS_05C
+                    if (_is_human_canon and _is_creature_alias) or (_is_creature_canon and _is_human_alias):
+                        logger.warning(
+                            f"BLOCKED alias: '{alias}' (core: '{_alias_last_05b}') is "
+                            f"semantically incompatible with '{profile.canonical_name}' "
+                            f"(core: '{_canon_last_05b}') — Rule 0.5c: human/creature cross-category"
+                        )
+                        continue
                 # Fix DD: Also block when canonical is a "the"-prefixed person entity and alias
                 # is an environmental/non-living noun (even without "the" prefix).
                 # E.g., "Arctic ice" cannot be alias of "the creature".
