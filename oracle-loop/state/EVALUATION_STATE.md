@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 25
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 
 ## Score History
@@ -167,12 +167,17 @@ The two remaining blockers are:
 
 2. **Empty profiles for Elizabeth/Clerval + fabricated relationships** (Profiles → 6/10): The narrator fix helped Victor's relationships (now correct), but Elizabeth, Clerval, Justine still have empty or wrong relationships. This may be an F9 LLM quality issue rather than a code bug — the profiler prompt may not extract reciprocal relationships effectively.
 
-## Output Files (Attempt 24)
-- HTML: output/frankenstein/report.html
-- JSON: output/frankenstein/analysis.json
+## Output Files (Attempt 25)
+- HTML: ../output/frankenstein/report.html
+- JSON: ../output/frankenstein/analysis.json
+
+## Pipeline Notes (Attempt 25)
+- 28 chapters detected (4 letters + 24 chapters)
+- 20 characters found; 235 pronunciation words flagged
+- Robert Walton narrator detection: 3 mentions (below 5 threshold) — skipped
+- Step 6.9 fallback: using Victor Frankenstein as narrator (is_narrator char)
+- Contradictory relationships removed: Victor→Caroline "parent" (both ways), Victor→creature "creator" (both ways), Felix→old man "parent" (both ways)
+- No pipeline errors (exit code 0), runtime 202 minutes
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. CRITICAL: Fix Ch16 narrator misattribution — creature chapters (11-16) within Victor's narration need "the creature" or "the narrator", not "Victor Frankenstein"
-2. HIGH: Improve profile generation for Elizabeth/Clerval — investigate why F9 produces empty relationships for major characters
-3. HIGH: Fix Ch14 broken "The narrator family" text
+Run PROMPT_evaluate.md to score attempt 25 results.
