@@ -52,6 +52,9 @@ RELATIONSHIP_REVERSES = {
     # Mentor/apprentice
     "mentor": "protégé",
     "protégé": "mentor",
+    # Creator/creation (e.g., Frankenstein / the creature, Dracula / his victims)
+    "creator": "creation",
+    "creation": "creator",
 }
 
 # Relationships that are symmetric: A→B implies B→A with the same label.
@@ -1191,6 +1194,18 @@ class OutputCharacterCorrector:
         _NEIGHBOR_WORDS = frozenset({
             "neighbor", "next door", "next to", "lives near",
         })
+        # Creator/creation relationships.
+        # "is [their] creator" / "created by" / "maker" → other char IS the creator → "creator"
+        # "is [their] creation" / "as his creation" / "created [other]" → other char IS the creation → "creation"
+        # These appear in Frankenstein (Victor/creature), Dracula, Pygmalion, etc.
+        _CREATOR_LABEL_RE = re.compile(
+            r'\b(?:creator|created\s+by|created\s+him\b|created\s+her\b|maker)\b',
+            re.IGNORECASE,
+        )
+        _CREATION_LABEL_RE = re.compile(
+            r'\b(?:creation|his\s+creation|her\s+creation|its\s+creation|created\s+(?:the|a|an)\s+\w)',
+            re.IGNORECASE,
+        )
 
         def _infer_rel(stmt: str) -> str:
             sl = stmt.lower()
@@ -1208,6 +1223,13 @@ class OutputCharacterCorrector:
             # spousal signal even when no explicit "husband"/"wife" word is present.
             if re.search(r'\b(?:married|marries|spouse)\b', sl):
                 return "spouse"
+            # Creator/creation relationship: one character brought the other into being.
+            # "creator" = the other char IS the creator (creature→Victor: "creator")
+            # "creation" = the other char IS the creation (Victor→creature: "creation")
+            if _CREATOR_LABEL_RE.search(stmt):
+                return "creator"
+            if _CREATION_LABEL_RE.search(stmt):
+                return "creation"
             # Check kinship/family terms (longest first to avoid "son" matching inside "grandson").
             # Allow optional -s/-es suffix to catch plural forms ("cousins", "brothers", etc.)
             for term in sorted(FAMILY_TERMS, key=len, reverse=True):
