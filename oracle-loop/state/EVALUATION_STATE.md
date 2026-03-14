@@ -2,7 +2,7 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 27
+- **Attempt:** 28
 - **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 

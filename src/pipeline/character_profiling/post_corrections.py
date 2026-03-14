@@ -3279,16 +3279,32 @@ class OutputCharacterCorrector:
                 # In simple first-person narratives (one narrator), this is unchanged.
                 if not narrator_chars:
                     continue
-                # Fix GGG: In nested narratives (multiple is_narrator=True characters), the
-                # possessive kinship alias refers to the PROTAGONIST narrator's perspective, not
-                # the highest-mention narrator. Apply the fix to ALL narrator characters but
-                # prefer protagonist narrators first (protagonist narrators are listed first so
-                # their relationship labels take precedence when char.relationships is set last).
-                _narrator_candidates_ggg = sorted(
-                    narrator_chars,
-                    key=lambda c: (0 if getattr(c, "role", "") == "protagonist" else 1,
-                                   -(getattr(c, "mention_count", 0) or 0))
+                # Fix III: In nested narratives (multiple is_narrator=True characters),
+                # possessive aliases ("his wife", "his father") refer to the PROTAGONIST
+                # narrator's perspective ONLY. Applying them to ALL narrators creates
+                # spurious relationships (e.g., creature→Elizabeth: "wife") that then
+                # interfere with the spouse invariant's co-mention scoring (the creature
+                # has MORE spousal co-mention windows with Elizabeth than Victor does,
+                # since Victor never uses his own name as first-person narrator).
+                # If a protagonist narrator exists, use only that one. Otherwise fall
+                # back to the narrator with the most mentions (classic Fix LL behavior).
+                _protagonist_narrators = [
+                    c for c in narrator_chars
+                    if getattr(c, "role", "") == "protagonist"
+                ]
+                _narrator_candidates_ggg = (
+                    _protagonist_narrators if _protagonist_narrators
+                    else sorted(narrator_chars, key=lambda c: -(getattr(c, "mention_count", 0) or 0))
                 )
+                # When multiple protagonists exist (e.g., dual-POV novels), pick only
+                # the most-mentioned protagonist — possessive aliases can only refer to
+                # one narrator's perspective, and the dominant POV narrator is the most
+                # likely referent.
+                if len(_narrator_candidates_ggg) > 1:
+                    _narrator_candidates_ggg = [
+                        max(_narrator_candidates_ggg,
+                            key=lambda c: getattr(c, "mention_count", 0) or 0)
+                    ]
 
                 _PARENT_CHILD_TERMS_PKA = frozenset({
                     "father", "mother", "son", "daughter",
@@ -3335,7 +3351,11 @@ class OutputCharacterCorrector:
         Runs last so all other corrections (verify_relationships, enforce_gender) have
         already run and may have resolved some entries.
         """
-        _uninformative = {"unknown", "associated", "associate", "acquaintance", "none", "not mentioned"}
+        _uninformative = {
+            "unknown", "associated", "associate", "acquaintance", "none",
+            "not mentioned", "not referenced", "not applicable", "n/a",
+            "no direct relationship", "no relationship", "unspecified",
+        }
         for char in characters:
             if not char.relationships:
                 continue
