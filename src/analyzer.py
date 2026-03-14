@@ -3160,22 +3160,44 @@ class AudiobookAnalyzer:
                 )
 
                 if narrator_info.narrator_name and narrator_info.confidence >= 0.7:
-                    # Mark narrator in character list
-                    self._mark_narrator_in_character_map(
-                        pipeline_char_map.characters, narrator_info
+                    # Fix HHH: If the narrator detected here is the same as the outer frame
+                    # narrator blocked by Step 4.5's rate guard (_blocked_narrator_45), do NOT
+                    # update narrator_detected. In nested narratives (e.g. Frankenstein),
+                    # the plot summary is written in the outer narrator's voice (Walton) so
+                    # Step 6.5 correctly detects Walton — but using Walton for global "the
+                    # narrator" substitution in Step 6.9 would wrongly attribute all inner
+                    # narrator chapters (Victor's) to Walton. Let narrator_detected stay None
+                    # so Step 6.9 preamble can select the correct inner narrator (Victor).
+                    _blocked_45_lower_hhh = (locals().get('_blocked_narrator_45') or '').strip().lower()
+                    _detected_lower_hhh = narrator_info.narrator_name.strip().lower()
+                    _is_blocked_outer_hhh = bool(
+                        _blocked_45_lower_hhh
+                        and (_detected_lower_hhh == _blocked_45_lower_hhh
+                             or _detected_lower_hhh in _blocked_45_lower_hhh
+                             or _blocked_45_lower_hhh in _detected_lower_hhh)
                     )
-
-                    # Apply narrator role injection for first-person
-                    if narrator_info.narrative_style == "first-person":
-                        self._apply_narrator_role_injection(
-                            pipeline_char_map, narrator_info.narrator_name
+                    if _is_blocked_outer_hhh:
+                        print(
+                            f"   Fix HHH: Narrator '{narrator_info.narrator_name}' matches blocked "
+                            f"outer narrator '{locals().get('_blocked_narrator_45')}' — skipping Step 6.9 update"
+                        )
+                    else:
+                        # Mark narrator in character list
+                        self._mark_narrator_in_character_map(
+                            pipeline_char_map.characters, narrator_info
                         )
 
-                    # Update narrator_detected for consistency
-                    narrator_detected = narrator_info.narrator_name
-                    print(
-                        f"   Confirmed narrator: {narrator_info.narrator_name} ({narrator_info.narrative_style})"
-                    )
+                        # Apply narrator role injection for first-person
+                        if narrator_info.narrative_style == "first-person":
+                            self._apply_narrator_role_injection(
+                                pipeline_char_map, narrator_info.narrator_name
+                            )
+
+                        # Update narrator_detected for consistency
+                        narrator_detected = narrator_info.narrator_name
+                        print(
+                            f"   Confirmed narrator: {narrator_info.narrator_name} ({narrator_info.narrative_style})"
+                        )
                 else:
                     print("   No definitive narrator identified from plot summary")
         else:
