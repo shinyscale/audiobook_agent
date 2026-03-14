@@ -2134,6 +2134,26 @@ class AudiobookAnalyzer:
             except Exception as e:
                 logger.warning(f"F6 character reconciliation failed: {e}")
 
+        # Fix EEE: Remove geographic/environmental setting entities even if F6 re-added them.
+        # Post-extraction filter runs AFTER all F6/F6b/F6c additions so geographic names
+        # appearing in chapter summaries' active_characters lists don't survive into profiling.
+        # Filter: last word of canonical name is a geographic/environmental noun AND is_symbolic=False.
+        if pipeline_char_map and pipeline_char_map.characters:
+            _geo_nouns_eee = {
+                "ice", "ocean", "sea", "lake", "river", "mountain", "forest",
+                "valley", "desert", "shore", "coast", "plain", "glacier", "tundra",
+                "landscape", "wilderness", "arctic", "island", "fjord", "moor",
+            }
+            _before_eee = len(pipeline_char_map.characters)
+            pipeline_char_map.characters = [
+                _c for _c in pipeline_char_map.characters
+                if getattr(_c, "is_symbolic", False)
+                or _c.canonical_name.strip().split()[-1].lower().rstrip("s") not in _geo_nouns_eee
+            ]
+            _removed_eee = _before_eee - len(pipeline_char_map.characters)
+            if _removed_eee:
+                logger.info(f"Fix EEE: Removed {_removed_eee} geographic setting entity/entities")
+
         # Step 4.5: Early Narrator Detection (before profile generation)
         # Use summary-based narrator detection to mark narrators early, ensuring they
         # receive profile enrichment even if they have few explicit name mentions
@@ -2320,6 +2340,20 @@ class AudiobookAnalyzer:
                         f"'minor' to 'main' ({_sn_mentions} mentions)"
                     )
                     _sn_char.role = "main"
+
+            # Fix FFF: Narrator role floor — is_narrator=True characters must have role >= "main".
+            # Universal invariant: a character who narrates the story is always at least a main
+            # character, never merely "supporting" or "minor".
+            _role_rank_fff = {"minor": 0, "supporting": 1, "main": 2, "protagonist": 3, "antagonist": 3}
+            for _fff_char in pipeline_char_map.characters:
+                if not getattr(_fff_char, "is_narrator", False):
+                    continue
+                if _role_rank_fff.get(getattr(_fff_char, "role", "supporting") or "supporting", 1) < 2:
+                    logger.info(
+                        f"Fix FFF: Narrator role floor: '{_fff_char.canonical_name}' "
+                        f"'{_fff_char.role}' → 'main'"
+                    )
+                    _fff_char.role = "main"
 
         # Step 4.5.5: Canonical name normalization — prefer most-used name over legal/birth name.
         # Universal invariant: the name a character is primarily called in the text should be

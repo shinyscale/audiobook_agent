@@ -3279,39 +3279,50 @@ class OutputCharacterCorrector:
                 # In simple first-person narratives (one narrator), this is unchanged.
                 if not narrator_chars:
                     continue
-                narrator = max(narrator_chars, key=lambda c: getattr(c, "mention_count", 0) or 0)
-                if narrator.id == char.id:
-                    continue  # Skip self-reference
+                # Fix GGG: In nested narratives (multiple is_narrator=True characters), the
+                # possessive kinship alias refers to the PROTAGONIST narrator's perspective, not
+                # the highest-mention narrator. Apply the fix to ALL narrator characters but
+                # prefer protagonist narrators first (protagonist narrators are listed first so
+                # their relationship labels take precedence when char.relationships is set last).
+                _narrator_candidates_ggg = sorted(
+                    narrator_chars,
+                    key=lambda c: (0 if getattr(c, "role", "") == "protagonist" else 1,
+                                   -(getattr(c, "mention_count", 0) or 0))
+                )
 
-                # Only set if narrator has no relationship to this char yet,
-                # or has an obviously wrong label (e.g., "brother" when alias says "father")
                 _PARENT_CHILD_TERMS_PKA = frozenset({
                     "father", "mother", "son", "daughter",
                     "grandfather", "grandmother", "grandson", "granddaughter",
                 })
-                existing_fwd = (narrator.relationships or {}).get(char.canonical_name, "")
-                existing_rev = (char.relationships or {}).get(narrator.canonical_name, "")
+                for narrator in _narrator_candidates_ggg:
+                    if narrator.id == char.id:
+                        continue  # Skip self-reference
 
-                # Override if missing or sibling label when actual kinship is parent/child
-                _should_set = (
-                    not existing_fwd
-                    or (rel_label in _PARENT_CHILD_TERMS_PKA
-                        and existing_fwd.lower() in {"brother", "sister", "cousin", "sibling"})
-                )
-                if _should_set:
-                    reverse_label = RELATIONSHIP_REVERSES.get(rel_label, rel_label)
-                    if not hasattr(narrator, "relationships") or narrator.relationships is None:
-                        narrator.relationships = {}
-                    if not hasattr(char, "relationships") or char.relationships is None:
-                        char.relationships = {}
-                    narrator.relationships[char.canonical_name] = reverse_label
-                    char.relationships[narrator.canonical_name] = rel_label
-                    logger.info(
-                        f"Fix LL: Bootstrap from alias '{alias}' — "
-                        f"'{narrator.canonical_name}' → '{char.canonical_name}': '{reverse_label}'; "
-                        f"'{char.canonical_name}' → '{narrator.canonical_name}': '{rel_label}' "
-                        f"(was fwd='{existing_fwd}', rev='{existing_rev}')"
+                    # Only set if narrator has no relationship to this char yet,
+                    # or has an obviously wrong label (e.g., "brother" when alias says "father")
+                    existing_fwd = (narrator.relationships or {}).get(char.canonical_name, "")
+                    existing_rev = (char.relationships or {}).get(narrator.canonical_name, "")
+
+                    # Override if missing or sibling label when actual kinship is parent/child
+                    _should_set = (
+                        not existing_fwd
+                        or (rel_label in _PARENT_CHILD_TERMS_PKA
+                            and existing_fwd.lower() in {"brother", "sister", "cousin", "sibling"})
                     )
+                    if _should_set:
+                        reverse_label = RELATIONSHIP_REVERSES.get(rel_label, rel_label)
+                        if not hasattr(narrator, "relationships") or narrator.relationships is None:
+                            narrator.relationships = {}
+                        if not hasattr(char, "relationships") or char.relationships is None:
+                            char.relationships = {}
+                        narrator.relationships[char.canonical_name] = reverse_label
+                        char.relationships[narrator.canonical_name] = rel_label
+                        logger.info(
+                            f"Fix LL/GGG: Bootstrap from alias '{alias}' — "
+                            f"'{narrator.canonical_name}' → '{char.canonical_name}': '{reverse_label}'; "
+                            f"'{char.canonical_name}' → '{narrator.canonical_name}': '{rel_label}' "
+                            f"(was fwd='{existing_fwd}', rev='{existing_rev}')"
+                        )
 
     def clean_unknown_relationships(self, characters) -> None:
         """Remove relationship entries that provide no useful information.
