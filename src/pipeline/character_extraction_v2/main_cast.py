@@ -546,9 +546,9 @@ class MainCastExtractor:
                         f"ends with artifact noun '{_words[-1]}'; marking is_symbolic=True"
                     )
                     _char.is_symbolic = True
-
-        # Pass 2: Alias Resolution for each character
-        profiles = []
+        # Fix DDD: Remove non-symbolic geographic/environmental entities (settings, not characters)
+        _geo_nouns_ddd = {"ice","ocean","sea","lake","river","mountain","forest","valley","desert","shore","coast","plain","glacier","tundra"}  # noqa: E501
+        initial_characters = [c for c in initial_characters if c.is_symbolic or c.canonical_name.strip().split()[-1].lower().rstrip("s") not in _geo_nouns_ddd]; profiles = []  # Pass 2
         for char in initial_characters:
             logger.info(f"Pass 2: Resolving aliases for {char.canonical_name}")
 

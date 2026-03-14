@@ -3372,12 +3372,63 @@ class AudiobookAnalyzer:
                     if _blocked_69 and _blocked_69.lower() != _nn_final.lower()
                     else None
                 )
+                # Fix BBB: Build set of nested narrator chapter indices.
+                # In frame/nested narratives, some chapters are narrated by a deeper
+                # embedded narrator (e.g., the creature in Frankenstein within Victor's
+                # narration). Detect these by looking for an inner quotation mark within
+                # the first 2000 chars of the chapter text followed by ≥4 first-person
+                # pronouns. Skip narrator substitution for these chapters.
+                _nested_narrator_indices_69: set = set()
+                _quoted_any_re_69 = re.compile(
+                    r'(?:(?:Chapter|Letter)\s+\w+\.?\s*\n\s*|\A\s*)[\u201c"]',
+                    re.IGNORECASE,
+                )
+                if chapter_map and doc:
+                    for _ch69 in chapter_map.chapters:
+                        try:
+                            _sp69 = _ch69.start_position
+                            _ep69 = _ch69.end_position
+                            if _sp69 is None or _ep69 is None:
+                                continue
+                            _ct69 = doc.text[_sp69:_ep69]
+                            if not _ct69:
+                                continue
+                            # Try heading-anchored match first; if not found, scan first 2000
+                            # chars for any quote character (handles chapters where inner
+                            # narrator's speech is preceded by a frame-narrator sentence).
+                            _hm69 = _quoted_any_re_69.search(_ct69[:1000])
+                            if _hm69:
+                                _inner_start_69 = _hm69.end()
+                            else:
+                                _inner_start_69 = next(
+                                    (i + 1 for i, c in enumerate(_ct69[:2000])
+                                     if c in ('"', '\u201c')),
+                                    -1
+                                )
+                                if _inner_start_69 == -1:
+                                    continue
+                            _fp69 = _ct69[_inner_start_69:_inner_start_69 + 300]
+                            _fpc69 = (
+                                len(re.findall(r'\bI\b', _fp69))
+                                + len(re.findall(r'\bmy\b', _fp69, re.IGNORECASE))
+                                + len(re.findall(r'\bme\b', _fp69, re.IGNORECASE))
+                            )
+                            if _fpc69 >= 4:
+                                _nested_narrator_indices_69.add(_ch69.index)
+                                logger.info(
+                                    f"Fix BBB: Chapter index {_ch69.index} is a nested narrator chapter "
+                                    f"(FP count={_fpc69}); skipping narrator substitution"
+                                )
+                        except Exception:
+                            pass
                 if summary_map:
                     for _sum in summary_map.summaries:
-                        if _sum.summary and 'narrator' in _sum.summary.lower():
+                        _ch_idx_sum = getattr(_sum, 'chapter_index', None)
+                        _is_nested_sum = _ch_idx_sum in _nested_narrator_indices_69
+                        if not _is_nested_sum and _sum.summary and 'narrator' in _sum.summary.lower():
                             _sum.summary = _nn_pat.sub(_nn_final, _sum.summary)
                         # Replace blocked outer narrator with inner narrator in non-letter chapters.
-                        if _blocked_pat_69 and _sum.summary:
+                        if not _is_nested_sum and _blocked_pat_69 and _sum.summary:
                             _title_69c = getattr(_sum, 'title', '') or ''
                             _is_letter_69c = bool(
                                 re.match(r'^Letter\s+\w+', _title_69c, re.IGNORECASE)
@@ -3401,10 +3452,11 @@ class AudiobookAnalyzer:
                                         ac for ac in (_sum.active_characters or [])
                                         if ac.lower() != _blocked_69_lower
                                     ]
-                            # Also inject narrator into active_characters if absent
-                            _ac_lower = [ac.lower() for ac in (_sum.active_characters or [])]
-                            if _nn_final.lower() not in _ac_lower:
-                                _sum.active_characters = list(_sum.active_characters or []) + [_nn_final]
+                            # Also inject narrator into active_characters if absent (skip nested)
+                            if not _is_nested_sum:
+                                _ac_lower = [ac.lower() for ac in (_sum.active_characters or [])]
+                                if _nn_final.lower() not in _ac_lower:
+                                    _sum.active_characters = list(_sum.active_characters or []) + [_nn_final]
 
                 # 3. Plot summary text in overview
                 # Bug B fix: plot_summary may be a nested dict {"plot_summary": "...", "themes": [...], ...}
