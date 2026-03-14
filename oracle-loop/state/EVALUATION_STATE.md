@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 27
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
 
 ## Output Files
@@ -198,5 +198,12 @@ The THREE remaining blockers are **Profiles (5.5)**, **Characters (7)**, and **S
 - **Fix:** Secondary narrators get role ≥ "main" (universal invariant: a narrator is never minor/supporting).
 - **Expected impact:** Victor gets role "main" (not "supporting"). Creature keeps "antagonist" (not affected since it's already above "main").
 
+## Pipeline Notes (Attempt 27)
+- 19 characters found (down from 20 in attempt 26 — "Arctic Ice" likely removed)
+- Step 6.9 fallback chose "the creature" as narrator (Victor still not detected)
+- "Frankenstein (aka his father, Alphonse) - 36 mentions" — Alphonse canonical still problematic
+- Victor Frankenstein missing from summary character list (suspicious)
+- Fix EEE/FFF/GGG applied; results pending evaluation
+
 ## Next Action
-Run PROMPT_analyze.md to re-analyze frankenstein with all three fixes.
+Run PROMPT_evaluate.md to evaluate attempt 27 results.
