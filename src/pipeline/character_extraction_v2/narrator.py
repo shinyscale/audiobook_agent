@@ -432,5 +432,8 @@ class NarratorDetector:
                     char.narrative_role = "Secondary narrator (nested narrative)"
                     # Also boost confidence for secondary narrators
                     char.confidence = ConfidenceLevel.HIGH
+                    # Fix GGG: secondary narrators narrate a substantial story portion — min role "main"
+                    if getattr(char, "role", None) in ("minor", "supporting", None):
+                        char.role = "main"
 
         return characters

@@ -581,6 +581,20 @@ class CharacterAgent(Agent):
             if not _parent_als or not _child_als:
                 continue  # no contradiction — skip
 
+            # Fix EEE: If another cast member already "owns" the same parent-tier kinship role
+            # (e.g., Alphonse has "his father" while Victor also has "the father"), this
+            # character's alias reflects a non-family role — skip the split.
+            def _kr(a: str) -> Optional[str]:  # kinship root extractor
+                c = set(a.lower().split()) - _ROLE_SW_395
+                return next((w for w in c if w in _PARENT_TIER_395), None)
+            _cpr = {_kr(a) for a in _parent_als} - {None}
+            if any(
+                c.id != _char.id and any(_kr(a) in _cpr for a in (c.aliases or []) if _alias_tier_395(a) == "parent")
+                for c in main_cast
+            ):
+                logger.info(f"V2 Step 3.95: Skipping split for '{_char.canonical_name}' — parent role {_cpr} claimed by another character")
+                continue
+
             _neutral_als = [
                 a for a in _char.aliases
                 if _alias_tier_395(a) is None and a != _char.canonical_name
@@ -684,56 +698,34 @@ class CharacterAgent(Agent):
                 for _sn_395b in _search_names_395b:
                     _sn_esc_395b = _re395b.escape(_sn_395b)
                     _sfn_395b = _sn_395b.split()[0]
-                    # Pattern A: introducer + NAME + ... + his/her father/mother
+                    # Pattern A: introducer + NAME + ... + his/her father/mother (strong)
                     _pat_A_395b = _re395b.compile(
-                        r"(?i)"
-                        r"(?:named|called|identified as|turned out to be|found to be"
-                        r"|proved to be|revealed to be)\s+"
-                        + _sn_esc_395b
-                        + r"[^.!?\n]{0,300}"
-                        r"(?:his|her|their)\s+(?:\w+\s+){0,3}(?:father|mother)\b"
+                        r"(?i)(?:named|called|identified as|turned out to be|found to be"
+                        r"|proved to be|revealed to be)\s+" + _sn_esc_395b
+                        + r"[^.!?\n]{0,300}(?:his|her|their)\s+(?:\w+\s+){0,3}(?:father|mother)\b"
                     )
-                    # Pattern B: NAME + ... + reveal/confess + ... + his/her (long-lost) son/daughter
-                    # Requires a REVELATION verb to avoid false positives on ordinary parent refs.
+                    # Pattern B: NAME + revelation verb + his/her son/daughter (strong)
                     _pat_B_395b = _re395b.compile(
-                        r"(?i)"
-                        + _sn_esc_395b
-                        + r"[^.!?\n]{0,400}"
-                        r"(?:reveal|revealed|revealing|reveals|found\s+out|discover|identifies?|recognized|confesses?|admitted?|declares?)\s+"
-                        r"(?:\w+\s+){0,6}"
-                        r"(?:his|her|their)\s+(?:long[- ]lost\s+|estranged\s+|lost\s+)?(son|daughter|child)\b"
+                        r"(?i)" + _sn_esc_395b
+                        + r"[^.!?\n]{0,400}(?:reveal|revealed|revealing|reveals|found\s+out|discover|identifies?|recognized|confesses?|admitted?|declares?)\s+"
+                        r"(?:\w+\s+){0,6}(?:his|her|their)\s+(?:long[- ]lost\s+|estranged\s+|lost\s+)?(son|daughter|child)\b"
                     )
-                    # Pattern C: NAME's (long-lost) son/daughter/child
+                    # Pattern C: NAME's son/daughter/child (weak)
                     _pat_C_395b = _re395b.compile(
-                        r"(?i)"
-                        + _sn_esc_395b
+                        r"(?i)" + _sn_esc_395b
                         + r"[''']?s\s+(?:long[- ]lost\s+|estranged\s+|lost\s+)?(son|daughter|child)\b"
                     )
-                    # Pattern D: {FirstName}'s (long-lost) father/mother/parent
-                    _pat_D_395b = None
-                    if len(_sfn_395b) >= 4:  # Guard: avoid matching short common words
-                        _fn_esc_395b = _re395b.escape(_sfn_395b)
-                        _pat_D_395b = _re395b.compile(
-                            r"(?i)\b"
-                            + _fn_esc_395b
-                            + r"[''']?s\s+(?:long[- ]lost\s+|estranged\s+|absent\s+|lost\s+)?(?:father|mother|parent)\b"
-                        )
-                    # Pattern E: NAME...reveals/confesses...he/she is X's...father/mother
-                    # Handles "NAME...reveals...he is John Jr.'s long-lost father" where the
-                    # name before the apostrophe may contain titles with periods (e.g., "Jr.").
+                    # Pattern D: FirstName's father/mother/parent (weak)
+                    _pat_D_395b = _re395b.compile(
+                        r"(?i)\b" + _re395b.escape(_sfn_395b)
+                        + r"[''']?s\s+(?:long[- ]lost\s+|estranged\s+|absent\s+|lost\s+)?(?:father|mother|parent)\b"
+                    ) if len(_sfn_395b) >= 4 else None
+                    # Pattern E: NAME...reveals...he/she is X's father/mother (strong)
                     _pat_E_395b = _re395b.compile(
-                        r"(?i)"
-                        + _sn_esc_395b
-                        + r"[^.!?\n]{0,400}"
-                        r"(?:reveal|reveals|revealed|confess|confesses|confessed)\s+"
-                        r"[^.!?\n]{0,100}"
-                        r"(?:he|she)\s+(?:is|was)\s+"
-                        r"[\w\s.]{0,30}[\u2018\u2019\u0027]s\s+"
-                        r"(?:long.{0,6})?"
-                        r"(?:father|mother|parent)\b"
+                        r"(?i)" + _sn_esc_395b
+                        + r"[^.!?\n]{0,400}(?:reveal|reveals|revealed|confess|confesses|confessed)\s+"
+                        r"[^.!?\n]{0,100}(?:he|she)\s+(?:is|was)\s+[\w\s.]{0,30}[\u2018\u2019\u0027]s\s+(?:long.{0,6})?(?:father|mother|parent)\b"
                     )
-                    # Strong patterns (A/B/E): revelation or introduction — high-confidence
-                    # evidence the character was merged from distinct parent+child roles.
                     _strong_395b = (
                         _pat_A_395b.search(_summary_all_395b)
                         or _pat_B_395b.search(_summary_all_395b)
@@ -744,8 +736,6 @@ class CharacterAgent(Agent):
                         _matched_base_395b = _sn_395b
                         _strong_match_395b = True
                         break
-                    # Weak patterns (C/D): possessive references — confirm the character IS
-                    # a parent but do not prove a false merge without corroboration.
                     _weak_395b = (
                         _pat_C_395b.search(_summary_all_395b)
                         or (_pat_D_395b and _pat_D_395b.search(_summary_all_395b))
@@ -753,7 +743,6 @@ class CharacterAgent(Agent):
                     if _weak_395b and _m_395b is None:
                         _m_395b = _weak_395b
                         _matched_base_395b = _sn_395b
-                        # Don't break — keep searching for a strong pattern
 
                 if not _m_395b:
                     continue

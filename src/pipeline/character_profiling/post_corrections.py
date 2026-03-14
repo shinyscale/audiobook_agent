@@ -3271,10 +3271,15 @@ class OutputCharacterCorrector:
                         f"from alias '{alias}'"
                     )
 
-                # Fix LL: Bootstrap relationship to narrator if exactly one exists
-                if len(narrator_chars) != 1:
+                # Fix LL: Bootstrap relationship to narrator.
+                # In nested narratives (e.g., Frankenstein), multiple characters have
+                # is_narrator=True. Use the one with the MOST mentions as the kinship
+                # reference narrator — they narrate the bulk of the story, so possessive
+                # kinship aliases ("his wife", "his father") refer to their perspective.
+                # In simple first-person narratives (one narrator), this is unchanged.
+                if not narrator_chars:
                     continue
-                narrator = narrator_chars[0]
+                narrator = max(narrator_chars, key=lambda c: getattr(c, "mention_count", 0) or 0)
                 if narrator.id == char.id:
                     continue  # Skip self-reference
 

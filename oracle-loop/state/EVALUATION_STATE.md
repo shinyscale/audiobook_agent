@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** frankenstein
-- **Attempt:** 26
-- **Phase:** awaiting_fix
+- **Attempt:** 27
+- **Phase:** awaiting_analysis
 - **baseline_score:** 7.35
 
 ## Output Files
@@ -181,9 +181,22 @@ The THREE remaining blockers are **Profiles (5.5)**, **Characters (7)**, and **S
 3. **Reciprocal relationship injection** (if Victor→Elizabeth found anywhere, create Elizabeth→Victor) → Profiles: partially fixes Elizabeth
 4. **Narrator role floor** (is_narrator=True → role ≥ "main") → Characters improvement
 
+## Attempt 27 Fixes
+
+### Fix EEE (characters.py): Step 3.95 parent-role conflict guard
+- **Root cause:** Victor Frankenstein's parent-tier alias "the father" (creature calls him creator/father) + child-tier alias ("his son" as Alphonse's son) triggered Step 3.95 split, creating "Victor Frankenstein (the father)" with wrong canonical name. The alias decontamination then removed "Victor Frankenstein" from parent aliases, leaving only "the father". This caused narrator name matching to fail (Victor not in nested_narrators → no is_narrator=True).
+- **Fix:** If another cast member already has the same parent-tier kinship root alias (e.g., Alphonse has "his father"), skip the split. Victor's "the father" reflects a non-family relationship.
+- **Expected impact:** Victor stays as "Victor Frankenstein" → narrator detection matches him → is_narrator=True → kinship bootstrapping links Elizabeth→Victor (wife), Alphonse→Victor (father/son)
+
+### Fix FFF (post_corrections.py): Multi-narrator kinship bootstrapping
+- **Root cause:** `_infer_relationships_from_possessive_aliases` required exactly 1 narrator; with multiple narrators (Walton, Victor, Creature), it skipped entirely.
+- **Fix:** When multiple narrators exist, use the highest-mention narrator as the kinship reference narrator (they narrate the bulk of the story).
+- **Expected impact:** Elizabeth "his wife" → linked to Victor (96 mentions > Creature 78 > Walton 8). Alphonse "his father" → father/son relationship with Victor.
+
+### Fix GGG (narrator.py): Secondary narrator role floor
+- **Root cause:** Secondary/inner narrators in nested narratives got no role promotion; Victor and Creature stayed "supporting" despite narrating substantial story portions.
+- **Fix:** Secondary narrators get role ≥ "main" (universal invariant: a narrator is never minor/supporting).
+- **Expected impact:** Victor gets role "main" (not "supporting"). Creature keeps "antagonist" (not affected since it's already above "main").
+
 ## Next Action
-Run PROMPT_fix.md to address:
-1. Post-extraction filter for geographic settings (CRITICAL — removes Arctic Ice, gains Characters score)
-2. Kinship alias → relationship inference (CRITICAL — fixes Victor↔Alphonse)
-3. Narrator role floor rule (HIGH — fixes creature role)
-4. Elizabeth reciprocal relationship injection (HIGH — if feasible)
+Run PROMPT_analyze.md to re-analyze frankenstein with all three fixes.
