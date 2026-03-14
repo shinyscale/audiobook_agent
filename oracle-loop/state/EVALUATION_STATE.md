@@ -3,8 +3,22 @@
 ## Active Text
 - **Name:** frankenstein
 - **Attempt:** 26
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score:** 7.35
+
+## Output Files
+- HTML: ../output/frankenstein/report.html
+- JSON: ../output/frankenstein/analysis.json
+
+## Pipeline Notes
+- 28 chapters found (same as previous attempts)
+- 25 characters extracted; "the Arctic Ice" still appears despite Fix DDD prompt additions
+- Victor Frankenstein set as narrator via Step 6.9 fallback (Robert Walton had only 3 mentions, skipped)
+- Fix BBB (narrator_detected fallback for Ch16) pending evaluation
+- Fix CCC ("none" relationship cleanup) pending evaluation
+- Fix DDD (geographic setting prompt) — "the Arctic Ice" still extracted (prompt guidance may not be sufficient)
+- Pronunciation: 235 words flagged (same as attempt 25); multiple JSON validation retries but completed
+- Runtime: 200m 33s
 
 ## Score History
 | Attempt | Score | Notes |
