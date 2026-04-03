@@ -17,6 +17,7 @@ from typing import Optional, Union
 from ...llm.client import LLMClient
 from ...models import Character as ModelsCharacter
 from ..character_extraction.models import Character as V1Character
+from ..scalpels import ScalpelLoader, scalpel_available
 from .main_cast import MainCastProfile
 
 logger = logging.getLogger(__name__)
@@ -37,8 +38,8 @@ class NarratorInfo:
 NARRATOR_DETECTION_PROMPT = """You are analyzing a novel's narrative point of view.
 
 Based on the summaries below, determine:
-1. Is this first-person ("I" narration) or third-person? NOTE: These summaries are written in third-person regardless of the original story's style. To detect POV: first-person means the story uses "I"/"we" from a character's direct perspective; third-person/omniscient uses "he"/"she"/"they" even if one character's emotions are the focus. A character referred to as "he/she" is NOT the first-person narrator. IMPORTANT: In first-person stories, the narrator uses "I" for themselves, so their proper name appears LESS FREQUENTLY than the characters they describe. If your proposed narrator is the most-mentioned character, reconsider — the most-mentioned character is usually the SUBJECT of the story, not the narrator.
-2. If first-person, WHO is the narrator? Output their EXACT name from the main cast list below. For frame/nested narratives, the OUTER narrator (whose "I" appears outside quotation marks) is the primary narrator; the inner narrator (whose first-person voice appears within quoted dialogue) is secondary. KEY: If a summary says "X recounts/tells their story/experiences to Y" or "X describes events to Y", then X is the INNER narrator and Y is the OUTER primary narrator — output Y's name.
+1. Is this told in first-person (narrator says "I") or third-person?
+2. If first-person, WHO is the narrator? (must be a character from the main cast)
 3. Is this a nested/frame narrative with multiple narrators?
 
 CHAPTER SUMMARIES:
@@ -47,7 +48,7 @@ CHAPTER SUMMARIES:
 MAIN CAST (potential narrators if first-person):
 {main_cast}
 
-{plot_summary_section}OUTPUT FORMAT (JSON):
+OUTPUT FORMAT (JSON):
 ```json
 {{
   "pov": "first-person|third-person|omniscient|epistolary",
@@ -69,7 +70,7 @@ For nested narratives (like Frankenstein with Walton's letters framing Victor's 
 }}
 ```
 
-Determine the narrative POV now:"""
+Analyze the narrative structure now:"""
 
 
 class NarratorDetector:
@@ -105,6 +106,37 @@ class NarratorDetector:
             logger.warning("No chapter summaries for narrator detection")
             return NarratorInfo(pov="unknown", confidence=0.0)
 
+        # Try Beacon scalpel for POV classification first
+        beacon_pov = None
+        if scalpel_available("beacon"):
+            try:
+                loader = ScalpelLoader()
+                # Concatenate first few chapter summaries for classification
+                beacon_input = " ".join(chapter_summaries[:4])
+                label, confidence = loader.predict("beacon", beacon_input)
+
+                # Map scalpel labels to NarratorInfo pov values
+                label_to_pov = {
+                    "first_person": "first-person",
+                    "third_person": "third-person",
+                    "third_person_omniscient": "omniscient",
+                    "epistolary": "epistolary",
+                }
+                beacon_pov = label_to_pov.get(label)
+                logger.info(
+                    f"Beacon scalpel classified POV as {beacon_pov} (confidence={confidence:.3f})"
+                )
+
+                # For non-first-person simple cases, we can skip the LLM entirely
+                if beacon_pov in ("third-person", "omniscient") and confidence >= 0.8:
+                    return NarratorInfo(pov=beacon_pov, confidence=confidence)
+
+                # For epistolary or first-person, we still need LLM to identify
+                # the narrator character and handle nested narrators
+            except Exception as e:
+                logger.warning(f"Beacon scalpel failed, falling back to LLM: {e}")
+                beacon_pov = None
+
         # Format summaries (use first few and last few for long books)
         if len(chapter_summaries) > 8:
             selected = (
@@ -124,34 +156,38 @@ class NarratorDetector:
             f"- {c.canonical_name} ({c.role}): {self._get_description(c)}" for c in main_cast
         )
 
-        # Include plot summary when available — it often captures narrative style explicitly
-        plot_summary_section = ""
-        if plot_summary:
-            plot_summary_section = (
-                f"PLOT SUMMARY (for narrative style context):\n{plot_summary[:400]}\n\n"
-            )
-
         prompt = NARRATOR_DETECTION_PROMPT.format(
             summaries=summaries_text,
             main_cast=cast_text,
-            plot_summary_section=plot_summary_section,
         )
 
         result, response = self.llm.query_json(prompt)
 
-        # Unwrap single-element list — some LLMs wrap the JSON object in [...]
-        if isinstance(result, list) and len(result) == 1 and isinstance(result[0], dict):
-            result = result[0]
-
-        if not response.success or result is None or not isinstance(result, dict):
-            logger.warning(f"Narrator detection failed or returned non-dict: {response.error}")
+        if not response.success or result is None:
+            logger.warning(f"Narrator detection failed: {response.error}")
+            # If Beacon gave us a POV, use it with the keyword fallback for narrator ID
+            if beacon_pov:
+                fallback = self._fallback_detection(chapter_summaries)
+                fallback.pov = beacon_pov
+                return fallback
             return self._fallback_detection(chapter_summaries)
 
         logger.info(
             f"Narrator detection LLM result: pov={result.get('pov')}, "
             f"narrator_name={result.get('narrator_name')}, is_nested={result.get('is_nested')}"
         )
-        return self._parse_result(result, main_cast)
+        parsed = self._parse_result(result, main_cast)
+
+        # If Beacon scalpel had high confidence and disagrees with LLM on POV,
+        # prefer Beacon (it was trained on this specific task)
+        if beacon_pov and confidence >= 0.9 and parsed.pov != beacon_pov:
+            logger.info(
+                f"Beacon scalpel override: {parsed.pov} → {beacon_pov} "
+                f"(scalpel confidence={confidence:.3f})"
+            )
+            parsed.pov = beacon_pov
+
+        return parsed
 
     def _get_description(self, char) -> str:
         """Get a brief description from a character.
@@ -181,41 +217,9 @@ class NarratorDetector:
         is_nested = result.get("is_nested", False)
         nested_narrators = result.get("nested_narrators", [])
 
-        # Universal invariant: in first-person narration the narrator uses "I" so their
-        # proper name appears LESS frequently than the characters they describe (the narrator
-        # says "I went" not "[Name] went"). If the proposed narrator is the MOST-MENTIONED
-        # character with ≥5x more mentions than a plausible lower-mention candidate (who
-        # has >15 mentions but ≤ proposed_count/3), the assignment is almost certainly wrong:
-        # the LLM mistook the story's subject for its narrator. Override narrator_name to
-        # clear the assignment so downstream correction steps can recover the true narrator.
-        if pov in ("first-person", "epistolary") and narrator_name and main_cast:
-            _proposed_id = self._match_to_character(narrator_name, main_cast)
-            _proposed = next((c for c in main_cast if c.id == _proposed_id), None) if _proposed_id else None
-            if _proposed is not None:
-                _proposed_count = getattr(_proposed, "mention_count", 0) or 0
-                _others = [(c, getattr(c, "mention_count", 0) or 0) for c in main_cast if c.id != _proposed.id]
-                if _others and _proposed_count > 0:
-                    _max_other = max(cnt for _, cnt in _others)
-                    if _proposed_count > _max_other:
-                        # Proposed narrator is the max-mention character — suspicious
-                        _plausible = [(c, cnt) for c, cnt in _others if cnt > 15 and cnt <= _proposed_count // 3]
-                        if _plausible and _proposed_count >= 5 * min(cnt for _, cnt in _plausible):
-                            logger.warning(
-                                f"NarratorDetector: Proposed narrator '{narrator_name}' "
-                                f"({_proposed_count} mentions) is the most-mentioned character "
-                                f"and has ≥5x the mentions of plausible narrator candidates. "
-                                f"In first-person stories the narrator uses 'I' so their name "
-                                f"appears rarely — this assignment is likely wrong. "
-                                f"Clearing narrator_name so fallback steps can recover true narrator."
-                            )
-                            narrator_name = None
-
-        # Match narrator to main cast character.
-        # Universal invariant: only first-person or epistolary narratives have a narrator
-        # character. In third-person/omniscient stories the narrator is an external voice,
-        # not a cast member — assigning is_narrator to a character in those stories is wrong.
+        # Match narrator to main cast character
         narrator_id = None
-        if narrator_name and pov in ("first-person", "epistolary"):
+        if narrator_name:
             narrator_id = self._match_to_character(narrator_name, main_cast)
             if narrator_id:
                 logger.info(f"Narrator '{narrator_name}' matched to character ID: {narrator_id}")
@@ -224,11 +228,6 @@ class NarratorDetector:
                     f"Narrator '{narrator_name}' identified but NOT found in main_cast. "
                     f"Available characters: {[c.canonical_name for c in main_cast]}"
                 )
-        elif narrator_name and pov not in ("first-person", "epistolary"):
-            logger.info(
-                f"Narrator name '{narrator_name}' ignored — POV is '{pov}' (not first-person/epistolary); "
-                f"no character should be marked as narrator in this narrative mode."
-            )
 
         # Match nested narrators to characters
         nested_ids = []
@@ -267,8 +266,9 @@ class NarratorDetector:
                 if alias.lower() == name_lower:
                     return char.id
 
-            # Partial match (first name or last name)
-            if name_lower in char.canonical_name.lower():
+            # Partial match (bidirectional - handles both "Walton" and "Robert Walton")
+            char_name_lower = char.canonical_name.lower()
+            if name_lower in char_name_lower or char_name_lower in name_lower:
                 return char.id
 
         return None
@@ -317,18 +317,6 @@ class NarratorDetector:
         """
         from ...models import ConfidenceLevel
 
-        # Pre-compute primary narrator mention count for secondary narrator guard.
-        # Universal invariant: in a frame narrative the primary narrator sets the outer
-        # frame for the WHOLE story. A secondary narrator only tells their inner portion.
-        # A candidate secondary narrator with MORE mentions than the primary narrator is
-        # almost certainly a major CHARACTER being narrated about, not an actual narrator.
-        primary_mention_count = 0
-        if narrator_info.narrator_character_id:
-            for c in characters:
-                if c.id == narrator_info.narrator_character_id:
-                    primary_mention_count = getattr(c, "mention_count", 0) or 0
-                    break
-
         for char in characters:
             # Reset narrator flags
             char.is_narrator = False
@@ -336,104 +324,16 @@ class NarratorDetector:
 
             # Set narrator flag for the primary narrator
             if char.id == narrator_info.narrator_character_id:
-                # Universal invariant: a narrator must be significantly present in the text.
-                # A character with ≤ 5 mentions cannot be the narrator — first-person narrators
-                # use "I" extensively, so they appear by name infrequently but still several times.
-                # A character named 5 or fewer times is peripheral, not the storytelling voice.
-                # We only block when mention_count > 0 (i.e., when count was actually computed).
-                # mention_count == 0 means "not yet counted" (test/mock scenario), so we allow it.
-                mention_count = getattr(char, "mention_count", 0) or 0
-                _narrator_blocked = False
-                if 0 < mention_count <= 5:
-                    logger.warning(
-                        f"Narrator '{char.canonical_name}' has only {mention_count} mention(s) — "
-                        f"too few to be a first-person narrator (need > 5); skipping narrator assignment"
-                    )
-                    _narrator_blocked = True
-                else:
-                    # Relative guard: narrator must have >= 8% of the highest-mention character's count.
-                    # Universal invariant: a character whose name-mention count is tiny compared to
-                    # the main cast is a background figure, not the storytelling voice.
-                    # (First-person narrators use "I" so they have fewer name mentions than characters
-                    # they describe — but they still need a meaningful presence in name-based search.)
-                    # Only applies when the cast has a high-mention "anchor" character (> 20 mentions),
-                    # so this doesn't falsely block narrators in short texts with a flat mention profile.
-                    _all_mention_counts = [getattr(c, "mention_count", 0) or 0 for c in characters]
-                    _max_mentions = max(_all_mention_counts, default=0)
-                    if _max_mentions > 20 and mention_count < _max_mentions * 0.04:
-                        logger.warning(
-                            f"Narrator '{char.canonical_name}' has only {mention_count} mentions "
-                            f"(< 4% of highest-mention character's {_max_mentions}); "
-                            f"likely not the narrator — skipping narrator assignment"
-                        )
-                        _narrator_blocked = True
-                if _narrator_blocked:
-                    # Clear narrator_info so subsequent pipeline stages don't use this wrong narrator
-                    narrator_info.narrator_character_id = None
-                    narrator_info.narrator_name = None
-                else:
-                    char.is_narrator = True
-                    char.narrative_role = f"{narrator_info.pov.title()} narrator"
-                    # Boost confidence for narrator (they're a key character)
-                    char.confidence = ConfidenceLevel.HIGH
-                    # Universal invariant: first-person narrators are never minor/supporting.
-                    # They are the narrative voice of the story — always protagonist-level.
-                    if narrator_info.pov == "first-person" and getattr(char, "role", None) in ("minor", "supporting", "main", None):
-                        old_role = getattr(char, "role", None)
-                        char.role = "protagonist"
-                        logger.info(
-                            f"Elevated first-person narrator '{char.canonical_name}' "
-                            f"from '{old_role}' to 'protagonist'"
-                        )
+                char.is_narrator = True
+                char.narrative_role = f"{narrator_info.pov.title()} narrator"
+                # Boost confidence for narrator (they're a key character)
+                char.confidence = ConfidenceLevel.HIGH
 
             # For nested narratives, mark secondary narrators
             elif char.id in narrator_info.nested_narrators:
-                secondary_mentions = getattr(char, "mention_count", 0) or 0
-                # Universal invariant: narrators must be PEOPLE, not symbolic entities,
-                # settings, or objects. The LLM sometimes includes environmental forces
-                # (e.g., "the Arctic ice") in nested_narrators for frame narratives —
-                # these are never actual narrators. Skip symbolic entities.
-                if getattr(char, "is_symbolic", False):
-                    logger.info(
-                        f"Secondary narrator candidate '{char.canonical_name}' skipped — "
-                        f"symbolic entity (is_symbolic=True) cannot be a narrator"
-                    )
-                    continue
-                # Universal invariant: secondary narrators must have meaningful text presence.
-                # A character with ≤ 5 mentions is a peripheral figure, not someone telling
-                # a significant portion of the narrative. This prevents the outer/frame narrator
-                # (e.g., Walton with 3–8 mentions) from being assigned is_narrator via the
-                # secondary path when narrator_character_id is None (so Walton misses the
-                # primary-path blocking check and falls through to the elif).
-                # Exception: mention_count=0 means not yet computed (mock/test scenario).
-                if 0 < secondary_mentions <= 5:
-                    logger.info(
-                        f"Secondary narrator candidate '{char.canonical_name}' skipped — "
-                        f"only {secondary_mentions} mention(s), too few to be a narrator"
-                    )
-                    continue
-                # Universal invariant: in a nested narrative the OUTER narrator appears
-                # in only a few framing chapters and therefore has a low mention count.
-                # When the outer narrator has < 15 mentions the high mention count of a
-                # secondary candidate reflects that they narrate the BULK of the story —
-                # they should be accepted as the inner narrator, not rejected.
-                # (The original > primary_mention_count guard is for simple 1st-person
-                # stories where the single narrator is confused with a prominent subject.)
-                _outer_is_frame = primary_mention_count < 15
-                if primary_mention_count > 0 and secondary_mentions > primary_mention_count and not _outer_is_frame:
-                    logger.warning(
-                        f"Secondary narrator candidate '{char.canonical_name}' has "
-                        f"{secondary_mentions} mentions vs primary narrator's "
-                        f"{primary_mention_count} — rejecting: a character with more mentions "
-                        f"than the primary narrator is likely a subject, not a narrator"
-                    )
-                else:
-                    char.is_narrator = True
-                    char.narrative_role = "Secondary narrator (nested narrative)"
-                    # Also boost confidence for secondary narrators
-                    char.confidence = ConfidenceLevel.HIGH
-                    # Fix GGG: secondary narrators narrate a substantial story portion — min role "main"
-                    if getattr(char, "role", None) in ("minor", "supporting", None):
-                        char.role = "main"
+                char.is_narrator = True
+                char.narrative_role = "Secondary narrator (nested narrative)"
+                # Also boost confidence for secondary narrators
+                char.confidence = ConfidenceLevel.HIGH
 
         return characters

@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Optional
 
 from ..chapter_detection.scene_breaks import find_scene_breaks
 from ..llm import LLMClient, LLMConfig
+from ..scalpels import ScalpelLoader, scalpel_available
 from .models import ChapterSummary, ChunkSummary
 
 if TYPE_CHECKING:
@@ -58,8 +59,7 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 - Be precise about HOW characters travel (by car, on foot, by train) not just WHERE
 - Include character emotions and reactions when they impact the narrative
 - If something is vague or unclear in the text, say so rather than guessing
-- Use characters' proper names when stated in the text (e.g., if the text names "his father John", write "John" not "his father"). Do not infer relationship types not explicitly stated.
-- **FIRST-PERSON NARRATORS**: The narrator is whoever says "I" throughout this section — identified by what "I" DOES and EXPERIENCES, NOT by which characters are mentioned. A character who is MENTIONED by the narrator (e.g., "I saw Victor", "I confronted my creator") is NOT the narrator. In the SUMMARY TEXT, always refer to the "I" voice as "the narrator" — ONLY the "I" voice becomes "the narrator". All OTHER characters (anyone the narrator sees, talks to, or describes) must still be called by their PROPER NAMES (e.g., "Felix", "Elizabeth", "the De Lacey family" — NOT "the narrator family", NOT "Felix the narrator"). The correct narrator name will be substituted during post-processing. However, in the active_characters and characters_mentioned lists, include the narrator's ACTUAL NAME if explicitly stated in the text (e.g., letter signatures like "R. Walton", or explicit self-identification). When a character within the story recounts their own past in first person (an embedded story, flashback, or oral account), attribute those events to THAT character — using their name only if stated in the text.
+- **FIRST-PERSON NARRATORS**: If the text is told in first person ("I", "we") and the narrator's name is revealed in the text (e.g., another character addresses them by name, or they introduce themselves), USE THAT NAME in your summary instead of "the narrator". Only use "the narrator" if their name is not revealed in this section.
 {length_guidance}
 
 Return a JSON response matching this example format exactly:
@@ -108,16 +108,17 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 - FACTUAL ACCURACY is more important than brevity - preserve ALL significant details from sections
 - Include setting details (location, transportation method, time) when mentioned
 - When events/objects are referenced, ALWAYS include context from the sections
+- Be precise about HOW characters travel and WHERE specific events occur
 - If something is vague in the section summaries, preserve that vagueness rather than inventing details
-- Use characters' proper names when stated in the section summaries (e.g., "his father John" → write "John"). Do not infer relationship types not explicitly stated.
-- **FIRST-PERSON NARRATORS**: The narrator is whoever says "I" in these summaries — identified by what "I" DOES and EXPERIENCES, NOT by which characters are mentioned. A character mentioned BY the narrator is NOT the narrator. In the SUMMARY TEXT, refer to the "I" voice as "the narrator" — ONLY the "I" voice becomes "the narrator". All OTHER characters must keep their PROPER NAMES. The correct narrator name will be substituted during post-processing. In the active_characters and characters_mentioned lists, include the narrator's ACTUAL NAME if explicitly stated in these summaries. When a character recounts their own past in first person (embedded story, flashback, oral account), attribute those events to THAT character — using their name only if stated.
+- **FIRST-PERSON NARRATORS**: If the section summaries reveal the narrator's name, use that name consistently in the consolidated summary instead of "the narrator". Only use "the narrator" if their name is not revealed in any section.
 {length_guidance}
 
 CRITICAL CHARACTER DISTINCTION:
-- "active_characters": People who APPEAR "on stage" in this chapter - they speak, act, make decisions,
-  interact with others, or participate in events. Include the narrator if they participate.
-- "mentioned_characters": People who are REFERENCED but don't appear - historical figures, people being
-  discussed, names in guest lists, people from the past. These characters are talked ABOUT but not present.
+- "active_characters": Entities who APPEAR "on stage" with agency - they speak, act, make decisions,
+  interact with others, or participate in events. Include people, AI, monsters, supernatural forces,
+  or symbolic objects that drive the plot. Include the narrator if they participate.
+- "mentioned_characters": Entities who are REFERENCED but don't appear - historical figures, people being
+  discussed, names in guest lists, entities from the past. These are talked ABOUT but not present.
 
 Example: If a chapter has a party where 50 guests are listed by name but only 3 guests actually speak
 or do anything significant, those 3 go in active_characters and the other 47 in mentioned_characters.
@@ -136,7 +137,7 @@ Return a JSON response matching this example format exactly:
     "Temporary resolution in the garden",
     "Hint at future complications"
   ],
-  "active_characters": ["Michael", "Sarah", "Dr. Patterson"],
+  "active_characters": ["Michael", "Sarah", "HAL", "the Monster"],
   "mentioned_characters": ["James", "Elizabeth", "the late Mr. Harrison"],
   "primary_tone": "tense",
   "secondary_tones": ["hopeful", "mysterious"],
@@ -144,6 +145,8 @@ Return a JSON response matching this example format exactly:
   "pov_character": "Michael"
 }}
 ```
+
+Note: Include non-human entities with names (AI systems, creatures, supernatural beings) in active_characters if they act with agency in the chapter.
 
 Valid tone values: tense, suspenseful, action, romantic, comedic, somber, reflective, dramatic, peaceful, mysterious, hopeful, dark
 Valid dialogue_density values: "high", "medium", "low"
@@ -176,17 +179,17 @@ IMPORTANT GUIDELINES (F12: Prioritize accuracy):
 - FACTUAL ACCURACY is more important than brevity - include all significant events
 - Include specific setting details (location, transportation method, time of day)
 - When referencing events/objects, ALWAYS provide context (e.g., "the inheritance from his uncle" not just "the money")
+- Be precise about HOW characters travel (by car, on foot, by train) not just WHERE
 - Include character emotions and reactions when they impact the narrative
 - If something is vague or unclear in the text, say so rather than guessing
-- Use characters' proper names when stated in the text (e.g., if the text names "his father John", write "John" not "his father"). Do not infer relationship types not explicitly stated.
-- **FIRST-PERSON NARRATORS**: The narrator is whoever says "I" throughout this section — identified by what "I" DOES and EXPERIENCES, NOT by which characters are mentioned. A character who is MENTIONED by the narrator (e.g., "I saw Victor", "I spoke to my creator") is NOT the narrator. In the SUMMARY TEXT, always refer to the narrative voice as "the narrator" — never use any character's proper name as the subject performing actions. In the active_characters list, include the narrator's ACTUAL NAME if explicitly stated in the text. The correct name will be substituted into the summary text during post-processing.
 {length_guidance}
 
 CRITICAL CHARACTER DISTINCTION:
-- "active_characters": People who APPEAR "on stage" in this chapter - they speak, act, make decisions,
-  interact with others, or participate in events. Include the narrator if they participate.
-- "mentioned_characters": People who are REFERENCED but don't appear - historical figures, people being
-  discussed, names in guest lists, people from the past. These characters are talked ABOUT but not present.
+- "active_characters": Entities who APPEAR "on stage" with agency - they speak, act, make decisions,
+  interact with others, or participate in events. Include people, AI, monsters, supernatural forces,
+  or symbolic objects that drive the plot. Include the narrator if they participate.
+- "mentioned_characters": Entities who are REFERENCED but don't appear - historical figures, people being
+  discussed, names in guest lists, entities from the past. These are talked ABOUT but not present.
 
 Example: If a chapter has a party where 50 guests are listed by name but only 3 guests actually speak
 or do anything significant, those 3 go in active_characters and the other 47 in mentioned_characters.
@@ -205,7 +208,7 @@ Return a JSON response matching this example format exactly:
     "Temporary resolution in the garden",
     "Hint at future complications"
   ],
-  "active_characters": ["Michael", "Sarah", "Dr. Patterson"],
+  "active_characters": ["Michael", "Sarah", "HAL", "the Monster"],
   "mentioned_characters": ["James", "Elizabeth", "the late Mr. Harrison"],
   "primary_tone": "tense",
   "secondary_tones": ["hopeful", "mysterious"],
@@ -213,6 +216,8 @@ Return a JSON response matching this example format exactly:
   "pov_character": "Michael"
 }}
 ```
+
+Note: Include non-human entities with names (AI systems, creatures, supernatural beings) in active_characters if they act with agency in the chapter.
 
 Valid tone values: tense, suspenseful, action, romantic, comedic, somber, reflective, dramatic, peaceful, mysterious, hopeful, dark
 Valid dialogue_density values: "high", "medium", "low"
@@ -239,6 +244,7 @@ class ChapterSummarizer:
         known_characters: Optional[list[str]] = None,
         summary_length: str = "standard",
         competitive_config: Optional["CompetitiveConfig"] = None,
+        json_llm: Optional[LLMClient] = None,
     ):
         """
         Args:
@@ -248,6 +254,7 @@ class ChapterSummarizer:
             known_characters: List of known character names for reference
             summary_length: Length preference - "brief" (2-3 sentences), "standard" (4-6 sentences), "detailed" (6-8 sentences)
             competitive_config: Optional config for multi-model consensus
+            json_llm: Optional JSON-capable LLM client for fallback when primary fails JSON parsing
         """
         self.llm = llm_client
         self.chunk_size = chunk_size
@@ -255,6 +262,8 @@ class ChapterSummarizer:
         self.known_characters = known_characters or []
         self.summary_length = summary_length
         self.competitive_config = competitive_config
+        # JSON-capable LLM client for fallback when primary model fails JSON parsing
+        self.json_llm = json_llm
 
         # Collect vote records for consensus logging
         self.vote_records: list[dict] = []
@@ -398,23 +407,16 @@ class ChapterSummarizer:
 
         # Use competitive mode if enabled and we have competitor clients
         if self._use_competitive_summaries() and self._competitor_clients:
-            result = self._competitive_summarize_chapter(
+            return self._competitive_summarize_chapter(
                 chapter_text, chapter_index, title, word_count
             )
-            self._fix_narrator_attribution(result, chapter_text)
-            return result
 
         # Short chapter: summarize directly
         if word_count <= self.chunk_size * 1.2:  # Allow 20% buffer before chunking
-            result = self._summarize_short_chapter(chapter_text, chapter_index, title, word_count)
-        else:
-            # Long chapter: chunk and consolidate
-            result = self._summarize_long_chapter(chapter_text, chapter_index, title, word_count)
+            return self._summarize_short_chapter(chapter_text, chapter_index, title, word_count)
 
-        # Post-process: fix narrator misattribution using structural text evidence
-        self._fix_narrator_attribution(result, chapter_text)
-
-        return result
+        # Long chapter: chunk and consolidate
+        return self._summarize_long_chapter(chapter_text, chapter_index, title, word_count)
 
     def _competitive_summarize_chapter(
         self,
@@ -505,7 +507,7 @@ class ChapterSummarizer:
         # Merge key_events with voting
         event_counts: Counter = Counter()
         for result in results:
-            events = result.get("key_events", [])
+            events = result.get("key_events") or []
             for event in events:
                 # Normalize event for comparison (lowercase, strip)
                 normalized = event.lower().strip()
@@ -514,7 +516,7 @@ class ChapterSummarizer:
         # Keep events with enough votes, preserve original casing from first occurrence
         event_originals: dict[str, str] = {}
         for result in results:
-            for event in result.get("key_events", []):
+            for event in result.get("key_events") or []:
                 normalized = event.lower().strip()
                 if normalized not in event_originals:
                     event_originals[normalized] = event
@@ -529,9 +531,9 @@ class ChapterSummarizer:
         active_char_counts: Counter = Counter()
         mentioned_char_counts: Counter = Counter()
         for result in results:
-            for char in result.get("active_characters", []):
+            for char in result.get("active_characters") or []:
                 active_char_counts[char.strip()] += 1
-            for char in result.get("mentioned_characters", []):
+            for char in result.get("mentioned_characters") or []:
                 mentioned_char_counts[char.strip()] += 1
 
         consensus_active = [char for char, count in active_char_counts.items() if count >= min_votes]
@@ -542,7 +544,7 @@ class ChapterSummarizer:
         best_score = -1
         for result in results:
             summary = result.get("summary", "")
-            events = result.get("key_events", [])
+            events = result.get("key_events") or []
             # Score = number of events that made it to consensus
             score = sum(
                 1 for e in events
@@ -563,7 +565,7 @@ class ChapterSummarizer:
         # Secondary tones - any tone mentioned by 2+ models
         secondary_tone_counts: Counter = Counter()
         for result in results:
-            for tone in result.get("secondary_tones", []):
+            for tone in result.get("secondary_tones") or []:
                 if tone in self._valid_tones():
                     secondary_tone_counts[tone] += 1
         secondary_tones = [
@@ -636,6 +638,14 @@ class ChapterSummarizer:
         )
 
         result, _ = self.llm.query_json(prompt, system=SINGLE_CHAPTER_SYSTEM)
+
+        # Retry with JSON-capable model if primary failed
+        if result is None and self.json_llm is not None:
+            logger.warning(
+                f"Primary model failed JSON for chapter {chapter_index}, "
+                f"retrying with JSON-capable model '{self.json_llm.config.model}'"
+            )
+            result, _ = self.json_llm.query_json(prompt, system=SINGLE_CHAPTER_SYSTEM)
 
         if result is None:
             logger.warning(f"LLM summarization failed for chapter {chapter_index}")
@@ -763,6 +773,11 @@ class ChapterSummarizer:
 
         result, _ = self.llm.query_json(prompt, system=CHUNK_SUMMARY_SYSTEM)
 
+        # Retry with JSON-capable model if primary failed
+        if result is None and self.json_llm is not None:
+            logger.debug(f"Chunk {chunk_index} retry with JSON-capable model")
+            result, _ = self.json_llm.query_json(prompt, system=CHUNK_SUMMARY_SYSTEM)
+
         word_count = len(text.split())
 
         if result is None:
@@ -783,8 +798,8 @@ class ChapterSummarizer:
         return ChunkSummary(
             chunk_index=chunk_index,
             summary=result.get("summary", ""),
-            key_events=result.get("key_events", []),
-            characters_mentioned=result.get("characters_mentioned", []),
+            key_events=result.get("key_events") or [],
+            characters_mentioned=result.get("characters_mentioned") or [],
             tone=tone,
             word_count=word_count,
         )
@@ -816,6 +831,14 @@ class ChapterSummarizer:
         )
 
         result, response = self.llm.query_json(prompt, system=CONSOLIDATE_SYSTEM)
+
+        # Check if primary model failed and we have a JSON-capable fallback
+        primary_failed = not response.success or result is None or not isinstance(result, dict)
+        if primary_failed and self.json_llm is not None:
+            logger.warning(
+                f"Consolidation retry with JSON-capable model for chapter {chapter_index}"
+            )
+            result, response = self.json_llm.query_json(prompt, system=CONSOLIDATE_SYSTEM)
 
         if not response.success:
             # HTTP error or connection failure
@@ -877,22 +900,6 @@ class ChapterSummarizer:
             confidence=0.5,
         )
 
-    @staticmethod
-    def _sanitize_llm_text(text: str) -> str:
-        """Strip non-Latin script characters (CJK, Cyrillic, Arabic, etc.) from LLM output.
-
-        Preserves Latin, IPA, common punctuation, and standard Unicode.
-        Addresses Qwen3 model family occasionally producing Chinese text mid-output.
-        """
-        import re
-        # Remove CJK Unified Ideographs, Hiragana, Katakana, CJK symbols, CJK compatibility
-        text = re.sub(r'[　-鿿豈-﫿぀-ゟ゠-ヿ]+', '', text)
-        # Remove Arabic script
-        text = re.sub(r'[؀-ۿ]+', '', text)
-        # Clean up any resulting double-spaces or orphaned punctuation
-        text = re.sub(r'  +', ' ', text)
-        return text.strip()
-
     def _parse_chapter_result(
         self,
         result: dict,
@@ -906,7 +913,7 @@ class ChapterSummarizer:
             primary_tone = "reflective"
 
         secondary_tones = []
-        for t in result.get("secondary_tones", []):
+        for t in result.get("secondary_tones") or []:
             if t in self._valid_tones() and t != primary_tone:
                 secondary_tones.append(t)
 
@@ -916,22 +923,46 @@ class ChapterSummarizer:
 
         # Handle new active/mentioned character format with backward compatibility
         if "active_characters" in result:
-            active_characters = result.get("active_characters", [])
-            mentioned_characters = result.get("mentioned_characters", [])
+            active_characters = result.get("active_characters") or []
+            mentioned_characters = result.get("mentioned_characters") or []
         else:
             # Old format: all characters_present treated as active
-            active_characters = result.get("characters_present", [])
+            active_characters = result.get("characters_present") or []
             mentioned_characters = []
 
-        # Sanitize LLM text to remove CJK hallucinations from Qwen3
-        _summary = self._sanitize_llm_text(result.get("summary", ""))
-        _key_events = [self._sanitize_llm_text(e) for e in result.get("key_events", [])]
+        # Override active/mentioned classification with Echo scalpel if available
+        all_characters = list(set(active_characters + mentioned_characters))
+        if all_characters and scalpel_available("echo"):
+            try:
+                loader = ScalpelLoader()
+                chapter_text = result.get("summary", "")
+                texts = [
+                    f"{char} [SEP] {chapter_text}" for char in all_characters
+                ]
+                predictions = loader.predict_batch("echo", texts)
+
+                echo_active = []
+                echo_mentioned = []
+                for char, (label, conf) in zip(all_characters, predictions):
+                    if label == "active":
+                        echo_active.append(char)
+                    else:
+                        echo_mentioned.append(char)
+
+                logger.debug(
+                    f"Echo scalpel reclassified chapter {chapter_index}: "
+                    f"{len(echo_active)} active, {len(echo_mentioned)} mentioned"
+                )
+                active_characters = echo_active
+                mentioned_characters = echo_mentioned
+            except Exception as e:
+                logger.warning(f"Echo scalpel failed for chapter {chapter_index}, using LLM result: {e}")
 
         return ChapterSummary(
             chapter_index=chapter_index,
             chapter_title=title,
-            summary=_summary,
-            key_events=_key_events,
+            summary=result.get("summary", ""),
+            key_events=result.get("key_events") or [],
             primary_tone=primary_tone,
             secondary_tones=secondary_tones,
             dialogue_density=dialogue,
@@ -965,570 +996,6 @@ class ChapterSummarizer:
             estimated_duration_minutes=word_count / 150,
             confidence=0.0,
         )
-
-    @staticmethod
-    def _detect_letter_signatory(
-        chapter_text: str,
-        narrator_detected: "str | None" = None,
-    ) -> Optional[str]:
-        """
-        Detect if chapter text is (or follows) an epistolary letter and return
-        the letter-writer's name.
-
-        Three detection paths:
-        A) The chapter text begins with the closing of a PREVIOUS letter followed
-           by the header of the CURRENT letter (e.g., "R. Walton\\nLetter 2\\nTo Mrs. Saville").
-           The signatory is the short proper-name line immediately before "Letter N".
-        B) Standalone letter: salutation ("To X," or "Dear X,") in the head AND
-           a closing signature ("Your... \\nName") in the tail.
-        C) Fallback: tail has a letter closing signature regardless of salutation.
-           Handles chapters where text was cut mid-letter (header/salutation missing
-           from the chapter start position).
-
-        Returns the signatory name, or None if not detected.
-        """
-        head = chapter_text[:600]
-
-        def _expand_initials(candidate: str, text: str, limit: int = 20000) -> str:
-            """Expand abbreviated names like 'R.W.' or 'R. Walton' to full names.
-
-            Falls back to narrator_detected if full name cannot be found in text.
-            """
-            search_text = text[:limit]
-            if re.match(r"^[A-Z]\.[A-Za-z.]+$", candidate):
-                # Concatenated initials: "R.W." — match by first letters
-                initials = [c for c in candidate if c.isupper()]
-                for m in re.finditer(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", search_text):
-                    name_words = m.group(1).split()
-                    if [w[0] for w in name_words] == initials:
-                        return m.group(1)
-                # Fallback: check narrator_detected
-                if narrator_detected:
-                    nd_words = narrator_detected.split()
-                    if [w[0] for w in nd_words] == initials:
-                        return narrator_detected
-            elif re.match(r"^[A-Z]\.\s+[A-Z][a-z]+", candidate):
-                # "R. Walton" — single capital initial + last name
-                initial = candidate[0]
-                last_name = candidate.split()[-1].rstrip(".")
-                for m in re.finditer(
-                    r"\b([A-Z][a-z]+)\s+" + re.escape(last_name) + r"\b", search_text
-                ):
-                    if m.group(1)[0] == initial:
-                        return m.group(1) + " " + last_name
-                # Fallback: check narrator_detected
-                if narrator_detected:
-                    nd_words = narrator_detected.split()
-                    if nd_words and nd_words[0][0] == initial and nd_words[-1].lower() == last_name.lower():
-                        return narrator_detected
-            return candidate
-
-        # Path A: "Letter N" header inside the head (preceded by a signature)
-        letter_header_m = re.search(r'\bLetter\s+\w+\s*\n', head)
-        if letter_header_m:
-            pre_header = head[: letter_header_m.start()]
-            # The signatory is the last short proper-name line before the header
-            lines = [ln.strip() for ln in pre_header.split("\n") if ln.strip()]
-            if lines:
-                candidate = lines[-1].strip()
-                if re.match(r"^[A-Z][A-Za-z.]*(?:\s+[A-Z][A-Za-z.]*){0,3}\.?$", candidate):
-                    expanded = _expand_initials(candidate, chapter_text)
-                    return expanded
-
-        def _extract_tail_signatory(tail: str) -> Optional[str]:
-            """Extract signatory from letter tail (closing phrase + name line)."""
-            sig_m = re.search(
-                r"(?:Your|Yours|Ever\s+yours|Affectionately|Sincerely|Faithfully)"
-                r"[^\n]{0,50}\n\s*([A-Z][A-Za-z\s.]{2,40})",
-                tail,
-            )
-            if sig_m:
-                name = sig_m.group(1).strip().rstrip(".")
-                name = re.split(r"\n", name)[0].strip()
-                if len(name.split()) > 4:
-                    return None
-                return _expand_initials(name, chapter_text)
-            return None
-
-        # Path B: Standalone letter — salutation in head + closing in tail
-        has_salutation = bool(
-            re.search(r"^\s*(?:To\s+\w|Dear\s+\w)", head, re.IGNORECASE | re.MULTILINE)
-        )
-        if has_salutation:
-            tail = chapter_text[-600:]
-            name = _extract_tail_signatory(tail)
-            if name:
-                return name
-
-            # Path B fallback: last short proper-name line in tail (no closing phrase needed).
-            # Handles signatures like "R.W." after "Heaven bless my beloved sister!" — where
-            # the letter ends with a blessing/exclamation instead of "Your affectionate..."
-            # Look for a line that is ONLY a proper name (or initials) near the end.
-            for _line in reversed(tail.split("\n")):
-                _ln = _line.strip().rstrip(".")
-                if not _ln:
-                    continue
-                if re.match(r"^[A-Z][A-Za-z.]*(?:\s+[A-Z][A-Za-z.]*){0,3}$", _ln) and 1 <= len(_ln.split()) <= 4:
-                    return _expand_initials(_ln, chapter_text)
-                break  # stop at first non-empty line from tail
-
-            # Path B vocative fallback: letter with no closing signature.
-            # Look for "Captain [Name]", "Mr. [Name]", "Mrs. [Name]" etc. used as
-            # direct address to the narrator within the letter text. The addressee is
-            # not the narrator — but finding the narrator's name in a vocative context
-            # (e.g., a character says "Captain Walton, I must tell you...") tells us who
-            # the letter writer is.
-            _title_re = re.compile(
-                r'\b(Captain|Commander|Mr|Mrs|Miss|Dr|Professor|Colonel|General)\s+'
-                r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)',
-                re.IGNORECASE,
-            )
-            for _tm in _title_re.finditer(chapter_text[:20000]):
-                _cand_name = _tm.group(2).strip()
-                # Confirm this is NOT the recipient named in the salutation
-                _sal_m = re.search(r"^\s*To\s+([^\n,]+)", head, re.IGNORECASE | re.MULTILINE)
-                if _sal_m:
-                    _recip = _sal_m.group(1).strip().lower()
-                    if any(w in _recip for w in _cand_name.lower().split()):
-                        continue  # This is the recipient, not the writer
-                # Use this as the signatory
-                return _cand_name
-
-        # Path C: No Letter header in head, no salutation — but tail has letter closing.
-        # Handles chapters where text was cut mid-letter (missing header/salutation):
-        # the closing "Your affectionate... / R. Walton" is still present in the tail.
-        tail_c = chapter_text[-600:]
-        name_c = _extract_tail_signatory(tail_c)
-        if name_c:
-            return name_c
-
-        return None
-
-    @staticmethod
-    def _apply_letter_narrator(summary: str, signatory: str) -> str:
-        """
-        Replace an incorrect narrator name in a letter chapter summary.
-
-        Handles:
-        - Dual attribution: "Name1, Name2, verb..." → if Name2 matches signatory, strip Name1
-          (works mid-sentence, e.g., "In this letter, Name1, Name2, verb...")
-        - Single wrong leading name: "Name, verb..." → replace with signatory
-        """
-        if not summary:
-            return summary
-
-        sig_lower = set(signatory.lower().split())
-
-        # Look for dual attribution "[Name1], [Name2], [verb]..." anywhere in first sentence
-        first_period = summary.find(".")
-        first_sentence_end = first_period if first_period != -1 else len(summary)
-        first_sentence = summary[:first_sentence_end]
-
-        # Both name groups must be multi-word (e.g., "Victor Frankenstein, Robert Walton")
-        # to avoid matching single-word place/month names (e.g., "March, Victor Frankenstein")
-        dual_re = re.compile(
-            r"((?:[A-Z][a-zA-Z]+\s+[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)),\s+"
-            r"((?:[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)),\s+"
-        )
-        for m in dual_re.finditer(first_sentence):
-            name1, name2 = m.group(1), m.group(2)
-            n1_lower = set(name1.lower().split())
-            n2_lower = set(name2.lower().split())
-            if sig_lower & n2_lower:
-                # Name2 matches signatory — remove "Name1, " from the match
-                remove_span = name1 + ", "
-                return summary[:m.start()] + summary[m.start() + len(remove_span):]
-            elif sig_lower & n1_lower:
-                # Name1 matches signatory — remove ", Name2" from the match
-                remove_span = ", " + name2
-                before = summary[:m.start() + len(name1)]
-                after = summary[m.start() + len(name1) + len(remove_span):]
-                return before + after
-            else:
-                # Neither overlaps with signatory — replace both with signatory
-                return summary[:m.start()] + signatory + ", " + summary[m.end():]
-
-        # Single leading attribution: "Name, verb..." or "Name verb..."
-        # Pattern handles standard "Robert Walton" AND initials like "R. Walton" or "R.W"
-        single_match = re.match(
-            r"^((?:[A-Z][a-zA-Z.]*(?:\s+[A-Z][a-zA-Z.]+)*))(,\s+|\s+)",
-            summary,
-        )
-        if single_match:
-            found_name = single_match.group(1)
-            found_lower = set(found_name.lower().replace(".", " ").split())
-            # Initials match: check if found_name initials match signatory's first letters.
-            # E.g. "R.W" or "R. W." matches "Robert Walton" (R=Robert, W=Walton).
-            _initials_match = False
-            _found_initials = [c for c in found_name if c.isupper()]
-            _sig_words = signatory.split()
-            if _found_initials and len(_found_initials) == len(_sig_words):
-                _initials_match = all(
-                    i == w[0] for i, w in zip(_found_initials, _sig_words)
-                )
-            _name_matches = bool(sig_lower & found_lower) or _initials_match
-            if not _name_matches:
-                # Name doesn't match signatory — replace it
-                return signatory + single_match.group(2) + summary[single_match.end():]
-            else:
-                # Leading name matches signatory — check for trailing descriptor artifact.
-                # LLMs sometimes generate: "Robert Walton narrator, Victor Frankenstein, writes..."
-                # Strip the lowercase descriptor word + spurious second name attribution.
-                rest = summary[single_match.end():]
-                artifact_re = re.compile(
-                    r'^([a-z][a-zA-Z]+),\s+(?:[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*),\s+'
-                )
-                am = artifact_re.match(rest)
-                if am:
-                    return signatory + single_match.group(2) + rest[am.end():]
-
-        return summary
-
-    @staticmethod
-    def _fix_self_referential_narrator(summary: str) -> str:
-        """
-        Fix summaries where the same name appears as both the acting subject
-        and the target of a "creator/confront" action — indicating the first
-        occurrence (as agent) is a narrator misattribution.
-
-        E.g., "Victor Frankenstein, a created being, burns the cottage...
-               to confront his creator, Victor Frankenstein"
-        → "the narrator, a created being, burns the cottage...
-               to confront his creator, Victor Frankenstein"
-        """
-        # Find all multi-word proper names
-        names = re.findall(r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b', summary)
-        if not names:
-            return summary
-
-        name_counts = Counter(names)
-
-        for name, count in name_counts.most_common():
-            if count < 2:
-                break
-            # Check: name as agent at start AND as target of creator/confront later
-            creator_re = re.compile(
-                r'\b' + re.escape(name) + r'\b'
-                r'.{10,300}'
-                r'(?:creator|created\s+by|confront(?:ed|ing)?)'
-                r'.{0,80}\b' + re.escape(name) + r'\b',
-                re.IGNORECASE | re.DOTALL,
-            )
-            if creator_re.search(summary):
-                # Replace only the FIRST occurrence (the wrongly-named agent)
-                fixed = summary.replace(name, 'the narrator', 1)
-                # Lowercase if it now starts "the narrator" after a capital
-                return re.sub(r'^The narrator', 'The narrator', fixed)
-
-        return summary
-
-    @staticmethod
-    def _fix_created_being_attribution(summary: str) -> str:
-        """
-        Fix summaries where a human character name is immediately followed by
-        an appositive describing a non-human narrator ("a created being",
-        "a solitary creature", "earliest conscious experiences", etc.).
-
-        Replaces the wrong name in the first sentence with "the narrator".
-        """
-        # Pattern: "[Name], a created/conscious/sentient/solitary being/creature"
-        # NOTE: do NOT use re.IGNORECASE — [A-Z] must only match uppercase so that
-        # common words like "the", "a", "chapter" are not captured as names.
-        appositive_re = re.compile(
-            r'\b([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*),\s+'
-            r'a\s+(?:(?:newly\s+|recently\s+)?(?:created|conscious|sentient)\s+(?:being|creature)'
-            r'|solitary\s+(?:creature|being))',
-        )
-        # Pattern: "[Name]'s earliest conscious/sensory experiences/days of consciousness"
-        #          or "awakening". Covers both "earliest conscious experiences" and
-        #          "earliest days of consciousness" variants generated by different LLMs.
-        # Use [\u2018\u2019'] to match both ASCII apostrophe and Unicode curly quotes.
-        awakening_re = re.compile(
-            r'\b([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*)[' r"'\u2018\u2019]?s?\s+"
-            r'(?:earliest\s+(?:conscious|sensory)\s+(?:experiences?|days?)'
-            r'|earliest\s+days?\s+of\s+consciousness'
-            r'|awakening\s+to\s+(?:consciousness|sensory\s+overload))',
-        )
-
-        match = appositive_re.search(summary) or awakening_re.search(summary)
-        if not match:
-            return summary
-
-        wrong_name = match.group(1)
-
-        # Only replace in the first sentence
-        first_dot = summary.find('.')
-        end = first_dot + 1 if first_dot != -1 else len(summary)
-        first_sentence = summary[:end]
-        rest = summary[end:]
-
-        fixed_sentence = first_sentence.replace(wrong_name, 'the narrator', 1)
-        return fixed_sentence + rest
-
-    @staticmethod
-    def _fix_narrator_attribution(
-        result: "ChapterSummary",
-        chapter_text: str,
-        narrator_detected: "str | None" = None,
-    ) -> None:
-        """
-        Post-process a ChapterSummary in-place to fix narrator misattribution.
-
-        Uses structural text evidence (letter signatures, non-human descriptors,
-        self-referential contradictions) to override LLM narrator guesses.
-
-        Does NOT use any knowledge of specific novels or characters.
-
-        Static method so it can be called from analyzer.py after the narrator
-        substitution pass (which replaces 'the narrator' with the narrator's name,
-        undoing any fixes applied during summarization).
-
-        Args:
-            result: ChapterSummary to modify in-place.
-            chapter_text: Raw chapter text for structural analysis.
-            narrator_detected: The confirmed inner narrator name (e.g., "Victor
-                Frankenstein"), when available.  When set, Fix 5/6 will use it as the
-                replacement instead of "The narrator", and will SKIP the fix entirely
-                if the current leading name already matches (so a correct attribution
-                is never overwritten).  Fix 4 always replaces with "The narrator"
-                regardless of narrator_detected (the creature's identity is never
-                narrator_detected).
-        """
-        if not result.summary:
-            return
-
-        summary = result.summary
-
-        # Fix 1: Letter chapters — extract signatory from text structure
-        signatory = ChapterSummarizer._detect_letter_signatory(chapter_text, narrator_detected)
-        if signatory:
-            fixed = ChapterSummarizer._apply_letter_narrator(summary, signatory)
-            if fixed != summary:
-                logger.info(
-                    f"Narrator fix (letter signatory '{signatory}'): "
-                    f"{summary[:60]!r} → {fixed[:60]!r}"
-                )
-                result.summary = fixed
-                return
-
-        # Fix 2: Self-referential contradiction — same name as agent and target
-        fixed = ChapterSummarizer._fix_self_referential_narrator(summary)
-        if fixed != summary:
-            logger.info(
-                f"Narrator fix (self-referential): {summary[:60]!r} → {fixed[:60]!r}"
-            )
-            result.summary = fixed
-            return
-
-        # Fix 3: Non-human descriptor — "a created being", awakening language
-        fixed = ChapterSummarizer._fix_created_being_attribution(summary)
-        if fixed != summary:
-            logger.info(
-                f"Narrator fix (created being): {summary[:60]!r} → {fixed[:60]!r}"
-            )
-            result.summary = fixed
-            return
-
-        # Fix 4: "My creator" in chapter text (outside dialogue) — narrator references
-        # their own creator, meaning the narrator is a created being.
-        # Universal invariant: if a narrator (not in dialogue) writes "my creator",
-        # they are NOT the creator — leading human name is a misattribution.
-        # Guard: only fire when "my creator" appears OUTSIDE quotation marks (not in
-        # a character's dialogue), to avoid false positives in chapters where another
-        # character says "my creator" to the actual (human) narrator.
-        if chapter_text:
-            creator_phrase_re = re.compile(
-                r'\bmy\s+(?:creator|maker)\b', re.IGNORECASE
-            )
-            # Only match outside dialogue: look for occurrences NOT preceded by a
-            # double-quote within the same paragraph (heuristic: nearest " before match
-            # is farther away than the nearest newline before match).
-            # Support ASCII ("), left-curly (U+201C), and right-curly (U+201D) quotes.
-            _scan_text = chapter_text[:20000]  # extend window for nested narrators
-            _found_outside_dialogue = False
-            for _m_c in creator_phrase_re.finditer(_scan_text):
-                _pos = _m_c.start()
-                _before = _scan_text[:_pos]
-                _last_quote = max(
-                    _before.rfind('"'),       # ASCII double-quote
-                    _before.rfind('\u201c'),  # Left curly quote "
-                    _before.rfind('\u201d'),  # Right curly quote "
-                )
-                _last_nl = _before.rfind('\n')
-                # If the most recent newline is AFTER the most recent open-quote,
-                # this occurrence is in narrative (not inside a quoted speech block).
-                if _last_nl >= _last_quote:
-                    _found_outside_dialogue = True
-                    break
-            if _found_outside_dialogue:
-                # Replace the leading proper name in the summary with "The narrator".
-                # Fix 4 always uses "The narrator" regardless of narrator_detected —
-                # the creature is NEVER narrator_detected (Victor/outer narrator is).
-                leading_name_re = re.compile(
-                    r'^((?:[A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)*))(,\s+|\s+)'
-                )
-                m = leading_name_re.match(summary)
-                if m:
-                    wrong_name = m.group(1)
-                    # Global replacement: fix ALL instances in the summary, not just
-                    # the leading occurrence.  This ensures the full summary is fixed
-                    # when the LLM uses the wrong narrator name throughout the text.
-                    if ' ' in wrong_name:
-                        fixed = re.sub(
-                            r'\b' + re.escape(wrong_name) + r'\b',
-                            'The narrator',
-                            summary,
-                        )
-                    else:
-                        fixed = 'The narrator' + m.group(2) + summary[m.end():]
-                    if fixed != summary:
-                        logger.info(
-                            f"Narrator fix (my creator heuristic): "
-                            f"{summary[:60]!r} → {fixed[:60]!r}"
-                        )
-                        result.summary = fixed
-                        return
-
-        # Fix 5: Chapter text opens with quoted first-person prose after a chapter heading.
-        # Universal invariant: in nested/frame narratives, inner narrator chapters are
-        # formatted as the inner narrator's speech within outer quotation marks.
-        # Pattern: after "Chapter N" heading in text, the first prose line begins with "I "
-        # (i.e., the inner narrator speaks directly in first person inside a quote block).
-        # This catches creature/inner narrator chapters that lack awakening/appositive signals.
-        if chapter_text:
-            _quoted_fp_re = re.compile(
-                r'(?:Chapter|Letter)\s+\w+\.?\s*\n\s*\u201c?\"?\s*I\s+',  # Chapter N.\n"I ...
-                re.IGNORECASE,
-            )
-            if _quoted_fp_re.search(chapter_text[:1000]):
-                # Only replace if summary starts with a MULTI-WORD proper name (at least 2 words)
-                # to avoid capturing single words like "The", "In", "On" as false names.
-                leading_name_re2 = re.compile(
-                    r'^([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)+)(,\s+|\s+)'
-                )
-                m2 = leading_name_re2.match(summary)
-                if m2:
-                    wrong_name = m2.group(1)
-                    # Outer-quote first-person chapters are innermost-narrator chapters
-                    # (the chapter opens with "I " within outer quotes, meaning a deeper
-                    # embedded narrator is speaking, not the primary narrator).
-                    # Always replace with "The narrator" — do NOT use narrator_detected
-                    # (the primary narrator e.g. Victor Frankenstein) as replacement.
-                    # This prevents Step 6.9's substitution from persisting in creature
-                    # chapters when Step 6.95 re-runs this fix.
-                    replacement = 'The narrator'
-                    # Global replacement: fix ALL instances throughout the summary.
-                    if ' ' in wrong_name:
-                        fixed2 = re.sub(
-                            r'\b' + re.escape(wrong_name) + r'\b',
-                            replacement,
-                            summary,
-                        )
-                    else:
-                        fixed2 = replacement + m2.group(2) + summary[m2.end():]
-                    if fixed2 != summary:
-                        logger.info(
-                            f"Narrator fix (quoted first-person inner narrator): "
-                            f"{summary[:60]!r} → {fixed2[:60]!r}"
-                        )
-                        result.summary = fixed2
-                        return
-
-        # Fix 6: Chapter text opens with ANY quoted prose (not just "I ...") after heading,
-        # AND the opening 300 chars of the inner narrator's text contain ≥4 first-person
-        # singular pronouns (I/my/me).
-        # Universal invariant: in frame narratives, inner narrator chapters are presented
-        # within outer quotation marks. Even when the first word is not "I" (e.g., "It is...",
-        # "Some time...", "Cursed..."), heavy first-person usage in the opening confirms
-        # this is the inner narrator's voice, not the outer narrator's.
-        # Guard: does NOT fire if Fix 5 already handled the chapter.
-        # Fix RR: Extended search window from 200→1000 chars (the chapter heading may be
-        # preceded by the tail of the outer narrator's text, so the offset to the heading
-        # can exceed 200 chars). Also count first-person pronouns AFTER the heading
-        # (inner narrator's text) rather than before (outer narrator's). Also extend
-        # name detection to handle summaries starting with "The chapter describes [Name]".
-        if chapter_text:
-            _quoted_any_re = re.compile(
-                r'(?:(?:Chapter|Letter)\s+\w+\.?\s*\n\s*|\A\s*)[\u201c"]',  # Chapter N.\n" OR text starts with quote
-                re.IGNORECASE,
-            )
-            _heading_match = _quoted_any_re.search(chapter_text[:1000])  # Fix RR: extended to 1000
-            if _heading_match:
-                # Fix RR: count first-person pronouns in INNER narrator's text (after heading),
-                # not in the outer narrator's preceding text (which also uses "I/my/me").
-                _inner_start = _heading_match.end()
-                _fp_head = chapter_text[_inner_start:_inner_start + 300]
-                _fp_count = (
-                    len(re.findall(r'\bI\b', _fp_head))
-                    + len(re.findall(r'\bmy\b', _fp_head, re.IGNORECASE))
-                    + len(re.findall(r'\bme\b', _fp_head, re.IGNORECASE))
-                )
-                if _fp_count >= 4:
-                    leading_name_re3 = re.compile(
-                        r'^([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)+)(,\s+|\s+)'
-                    )
-                    m3 = leading_name_re3.match(summary)
-                    if m3:
-                        wrong_name3 = m3.group(1)
-                    else:
-                        # Fix RR: summary starts with "The chapter describes [Name]..."
-                        # — leading proper name is not at position 0. Search first sentence.
-                        _first_dot = summary.find('.')
-                        _first_sent = summary[:_first_dot + 1] if _first_dot != -1 else summary[:200]
-                        _nm = re.search(
-                            r'\b([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)+)\b', _first_sent
-                        )
-                        wrong_name3 = _nm.group(1) if _nm else None
-                    if wrong_name3:
-                        # Fix RR guard: only replace if the wrong name appears ≥2 times
-                        # as a narrator-agent (not just once as possessive subject matter).
-                        # E.g. "De Lacey's family history" has De Lacey × 1 (possessive,
-                        # subject matter) — do NOT replace. "Victor Frankenstein's journey
-                        # ... Victor Frankenstein observes" has × 2 — DO replace.
-                        _name_count_in_summary = len(re.findall(
-                            r'\b' + re.escape(wrong_name3) + r'\b', summary
-                        ))
-                        if _name_count_in_summary < 2:
-                            wrong_name3 = None
-                    # Fix BBB: If the regex-based detection failed (e.g. found a
-                    # co-mentioned character name that appears only once), fall back to
-                    # narrator_detected. Step 6.9 substitutes narrator_detected throughout
-                    # ALL chapter summaries, including inner-narrator (creature) chapters.
-                    # If narrator_detected appears ≥2 times in an inner-narrator chapter,
-                    # it was misattributed by Step 6.9 and must be replaced with "The narrator".
-                    # Universal: only fires when narrator_detected is known (primary narrator
-                    # confirmed) AND chapter is an inner-narrator chapter (quoted + FP density).
-                    if not wrong_name3 and narrator_detected:
-                        _nd_count_bbb = len(re.findall(
-                            r'\b' + re.escape(narrator_detected) + r'\b', summary
-                        ))
-                        if _nd_count_bbb >= 2:
-                            wrong_name3 = narrator_detected
-                    if wrong_name3:
-                        # Outer-quote chapters are innermost-narrator chapters (e.g. the
-                        # creature in Frankenstein speaking within Victor's narration).
-                        # NEVER use narrator_detected as replacement here — the confirmed
-                        # primary narrator (e.g. Victor Frankenstein) is NOT narrating
-                        # these chapters; a deeper embedded narrator is.  Always replace
-                        # with the generic "The narrator" placeholder so Step 6.9/6.95
-                        # does NOT substitute the primary narrator's name here.
-                        # (Unlike Fix 5 which covers non-outer-quote first-person chapters
-                        # that ARE narrated by the primary narrator.)
-                        replacement3 = 'The narrator'
-                        if ' ' in wrong_name3:
-                            fixed3 = re.sub(
-                                r'\b' + re.escape(wrong_name3) + r'\b',
-                                replacement3,
-                                summary,
-                            )
-                        else:
-                            fixed3 = replacement3 + summary[len(wrong_name3):]
-                        if fixed3 != summary:
-                            logger.info(
-                                f"Narrator fix (quoted inner narrator, FP density): "
-                                f"{summary[:60]!r} → {fixed3[:60]!r}"
-                            )
-                            result.summary = fixed3
 
     @staticmethod
     def _valid_tones() -> set[str]:

@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from ..llm import LLMClient
+from ..scalpels import ScalpelLoader, scalpel_available
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +35,10 @@ MORAL_VALENCE_CONSTRAINTS: dict[MoralValence, str] = {
         "Avoid overly negative characterization that contradicts their helpful actions."
     ),
     MoralValence.ANTAGONIST: (
-        "This character performs primarily harmful actions. "
-        "Acknowledge clearly evidenced harmful behaviors, but remain balanced and avoid attributing "
-        "negative motives without direct textual support. Describe from a narrator's practical perspective."
+        "This character performs primarily HARMFUL actions (murder, manipulation, cruelty, etc.). "
+        "DO NOT use positive descriptors like 'charming', 'attractive', or 'charismatic' without "
+        "explicitly noting these are surface qualities that mask harmful behavior. "
+        "Profile MUST acknowledge their harmful actions and their impact on others."
     ),
     MoralValence.MORALLY_AMBIGUOUS: (
         "This character performs BOTH significant harmful AND beneficial actions. "
@@ -189,6 +191,36 @@ class MoralValenceClassifier:
                 reasoning="No text passages available for classification",
             )
 
+        # Try scalpel (Compass) first — fast local inference
+        if scalpel_available("compass"):
+            try:
+                loader = ScalpelLoader()
+                scalpel_input = f"{character_name} [SEP] {' '.join(passages[:10])}"
+                label, confidence = loader.predict("compass", scalpel_input)
+
+                # Map scalpel label to MoralValence enum
+                label_to_valence = {
+                    "protagonist": MoralValence.PROTAGONIST,
+                    "antagonist": MoralValence.ANTAGONIST,
+                    "morally_ambiguous": MoralValence.MORALLY_AMBIGUOUS,
+                    "victim": MoralValence.VICTIM,
+                    "neutral": MoralValence.NEUTRAL,
+                }
+                valence = label_to_valence.get(label, MoralValence.UNCERTAIN)
+
+                logger.info(
+                    f"Compass scalpel classified {character_name} as {valence.value} "
+                    f"(confidence={confidence:.3f})"
+                )
+                return MoralValenceResult(
+                    character_name=character_name,
+                    valence=valence,
+                    confidence=confidence,
+                    reasoning=f"Classified by Compass scalpel model (confidence={confidence:.3f})",
+                )
+            except Exception as e:
+                logger.warning(f"Compass scalpel failed for {character_name}, falling back to LLM: {e}")
+
         # Format passages for prompt
         passages_text = "\n\n".join(
             f"[Passage {i+1}]\n{p}" for i, p in enumerate(passages[:10])  # Limit to 10 passages
@@ -211,32 +243,6 @@ class MoralValenceClassifier:
                 valence=MoralValence.UNCERTAIN,
                 confidence=0.0,
                 reasoning=f"Classification failed: {response.error}",
-            )
-
-        # Handle case where LLM wraps the response in a list
-        if isinstance(result, list):
-            result = result[0] if result else None
-            if result is None:
-                logger.warning(
-                    f"Moral valence classification for '{character_name}': empty list response"
-                )
-                return MoralValenceResult(
-                    character_name=character_name,
-                    valence=MoralValence.UNCERTAIN,
-                    confidence=0.0,
-                    reasoning="Empty list response from LLM",
-                )
-
-        if not isinstance(result, dict):
-            logger.warning(
-                f"Moral valence classification for '{character_name}': "
-                f"unexpected response type {type(result).__name__}"
-            )
-            return MoralValenceResult(
-                character_name=character_name,
-                valence=MoralValence.UNCERTAIN,
-                confidence=0.0,
-                reasoning=f"Unexpected response format: {type(result).__name__}",
             )
 
         # Parse result

@@ -186,6 +186,7 @@ class CharacterProfilingPipeline:
             passage_gatherer = CharacterPassageGatherer(
                 disambiguator=disambiguator,
                 summary_map=summary_map,
+                llm_client=self.llm,
             )
             # Pass all character names for collision filtering + disambiguator
             summary_extractor = SummaryEvidenceExtractor(

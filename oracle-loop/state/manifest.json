@@ -1,147 +1,147 @@
 {
-  "quality_threshold": 8.0,
-  "competitive_mode": "none",
-  "competitive_stages": [],
-  "competitive_models": [],
-  "texts": [
-    {
-      "name": "monkeys_paw",
-      "file": "Test_Texts/The_Monkey's_Paw.txt",
-      "complete": true,
-      "attempts": 4,
-      "final_score": 8.6
-    },
-    {
-      "name": "cask_of_amontillado",
-      "file": "Test_Texts/The Cask of Amontillado - Poe.txt",
-      "complete": true,
-      "attempts": 2,
-      "final_score": 8.4
-    },
-    {
-      "name": "masque_of_red_death",
-      "file": "Test_Texts/Masque of the Red Death - Poe.txt",
-      "complete": true,
-      "attempts": 2,
-      "final_score": 8.6
-    },
-    {
-      "name": "berenice",
-      "file": "Test_Texts/Berenice - Poe.txt",
-      "complete": true,
-      "attempts": 1,
-      "final_score": 8.75
-    },
-    {
-      "name": "gift_of_the_magi",
-      "file": "Test_Texts/The Gift of the Magi - O_Henry.txt",
-      "complete": true,
-      "attempts": 5,
-      "final_score": 8.7
-    },
-    {
-      "name": "a_camping_trip",
-      "file": "Test_Texts/A Camping Trip.txt",
-      "complete": true,
-      "attempts": 5,
-      "final_score": 8.6
-    },
-    {
-      "name": "american_sir",
-      "file": "Test_Texts/American Sir.txt",
-      "complete": false,
-      "attempts": 26,
-      "final_score": 6.55,
-      "skipped": true,
-      "skip_reason": "Architecturally intractable same-name disambiguation (father/son both named John Donaldson) after 26 attempts. Score oscillated 5.8-8.0, never stable above threshold."
-    },
-    {
-      "name": "john_g",
-      "file": "Test_Texts/John G - Katherine Mayo.txt",
-      "complete": true,
-      "attempts": 4,
-      "final_score": 8.6
-    },
-    {
-      "name": "i_have_no_mouth",
-      "file": "Test_Texts/I_Have_No_Mouth_And_I_Must_Scream.pdf",
-      "complete": true,
-      "attempts": 23,
-      "final_score": 8.6
-    },
-    {
-      "name": "gatsby",
-      "file": "Test_Texts/gatsby.txt",
-      "complete": false,
-      "attempts": 24,
-      "final_score": null
-    },
-    {
-      "name": "frankenstein",
-      "file": "Test_Texts/Frankenstein_ebook.txt",
-      "complete": false,
-      "attempts": 26
-    },
-    {
-      "name": "dracula",
-      "file": "Test_Texts/Dracula - Bram Stoker.txt",
-      "complete": false,
-      "attempts": 0
-    },
-    {
-      "name": "one_hundred_years_of_solitude",
-      "file": "Test_Texts/One Hundred Years of Solitude - One_Hundred_Years_of_Solitude.pdf",
-      "complete": false,
-      "attempts": 0
-    },
-    {
-      "name": "east_of_eden",
-      "file": "Test_Texts/East of Eden - East Of Eden.pdf",
-      "complete": false,
-      "attempts": 0
-    },
-    {
-      "name": "don_quixote",
-      "file": "Test_Texts/Don Quixote - Cervantes.txt",
-      "complete": false,
-      "attempts": 0
-    },
-    {
-      "name": "flowers_for_algernon",
-      "file": "Test_Texts/Flowers_For_Algernon.pdf",
-      "complete": false,
-      "attempts": 0,
-      "note": "Scanned image-based PDF — requires OCR (install tesseract + ocrmypdf). Deferred until OCR available."
-    },
-    {
-      "name": "hound_of_the_baskervilles",
-      "file": "Test_Texts/The Hound of the Baskervilles - Doyle.txt",
-      "complete": false,
-      "attempts": 0
-    },
-    {
-      "name": "picture_of_dorian_gray",
-      "file": "Test_Texts/The Picture of Dorian Gray - Wilde.txt",
-      "complete": false,
-      "attempts": 0
-    },
-    {
-      "name": "pride_and_prejudice",
-      "file": "Test_Texts/Pride and Prejudice - Austen.txt",
-      "complete": false,
-      "attempts": 0
-    },
-    {
-      "name": "moby_dick",
-      "file": "Test_Texts/Moby-Dick - Melville.txt",
-      "complete": false,
-      "attempts": 0
-    },
-    {
-      "name": "war_and_peace",
-      "file": "Test_Texts/War and Peace - Tolstoy.txt",
-      "complete": false,
-      "attempts": 0
-    }
-  ]
+    "quality_threshold": 8.0,
+    "competitive_mode": "none",
+    "competitive_stages": [],
+    "competitive_models": [],
+    "texts": [
+        {
+            "name": "monkeys_paw",
+            "file": "Test_Texts/The_Monkey's_Paw.txt",
+            "complete": true,
+            "attempts": 4,
+            "final_score": 8.6
+        },
+        {
+            "name": "cask_of_amontillado",
+            "file": "Test_Texts/The Cask of Amontillado - Poe.txt",
+            "complete": true,
+            "attempts": 2,
+            "final_score": 8.4
+        },
+        {
+            "name": "masque_of_red_death",
+            "file": "Test_Texts/Masque of the Red Death - Poe.txt",
+            "complete": true,
+            "attempts": 2,
+            "final_score": 8.6
+        },
+        {
+            "name": "berenice",
+            "file": "Test_Texts/Berenice - Poe.txt",
+            "complete": true,
+            "attempts": 1,
+            "final_score": 8.75
+        },
+        {
+            "name": "gift_of_the_magi",
+            "file": "Test_Texts/The Gift of the Magi - O_Henry.txt",
+            "complete": true,
+            "attempts": 5,
+            "final_score": 8.7
+        },
+        {
+            "name": "a_camping_trip",
+            "file": "Test_Texts/A Camping Trip.txt",
+            "complete": true,
+            "attempts": 5,
+            "final_score": 8.6
+        },
+        {
+            "name": "american_sir",
+            "file": "Test_Texts/American Sir.txt",
+            "complete": false,
+            "attempts": 26,
+            "final_score": 6.55,
+            "skipped": true,
+            "skip_reason": "Architecturally intractable same-name disambiguation (father/son both named John Donaldson) after 26 attempts. Score oscillated 5.8-8.0, never stable above threshold."
+        },
+        {
+            "name": "john_g",
+            "file": "Test_Texts/John G - Katherine Mayo.txt",
+            "complete": true,
+            "attempts": 4,
+            "final_score": 8.6
+        },
+        {
+            "name": "i_have_no_mouth",
+            "file": "Test_Texts/I_Have_No_Mouth_And_I_Must_Scream.pdf",
+            "complete": true,
+            "attempts": 23,
+            "final_score": 8.6
+        },
+        {
+            "name": "gatsby",
+            "file": "Test_Texts/gatsby.txt",
+            "complete": true,
+            "attempts": 24,
+            "final_score": 8.6
+        },
+        {
+            "name": "frankenstein",
+            "file": "Test_Texts/Frankenstein_ebook.txt",
+            "complete": false,
+            "attempts": 26
+        },
+        {
+            "name": "dracula",
+            "file": "Test_Texts/Dracula - Bram Stoker.txt",
+            "complete": false,
+            "attempts": 0
+        },
+        {
+            "name": "one_hundred_years_of_solitude",
+            "file": "Test_Texts/One Hundred Years of Solitude - One_Hundred_Years_of_Solitude.pdf",
+            "complete": false,
+            "attempts": 0
+        },
+        {
+            "name": "east_of_eden",
+            "file": "Test_Texts/East of Eden - East Of Eden.pdf",
+            "complete": false,
+            "attempts": 0
+        },
+        {
+            "name": "don_quixote",
+            "file": "Test_Texts/Don Quixote - Cervantes.txt",
+            "complete": false,
+            "attempts": 0
+        },
+        {
+            "name": "flowers_for_algernon",
+            "file": "Test_Texts/Flowers_For_Algernon.pdf",
+            "complete": false,
+            "attempts": 0,
+            "note": "Scanned image-based PDF \u2014 requires OCR (install tesseract + ocrmypdf). Deferred until OCR available."
+        },
+        {
+            "name": "hound_of_the_baskervilles",
+            "file": "Test_Texts/The Hound of the Baskervilles - Doyle.txt",
+            "complete": false,
+            "attempts": 0
+        },
+        {
+            "name": "picture_of_dorian_gray",
+            "file": "Test_Texts/The Picture of Dorian Gray - Wilde.txt",
+            "complete": false,
+            "attempts": 0
+        },
+        {
+            "name": "pride_and_prejudice",
+            "file": "Test_Texts/Pride and Prejudice - Austen.txt",
+            "complete": false,
+            "attempts": 0
+        },
+        {
+            "name": "moby_dick",
+            "file": "Test_Texts/Moby-Dick - Melville.txt",
+            "complete": false,
+            "attempts": 0
+        },
+        {
+            "name": "war_and_peace",
+            "file": "Test_Texts/War and Peace - Tolstoy.txt",
+            "complete": false,
+            "attempts": 0
+        }
+    ]
 }

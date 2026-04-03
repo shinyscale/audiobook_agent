@@ -8,6 +8,7 @@ StateParser for reading all data sources, and format_tokens utility.
 import json
 import re
 import subprocess
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -122,6 +123,7 @@ class OracleState:
 
     # Loop status
     loop_running: bool = False
+    loop_stale: bool = False  # Process exists but log hasn't been written in >10 minutes
 
     # Heartbeat data (real-time analysis activity)
     heartbeat_age_seconds: Optional[float] = None  # Seconds since last heartbeat
@@ -707,17 +709,37 @@ class StateParser:
         except (json.JSONDecodeError, IOError, OSError):
             return []
 
-    def check_loop_running(self) -> bool:
-        """Check if oracle-loop.sh is currently running."""
+    def check_loop_running(self) -> tuple[bool, bool]:
+        """Check if oracle-loop.sh is currently running.
+
+        Returns:
+            (running, stale) - running=process exists, stale=log inactive >10min
+        """
         try:
             result = subprocess.run(
-                ['pgrep', '-f', 'oracle-loop.sh'],
+                ['pgrep', '-f', r'(^|/)oracle-loop\.sh(\s|$)'],
                 capture_output=True,
                 timeout=2
             )
-            return result.returncode == 0
+            if result.returncode != 0:
+                return False, False
+
+            # Process exists — check if supervisor log is fresh
+            logs_dir = self.base_dir / "logs"
+            if logs_dir.exists():
+                supervisor_logs = sorted(
+                    logs_dir.glob("supervisor*.log"),
+                    key=lambda p: p.stat().st_mtime,
+                    reverse=True
+                )
+                if supervisor_logs:
+                    age = time.time() - supervisor_logs[0].stat().st_mtime
+                    if age > 600:  # 10 minutes
+                        return True, True  # running but stale
+
+            return True, False
         except (subprocess.TimeoutExpired, FileNotFoundError):
-            return False
+            return False, False
 
     def check_experiment_running(self) -> bool:
         """Check if experiment-runner.sh is currently running."""
@@ -1127,7 +1149,7 @@ class StateParser:
         state.commits = self.parse_git_log(12)
 
         # Check if loop is running
-        state.loop_running = self.check_loop_running()
+        state.loop_running, state.loop_stale = self.check_loop_running()
 
         # Check if experiment-runner is running
         state.experiment_running = self.check_experiment_running()

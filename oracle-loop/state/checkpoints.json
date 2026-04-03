@@ -122,13 +122,13 @@
       }
     },
     "frankenstein": {
-      "commit": "9c0acb8c4073d73f9ac6812d9ba22b5185811607",
-      "score": 7.35,
+      "commit": "885201d79697657dcfd1af05b1a3fe7f0070c26e",
+      "score": 7.50,
       "category_scores": {
-        "structure": 9,
+        "structure": 8,
         "characters": 8,
-        "profiles": 5,
-        "summaries": 6,
+        "profiles": 6,
+        "summaries": 7,
         "pronunciation": 8,
         "presentation": 8
       }

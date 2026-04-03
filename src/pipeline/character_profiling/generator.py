@@ -98,6 +98,13 @@ PHASE 3: SURFACE DETAILS (Lowest Priority)
 Only after analyzing actions, note physical appearance and other surface details.
 These should NEVER override the action-based assessment.
 
+DIALOGUE ATTRIBUTION:
+- Passages tagged [CHARACTER SPEAKS] contain this character's actual spoken words
+- Passages tagged [DIALOGUE BY ANOTHER CHARACTER] contain dialogue spoken by someone else
+- For voice_guidance and example_quotes, ONLY use dialogue from [CHARACTER SPEAKS] passages
+- NEVER attribute dialogue from [DIALOGUE BY ANOTHER CHARACTER] to this character
+- For speech_patterns, base analysis on [CHARACTER SPEAKS] passages only
+
 === OUTPUT FORMAT ===
 
 Return JSON in this exact format:
@@ -330,10 +337,15 @@ class CharacterProfileGenerator:
         return profile
 
     def _format_passages(self, passages: list[CharacterPassage]) -> str:
-        """Format passages for the prompt."""
+        """Format passages for the prompt, with speaker attribution tags."""
         lines = []
         for i, passage in enumerate(passages, 1):
-            lines.append(f"[Passage {i}, Chapter {passage.chapter_index}]")
+            speaker_tag = ""
+            if passage.context_type == "dialogue" and passage.is_speaker:
+                speaker_tag = " [CHARACTER SPEAKS]"
+            elif passage.context_type == "dialogue" and not passage.is_speaker:
+                speaker_tag = " [DIALOGUE BY ANOTHER CHARACTER]"
+            lines.append(f"[Passage {i}, Chapter {passage.chapter_index}{speaker_tag}]")
             lines.append(passage.text)
             lines.append("")
         return "\n".join(lines)

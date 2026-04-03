@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Optional
 
 from ..chapter_detection.models import ChapterMap
 from ..chapter_summary.models import ChapterSummary, ChapterSummaryMap
+from ..scalpels import ScalpelLoader, scalpel_available
 from .models import IdentifiedCharacter
 from .perspective_filter import should_exclude_narrator_perspective_for_non_narrator
 
@@ -36,6 +37,9 @@ class CharacterPassage:
     ambiguous: bool = False  # Was disambiguation uncertain?
     disambiguation_confidence: float = 1.0  # How confident in character assignment (0-1)
     disambiguation_method: str = ""  # Method used: "relationship", "name_shape", etc.
+    # Voice scalpel: dialogue speaker attribution
+    is_speaker: bool = False  # Did this character speak dialogue in this passage?
+    speaker_confidence: float = 0.0  # Confidence of speaker attribution
 
     def to_dict(self) -> dict:
         return {
@@ -48,6 +52,8 @@ class CharacterPassage:
             "ambiguous": self.ambiguous,
             "disambiguation_confidence": self.disambiguation_confidence,
             "disambiguation_method": self.disambiguation_method,
+            "is_speaker": self.is_speaker,
+            "speaker_confidence": self.speaker_confidence,
         }
 
 
@@ -60,6 +66,7 @@ class CharacterPassageGatherer:
         max_passages_per_name: int = 30,
         disambiguator: Optional["ContextDisambiguator"] = None,
         summary_map: Optional[ChapterSummaryMap] = None,
+        llm_client=None,
     ):
         """
         Args:
@@ -67,11 +74,13 @@ class CharacterPassageGatherer:
             max_passages_per_name: Max passages to gather per name variant
             disambiguator: Optional ContextDisambiguator for same-name character handling
             summary_map: Chapter summaries for disambiguation context
+            llm_client: Optional LLM client for Voice scalpel fallback on low-confidence cases
         """
         self.context_window = context_window
         self.max_passages_per_name = max_passages_per_name
         self.disambiguator = disambiguator
         self.summary_map = summary_map
+        self.llm_client = llm_client
 
         # Build chapter index for quick lookup
         self._chapter_summary_index: dict[int, ChapterSummary] = {}
@@ -157,6 +166,15 @@ class CharacterPassageGatherer:
                     continue
                 filtered.append(p)
             passages = filtered
+
+        # Voice scalpel: classify dialogue passages for speaker attribution
+        is_narrator_first_person = (
+            character.is_narrator
+            and character.narrative_role
+            and "first-person" in character.narrative_role.lower()
+        )
+        if not is_narrator_first_person:
+            passages = self._classify_speakers(passages, character.canonical_name)
 
         # Score passages by descriptive content
         passages = self._score_passages(passages)
@@ -460,6 +478,104 @@ class CharacterPassageGatherer:
 
         return "mention"
 
+    def _classify_speakers(
+        self,
+        passages: list[CharacterPassage],
+        character_name: str,
+    ) -> list[CharacterPassage]:
+        """Use Voice scalpel to classify which dialogue passages this character spoke in.
+
+        For passages marked as "dialogue", runs the Voice scalpel to determine
+        if the character actually spoke. High-confidence non-speaker predictions
+        downgrade the passage to "mention". Low-confidence cases fall back to LLM.
+        """
+        if not scalpel_available("voice"):
+            return passages
+
+        # Collect dialogue passages for batch prediction
+        dialogue_indices = []
+        dialogue_texts = []
+        for i, p in enumerate(passages):
+            if p.context_type == "dialogue":
+                dialogue_indices.append(i)
+                dialogue_texts.append(f"{character_name} [SEP] {p.text}")
+
+        if not dialogue_texts:
+            return passages
+
+        # Batch predict
+        loader = ScalpelLoader()
+        predictions = loader.predict_batch("voice", dialogue_texts)
+
+        reclassified = 0
+        llm_fallback_count = 0
+        for idx, (label, confidence) in zip(dialogue_indices, predictions):
+            p = passages[idx]
+            if label == "speaker" and confidence >= 0.6:
+                p.is_speaker = True
+                p.speaker_confidence = confidence
+            elif label == "non_speaker" and confidence >= 0.7:
+                # High confidence they did NOT speak — downgrade from dialogue
+                p.context_type = "mention"
+                p.is_speaker = False
+                p.speaker_confidence = confidence
+                reclassified += 1
+            elif self.llm_client and llm_fallback_count < 5:
+                # Low confidence — try LLM fallback
+                is_speaker, fb_confidence = self._voice_llm_fallback(
+                    character_name, p.text
+                )
+                p.is_speaker = is_speaker
+                p.speaker_confidence = fb_confidence
+                if not is_speaker and fb_confidence >= 0.7:
+                    p.context_type = "mention"
+                    reclassified += 1
+                llm_fallback_count += 1
+            else:
+                # Low confidence, no LLM — keep as dialogue, mark unknown
+                p.is_speaker = False
+                p.speaker_confidence = confidence
+
+        if reclassified or llm_fallback_count:
+            logger.info(
+                f"Voice scalpel: {reclassified}/{len(dialogue_texts)} dialogue passages "
+                f"reclassified as mention for {character_name} "
+                f"({llm_fallback_count} LLM fallbacks used)"
+            )
+
+        return passages
+
+    def _voice_llm_fallback(
+        self,
+        character_name: str,
+        passage_text: str,
+    ) -> tuple[bool, float]:
+        """LLM fallback for low-confidence Voice scalpel predictions.
+
+        Returns (is_speaker, confidence).
+        """
+        prompt = (
+            f'Does "{character_name}" speak any dialogue (words inside quotation marks) '
+            f"in the following passage?\n\n"
+            f"PASSAGE:\n{passage_text[:2000]}\n\n"
+            f'Return JSON: {{"speaks": true/false, "confidence": 0.0-1.0}}'
+        )
+        system = (
+            "You identify dialogue speakers in literary text. "
+            "Answer with valid JSON only."
+        )
+
+        try:
+            result, response = self.llm_client.query_json(prompt, system=system)
+            if response.success and result:
+                speaks = bool(result.get("speaks", False))
+                confidence = float(result.get("confidence", 0.5))
+                return speaks, confidence
+        except Exception as e:
+            logger.warning(f"Voice LLM fallback failed for {character_name}: {e}")
+
+        return False, 0.5
+
     def _deduplicate_passages(
         self,
         passages: list[CharacterPassage],
@@ -493,9 +609,12 @@ class CharacterPassageGatherer:
 
             text_lower = passage.text.lower()
 
-            # Dialogue is valuable for voice
+            # Dialogue is valuable for voice — more so if character spoke
             if passage.context_type == "dialogue":
-                score += 2.0
+                if passage.is_speaker:
+                    score += 3.0  # Character actually spoke — very valuable
+                else:
+                    score += 1.0  # Dialogue nearby but character may not have spoken
 
             # Descriptions are valuable
             if passage.context_type == "description":

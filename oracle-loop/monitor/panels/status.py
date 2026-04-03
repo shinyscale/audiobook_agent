@@ -21,6 +21,8 @@ class StatusBar(Static):
             text.append("● EXPERIMENT", style="bold magenta")
             if self.state.active_experiment_id:
                 text.append(f" ({self.state.active_experiment_id})", style="magenta")
+        elif self.state.loop_running and self.state.loop_stale:
+            text.append("● STALE", style="bold yellow")
         elif self.state.loop_running:
             text.append("● RUNNING", style="bold green")
         else:

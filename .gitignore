@@ -32,6 +32,9 @@ Test_Texts/
 *.epub
 gatsby.txt
 
+# Scalpel model weights (large .pt files)
+models/
+
 # Keep these
 !README.md
 !requirements.txt
@@ -46,3 +49,11 @@ Thumbs.db
 # Oracle loop (development tool, not part of main package)
 oracle-loop/logs/
 oracle-loop/state/EVALUATION_STATE.md
+
+# Training data and corpus (large files)
+tools/gutenberg_corpus/
+tools/*.json
+echo_unified_dataset.json
+
+# Oracle loop run logs
+oracle-loop/state/attempt*_run.log

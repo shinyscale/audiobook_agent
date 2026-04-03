@@ -53,8 +53,12 @@ dev = [
 llm = [
     "llama-cpp-python>=0.2.0",
 ]
+scalpel = [
+    "torch>=2.0.0",
+    "transformers>=4.30.0",
+]
 full = [
-    "audiobook-prep[dev,llm]",
+    "audiobook-prep[dev,llm,scalpel]",
 ]
 
 [project.scripts]
