@@ -59,6 +59,9 @@ class ChapterSummary:
     # Generation metadata
     confidence: float
 
+    # Dialogue speaker attributions (from CRF model, when available)
+    dialogue_speakers: list[dict] = field(default_factory=list)
+
     @property
     def characters_present(self) -> list[str]:
         """Backward compatibility: return active_characters (the ones who appear in the chapter)."""
@@ -79,6 +82,7 @@ class ChapterSummary:
             "word_count": self.word_count,
             "estimated_duration_minutes": self.estimated_duration_minutes,
             "confidence": self.confidence,
+            "dialogue_speakers": self.dialogue_speakers,
         }
 
     @classmethod

@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Optional
 from ..chapter_detection.scene_breaks import find_scene_breaks
 from ..llm import LLMClient, LLMConfig
 from ..scalpels import ScalpelLoader, scalpel_available
+from ..dialogue_attribution import crf_available, CRFDialogueAttributor
 from .models import ChapterSummary, ChunkSummary
 
 if TYPE_CHECKING:
@@ -651,7 +652,7 @@ class ChapterSummarizer:
             logger.warning(f"LLM summarization failed for chapter {chapter_index}")
             return self._create_fallback_summary(chapter_index, title, word_count)
 
-        return self._parse_chapter_result(result, chapter_index, title, word_count)
+        return self._parse_chapter_result(result, chapter_index, title, word_count, chapter_text=text)
 
     def _summarize_long_chapter(
         self,
@@ -854,7 +855,7 @@ class ChapterSummarizer:
             # Fallback: merge chunk summaries manually
             return self._merge_chunk_summaries(chunk_summaries, chapter_index, title, word_count)
 
-        return self._parse_chapter_result(result, chapter_index, title, word_count)
+        return self._parse_chapter_result(result, chapter_index, title, word_count, chapter_text=text)
 
     def _merge_chunk_summaries(
         self,
@@ -906,6 +907,7 @@ class ChapterSummarizer:
         chapter_index: int,
         title: str,
         word_count: int,
+        chapter_text: str = "",
     ) -> ChapterSummary:
         """Parse LLM result into ChapterSummary."""
         primary_tone = result.get("primary_tone", "reflective")
@@ -958,6 +960,22 @@ class ChapterSummarizer:
             except Exception as e:
                 logger.warning(f"Echo scalpel failed for chapter {chapter_index}, using LLM result: {e}")
 
+        # CRF dialogue speaker attribution (after echo, uses raw chapter text)
+        dialogue_speakers = []
+        if chapter_text and active_characters and crf_available():
+            try:
+                attributor = CRFDialogueAttributor()
+                dialogue_speakers = attributor.attribute(
+                    chapter_text, active_characters, confidence_threshold=0.6,
+                )
+                if dialogue_speakers:
+                    logger.debug(
+                        f"CRF attributed {len(dialogue_speakers)} dialogue lines "
+                        f"in chapter {chapter_index}"
+                    )
+            except Exception as e:
+                logger.warning(f"CRF attribution failed for chapter {chapter_index}: {e}")
+
         return ChapterSummary(
             chapter_index=chapter_index,
             chapter_title=title,
@@ -972,6 +990,7 @@ class ChapterSummarizer:
             word_count=word_count,
             estimated_duration_minutes=word_count / 150,  # ~150 wpm narration
             confidence=0.85,
+            dialogue_speakers=dialogue_speakers,
         )
 
     def _create_fallback_summary(
