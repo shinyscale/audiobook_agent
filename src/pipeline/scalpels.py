@@ -55,6 +55,17 @@ SCALPEL_REGISTRY = {
         "max_length": 512,
         "labels": {0: "non_speaker", 1: "speaker"},
     },
+    "scope": {
+        "num_classes": 5,
+        "max_length": 512,
+        "labels": {
+            0: "single_narrator",       # Non-nested: one narrator throughout
+            1: "frame_narrator",        # Outer/frame narrator (e.g., Walton, Lockwood)
+            2: "inner_narrator",        # Primary inner narrator (e.g., Victor, Nelly Dean)
+            3: "deep_narrator",         # Deeply embedded narrator (e.g., Creature)
+            4: "omniscient_interlude",  # Third-person omniscient section in mixed narrative
+        },
+    },
 }
 
 # Models directory relative to project root

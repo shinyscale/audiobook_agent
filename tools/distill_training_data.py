@@ -358,7 +358,15 @@ def extract_dialogue_passages(chapter_text: str, context_chars: int = 500) -> li
     Returns list of dicts with 'passage' (text with context) and 'position' (char offset).
     """
     # Find quoted dialogue (double quotes, at least 5 chars inside)
-    quote_pattern = re.compile(r'"([^"]{5,})"')
+    # Match both smart quotes (“”) and straight quotes (")
+    quote_pattern = re.compile(
+        r'(?:'
+        r'\u201c([^\u201d]{5,})\u201d'  # smart quotes
+        r'|'
+        r'"([^"]{5,})"'                  # straight quotes
+        r')',
+        re.DOTALL,
+    )
     passages = []
     seen_positions = set()
 

@@ -21,7 +21,7 @@ class TestScalpelRegistry:
     """Test the scalpel registry configuration."""
 
     def test_all_models_registered(self):
-        assert set(SCALPEL_REGISTRY.keys()) == {"compass", "beacon", "cluster", "echo", "voice"}
+        assert set(SCALPEL_REGISTRY.keys()) == {"compass", "beacon", "cluster", "echo", "voice", "scope"}
 
     def test_compass_config(self):
         cfg = SCALPEL_REGISTRY["compass"]
