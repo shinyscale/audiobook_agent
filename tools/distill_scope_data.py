@@ -38,10 +38,49 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+DEFAULT_MODEL = "qwen3-next:80b-a3b-instruct-q8_0"
+DEFAULT_BASE_URL = "http://localhost:11434"
+
+
+SCOPE_CLASSIFY_SYSTEM = """You are a literary analyst classifying narrative point of view at the chapter level.
+Always respond with valid JSON. No other text."""
+
+SCOPE_CLASSIFY_PROMPT = """Classify the narrator type for this chapter opening from "{book_title}".
+
+CHAPTER: {chapter_title}
+
+TEXT (first ~1500 characters):
+{text}
+
+Classify the narrator type as one of:
+- **single_narrator**: Standard narration — one consistent narrator for the whole book (first-person or third-person). This is the most common type.
+- **frame_narrator**: An outer/frame narrator who sets up another character's story. Often writes letters, introduces a manuscript, or appears only at the beginning/end. Examples: Walton in Frankenstein, Lockwood in Wuthering Heights.
+- **inner_narrator**: The primary storyteller WITHIN a frame narrative. They tell the main story that the frame narrator introduces. Examples: Victor in Frankenstein, Nelly Dean in Wuthering Heights, Marlow in Heart of Darkness. Also used for diary/journal entries by specific characters in epistolary novels.
+- **deep_narrator**: A narrator embedded WITHIN the inner narrator's story — a story within a story within a story. Example: the Creature in Frankenstein (tells his story within Victor's narrative).
+- **omniscient_interlude**: A third-person omniscient section in a book that otherwise uses first-person or diary narration. Example: the Utah flashback in A Study in Scarlet, or the omniscient chapters alternating with Esther's narration in Bleak House.
+
+IMPORTANT:
+- Most chapters in most books are "single_narrator" — only use other labels when there is clear evidence of nested/frame narrative structure.
+- If the book has only ONE narrator throughout, ALL chapters are "single_narrator" regardless of POV.
+- "inner_narrator" requires evidence that this narrator's story is FRAMED by another narrator elsewhere in the book.
+
+Return JSON:
+```json
+{{
+  "narrator_type": "single_narrator|frame_narrator|inner_narrator|deep_narrator|omniscient_interlude",
+  "confidence": 0.0-1.0,
+  "reasoning": "Brief explanation"
+}}
+```
+
+Return ONLY valid JSON."""
+
+
 TOOLS_DIR = Path(__file__).parent
 CORPUS_DIR = TOOLS_DIR / "gutenberg_corpus"
 CORPUS_META = CORPUS_DIR / "corpus_metadata.json"
 OUTPUT_FILE = TOOLS_DIR / "distilled_scope.json"
+LLM_PROGRESS_FILE = TOOLS_DIR / "scope_llm_progress.json"
 
 # Label IDs matching SCALPEL_REGISTRY
 SINGLE_NARRATOR = 0
@@ -390,9 +429,102 @@ FULLTEXT_LABELERS = {
 }
 
 
+
+# ── LLM-Based Scope Labeling ────────────────────────────────────────────────
+
+def create_llm(model: str = DEFAULT_MODEL, base_url: str = DEFAULT_BASE_URL):
+    """Create LLM client for scope classification."""
+    from src.llm.client import LLMClient, LLMConfig
+    config = LLMConfig.ollama(model=model, base_url=base_url)
+    config.temperature = 0.1
+    config.max_tokens = 1024
+    if hasattr(config, 'think'):
+        config.think = False
+    return LLMClient(config)
+
+
+def llm_label_chapters(
+    llm,
+    chapters: list[dict],
+    book_title: str,
+    expected_pov: str,
+) -> list[dict]:
+    """Use LLM to classify narrator type for each chapter in a book.
+
+    This supplements the structural ground-truth with LLM silver labels,
+    expanding coverage from 7 known nested-narrative books to all 83.
+    """
+    label_map = {
+        "single_narrator": SINGLE_NARRATOR,
+        "frame_narrator": FRAME_NARRATOR,
+        "inner_narrator": INNER_NARRATOR,
+        "deep_narrator": DEEP_NARRATOR,
+        "omniscient_interlude": OMNISCIENT_INTERLUDE,
+    }
+
+    labeled = []
+    for ch in chapters[:30]:  # Cap at 30 chapters per book
+        # Take first ~1500 chars of actual text (skip header)
+        text_sample = ch["text"][:2000]
+
+        prompt = SCOPE_CLASSIFY_PROMPT.format(
+            book_title=book_title,
+            chapter_title=ch["title"],
+            text=text_sample[:1500],
+        )
+
+        result, response = llm.query_json(prompt, system=SCOPE_CLASSIFY_SYSTEM)
+        if not response.success or result is None:
+            continue
+
+        narrator_type = result.get("narrator_type", "single_narrator")
+        confidence = result.get("confidence", 0.5)
+
+        if narrator_type not in label_map:
+            narrator_type = "single_narrator"
+
+        # Only accept high-confidence non-single labels
+        # (LLM might hallucinate nested structure in simple books)
+        if narrator_type != "single_narrator" and confidence < 0.7:
+            narrator_type = "single_narrator"
+
+        labeled.append({
+            "text": text_sample,
+            "label": label_map[narrator_type],
+            "label_name": narrator_type,
+            "narrator": result.get("reasoning", "")[:100],
+            "book": book_title,
+            "chapter": ch["title"],
+            "source": "llm",
+            "confidence": confidence,
+        })
+
+    return labeled
+
+
+def load_llm_progress() -> dict:
+    if LLM_PROGRESS_FILE.exists():
+        with open(LLM_PROGRESS_FILE) as f:
+            return json.load(f)
+    return {"completed_books": []}
+
+
+def save_llm_progress(progress: dict):
+    with open(LLM_PROGRESS_FILE, "w") as f:
+        json.dump(progress, f, indent=2)
+
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate scope scalpel training data")
     parser.add_argument("--train", action="store_true", help="Also train the model")
+    parser.add_argument("--llm", action="store_true",
+                        help="Run LLM-based labeling on all corpus books (supplements structural labels)")
+    parser.add_argument("--llm-only", action="store_true",
+                        help="Only run LLM labeling (skip structural extraction)")
+    parser.add_argument("--model", default=DEFAULT_MODEL, help="LLM model name")
+    parser.add_argument("--base-url", default=DEFAULT_BASE_URL, help="LLM API base URL")
+    parser.add_argument("--resume", action="store_true", help="Resume LLM labeling from progress")
     args = parser.parse_args()
 
     if not CORPUS_META.exists():
@@ -466,6 +598,59 @@ def main():
         all_examples.extend(labeled)
         single_count += len(labeled)
         logger.info(f"  {meta['title']}: {len(labeled)} chapters (single_narrator)")
+
+    # 4. LLM-based labeling (optional, supplements structural data)
+    if args.llm or args.llm_only:
+        logger.info("\n=== LLM-based narrator type classification ===")
+        llm = create_llm(model=args.model, base_url=args.base_url)
+        llm_progress = load_llm_progress() if args.resume else {"completed_books": []}
+        llm_count = 0
+
+        for filename, meta in sorted(corpus_meta.items()):
+            if filename in llm_progress["completed_books"]:
+                logger.info(f"SKIP (already done): {meta['title']}")
+                continue
+
+            filepath = CORPUS_DIR / filename
+            if not filepath.exists():
+                continue
+
+            text = filepath.read_text(encoding="utf-8", errors="replace")
+            chapters = split_chapters(text)
+            if not chapters:
+                # No chapter markers — create synthetic sections
+                words = text.split()
+                chapters = []
+                for idx in range(0, min(len(words), 100000), 5000):
+                    chapters.append({
+                        "title": f"Section {len(chapters) + 1}",
+                        "text": " ".join(words[idx:idx + 5000]),
+                    })
+
+            if not chapters:
+                continue
+
+            try:
+                labeled = llm_label_chapters(
+                    llm, chapters, meta["title"], meta.get("expected_pov", "unknown"),
+                )
+                if labeled:
+                    all_examples.extend(labeled)
+                    llm_count += len(labeled)
+
+                    # Count labels for this book
+                    book_labels = {}
+                    for ex in labeled:
+                        book_labels[ex["label_name"]] = book_labels.get(ex["label_name"], 0) + 1
+                    logger.info(f"  {meta['title']}: {len(labeled)} chapters — {book_labels}")
+
+                llm_progress["completed_books"].append(filename)
+                save_llm_progress(llm_progress)
+            except Exception as e:
+                logger.error(f"Failed on {meta['title']}: {e}")
+                continue
+
+        logger.info(f"  LLM pass total: {llm_count} new examples")
 
     # Summary
     logger.info(f"\n=== Summary ===")
