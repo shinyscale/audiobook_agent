@@ -22,6 +22,7 @@ SCALPEL_REGISTRY = {
     "compass": {
         "num_classes": 5,
         "max_length": 512,
+        "base_model": "microsoft/deberta-v3-small",
         "labels": {
             0: "protagonist",
             1: "antagonist",
@@ -33,6 +34,7 @@ SCALPEL_REGISTRY = {
     "beacon": {
         "num_classes": 4,
         "max_length": 512,
+        "base_model": "microsoft/deberta-v3-small",
         "labels": {
             0: "first_person",
             1: "third_person",
@@ -43,21 +45,26 @@ SCALPEL_REGISTRY = {
     "cluster": {
         "num_classes": 2,
         "max_length": 256,
+        "base_model": "microsoft/deberta-v3-small",
         "labels": {0: "different_person", 1: "same_person"},
     },
     "echo": {
         "num_classes": 2,
         "max_length": 256,
+        "base_model": "microsoft/deberta-v3-small",
         "labels": {0: "mentioned", 1: "active"},
     },
     "voice": {
         "num_classes": 2,
         "max_length": 512,
+        "base_model": "microsoft/deberta-v3-base",
+        "pooling": "attention",
         "labels": {0: "non_speaker", 1: "speaker"},
     },
     "scope": {
         "num_classes": 5,
         "max_length": 512,
+        "base_model": "microsoft/deberta-v3-small",
         "labels": {
             0: "single_narrator",       # Non-nested: one narrator throughout
             1: "frame_narrator",        # Outer/frame narrator (e.g., Walton, Lockwood)
@@ -130,22 +137,30 @@ class ScalpelModel:
         # Load checkpoint
         checkpoint = torch.load(model_path, map_location=device, weights_only=False)
 
+        # Base model name from registry (default: deberta-v3-small)
+        base_model = config.get("base_model", "microsoft/deberta-v3-small")
+
         # Use bundled tokenizer files from the model directory (avoids HuggingFace download)
         model_dir = MODELS_DIR / f"{name}_model"
         tokenizer_json = model_dir / "tokenizer.json"
         if tokenizer_json.exists():
             self.tokenizer = AutoTokenizer.from_pretrained(str(model_dir))
         else:
-            self.tokenizer = AutoTokenizer.from_pretrained("microsoft/deberta-v3-small")
+            self.tokenizer = AutoTokenizer.from_pretrained(base_model)
 
         # Initialize encoder architecture, then load weights from checkpoint
         from transformers import AutoConfig
-        encoder_config = AutoConfig.from_pretrained("microsoft/deberta-v3-small")
+        encoder_config = AutoConfig.from_pretrained(base_model)
         self.encoder = AutoModel.from_config(encoder_config)
         hidden_size = encoder_config.hidden_size
 
+        # Pooling type (default: mean)
+        self.pooling_type = config.get("pooling", "mean")
+
         # Classification head
         self.dropout = nn.Dropout(0.1)
+        if self.pooling_type == "attention":
+            self.pool_attn = nn.Linear(hidden_size, 1)
         self.classifier = nn.Linear(hidden_size, self.num_classes)
         self.class_bias = nn.Parameter(torch.zeros(self.num_classes))
 
@@ -153,6 +168,7 @@ class ScalpelModel:
         # Keys: class_bias, encoder.*, classifier.weight, classifier.bias
         encoder_state = {}
         classifier_state = {}
+        pool_attn_state = {}
         class_bias = None
 
         for key, value in checkpoint["model_state_dict"].items():
@@ -160,11 +176,15 @@ class ScalpelModel:
                 encoder_state[key[len("encoder."):]] = value
             elif key.startswith("classifier."):
                 classifier_state[key[len("classifier."):]] = value
+            elif key.startswith("pool_attn."):
+                pool_attn_state[key[len("pool_attn."):]] = value
             elif key == "class_bias":
                 class_bias = value
 
         self.encoder.load_state_dict(encoder_state)
         self.classifier.load_state_dict(classifier_state)
+        if self.pooling_type == "attention" and pool_attn_state:
+            self.pool_attn.load_state_dict(pool_attn_state)
         # Prefer top-level class_bias (bfloat16 trained value), fall back to state_dict
         if checkpoint.get("class_bias") is not None:
             self.class_bias.data = checkpoint["class_bias"].float()
@@ -174,6 +194,8 @@ class ScalpelModel:
         # Move to device and set eval mode
         self.encoder.to(device).eval()
         self.classifier.to(device).eval()
+        if self.pooling_type == "attention":
+            self.pool_attn.to(device).eval()
         self.class_bias = self.class_bias.to(device)
 
         logger.info(f"Loaded scalpel model '{name}' ({self.num_classes} classes, max_length={self.max_length})")
@@ -204,10 +226,18 @@ class ScalpelModel:
                 input_ids=inputs["input_ids"],
                 attention_mask=inputs["attention_mask"],
             )
-            # Mean pooling over non-padding tokens
             hidden = outputs.last_hidden_state
-            mask = inputs["attention_mask"].unsqueeze(-1).float()
-            pooled = (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-9)
+
+            if self.pooling_type == "attention":
+                # Attention pooling: learned weighted sum over tokens
+                scores = self.pool_attn(hidden).squeeze(-1)  # [B, L]
+                scores = scores.masked_fill(inputs["attention_mask"] == 0, float("-inf"))
+                weights = torch.softmax(scores, dim=-1)  # [B, L]
+                pooled = (weights.unsqueeze(-1) * hidden).sum(dim=1)  # [B, H]
+            else:
+                # Mean pooling over non-padding tokens
+                mask = inputs["attention_mask"].unsqueeze(-1).float()
+                pooled = (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-9)
 
             # Classification head
             pooled = self.dropout(pooled)
@@ -249,8 +279,15 @@ class ScalpelModel:
                 attention_mask=inputs["attention_mask"],
             )
             hidden = outputs.last_hidden_state
-            mask = inputs["attention_mask"].unsqueeze(-1).float()
-            pooled = (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-9)
+
+            if self.pooling_type == "attention":
+                scores = self.pool_attn(hidden).squeeze(-1)
+                scores = scores.masked_fill(inputs["attention_mask"] == 0, float("-inf"))
+                weights = torch.softmax(scores, dim=-1)
+                pooled = (weights.unsqueeze(-1) * hidden).sum(dim=1)
+            else:
+                mask = inputs["attention_mask"].unsqueeze(-1).float()
+                pooled = (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-9)
 
             pooled = self.dropout(pooled)
             logits = self.classifier(pooled) + self.class_bias
