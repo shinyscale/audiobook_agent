@@ -35,6 +35,7 @@ SCALPEL_REGISTRY = {
         "num_classes": 4,
         "max_length": 512,
         "base_model": "microsoft/deberta-v3-small",
+        "head": "mlp",
         "labels": {
             0: "first_person",
             1: "third_person",
@@ -161,7 +162,14 @@ class ScalpelModel:
         self.dropout = nn.Dropout(0.1)
         if self.pooling_type == "attention":
             self.pool_attn = nn.Linear(hidden_size, 1)
-        self.classifier = nn.Linear(hidden_size, self.num_classes)
+
+        self.head_type = config.get("head", "linear")
+        if self.head_type == "mlp":
+            # 2-layer MLP head: hidden_size -> hidden_size//4 -> num_classes (GELU)
+            self.hidden = nn.Linear(hidden_size, hidden_size // 4)
+            self.classifier = nn.Linear(hidden_size // 4, self.num_classes)
+        else:
+            self.classifier = nn.Linear(hidden_size, self.num_classes)
         self.class_bias = nn.Parameter(torch.zeros(self.num_classes))
 
         # Load weights from checkpoint state dict
@@ -169,6 +177,7 @@ class ScalpelModel:
         encoder_state = {}
         classifier_state = {}
         pool_attn_state = {}
+        hidden_state = {}
         class_bias = None
 
         for key, value in checkpoint["model_state_dict"].items():
@@ -178,6 +187,8 @@ class ScalpelModel:
                 classifier_state[key[len("classifier."):]] = value
             elif key.startswith("pool_attn."):
                 pool_attn_state[key[len("pool_attn."):]] = value
+            elif key.startswith("hidden."):
+                hidden_state[key[len("hidden."):]] = value
             elif key == "class_bias":
                 class_bias = value
 
@@ -185,6 +196,8 @@ class ScalpelModel:
         self.classifier.load_state_dict(classifier_state)
         if self.pooling_type == "attention" and pool_attn_state:
             self.pool_attn.load_state_dict(pool_attn_state)
+        if self.head_type == "mlp" and hidden_state:
+            self.hidden.load_state_dict(hidden_state)
         # Prefer top-level class_bias (bfloat16 trained value), fall back to state_dict
         if checkpoint.get("class_bias") is not None:
             self.class_bias.data = checkpoint["class_bias"].float()
@@ -196,6 +209,8 @@ class ScalpelModel:
         self.classifier.to(device).eval()
         if self.pooling_type == "attention":
             self.pool_attn.to(device).eval()
+        if self.head_type == "mlp":
+            self.hidden.to(device).eval()
         self.class_bias = self.class_bias.to(device)
 
         logger.info(f"Loaded scalpel model '{name}' ({self.num_classes} classes, max_length={self.max_length})")
@@ -241,7 +256,13 @@ class ScalpelModel:
 
             # Classification head
             pooled = self.dropout(pooled)
-            logits = self.classifier(pooled) + self.class_bias
+            if self.head_type == "mlp":
+                import torch.nn.functional as F
+                hidden = F.gelu(self.hidden(pooled))
+                hidden = self.dropout(hidden)
+                logits = self.classifier(hidden) + self.class_bias
+            else:
+                logits = self.classifier(pooled) + self.class_bias
 
             probs = torch.softmax(logits, dim=-1)
             pred_idx = probs.argmax(dim=-1).item()
@@ -290,7 +311,13 @@ class ScalpelModel:
                 pooled = (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-9)
 
             pooled = self.dropout(pooled)
-            logits = self.classifier(pooled) + self.class_bias
+            if self.head_type == "mlp":
+                import torch.nn.functional as F
+                hidden = F.gelu(self.hidden(pooled))
+                hidden = self.dropout(hidden)
+                logits = self.classifier(hidden) + self.class_bias
+            else:
+                logits = self.classifier(pooled) + self.class_bias
 
             probs = torch.softmax(logits, dim=-1)
             pred_indices = probs.argmax(dim=-1)
