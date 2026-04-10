@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 5
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score: 5.8**
 
 ## Latest Scores
@@ -106,6 +106,11 @@ Fix approach:
 - Attempt 3 fix: Improved `CHARACTER_IDENTIFICATION_PROMPT` for is_symbolic and role guidance — is_symbolic now True during extraction ✓, but roles still wrong and is_symbolic lost in output
 - Attempt 4 fix A: Added Fix EEE-b guard in STEP 3.95 (characters.py) — prevents Herbert White false split — CONFIRMED WORKING ✓
 - Attempt 4 fix B: Added is_symbolic=getattr(pc, "is_symbolic", False) to OutputCharacter constructor — NOT WORKING (is_symbolic still False in output)
+- Attempt 6 fix: Added "friend" to `_infer_rel()` in `extract_relationships_from_evidence` + evidence-based exception in `reject_unfounded_friend_labels`
+  - Root cause: `_infer_rel()` returned "associated" for "Is an old friend of Mr. White" (no "friend" in any word set), then `clean_unknown_relationships` removed "associated" → empty {}
+  - Fix 1: Added `_FRIEND_WORDS` frozenset to `_infer_rel` so evidence statements with "friend" produce the "friend" relationship label
+  - Fix 2: In `reject_unfounded_friend_labels`, added evidence-array exception: if char's evidence contains a statement with "friend" + other char's name, keep the label (trust LLM evidence over proximity heuristic)
+  - Smoke test: All 381 tests pass (pre-existing test_no_complex_merge_heuristics failure confirmed unrelated)
 
 ## Modification History
 
@@ -122,6 +127,7 @@ Fix approach:
 | 4→5 | Characters: is_symbolic lost in output | src/analyzer.py | No change — is_symbolic still False |
 | 4→5 | Profiles: Mrs. White→Herbert "daughter" | (resolved by Herbert split fix) | Fixed ✓ |
 | 4→5 | Profiles: Morris missing friend relationship | (not addressed) | Still broken |
+| 5→6 | Profiles: Morris missing "friend" relationship | src/pipeline/character_profiling/post_corrections.py | Applied fix — awaiting verification |
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (Ollama) for all agents
@@ -134,4 +140,4 @@ Fix approach:
 - JSON: ../output/monkeys_paw/analysis.json
 
 ## Next Action
-Run PROMPT_fix.md — fix Morris's missing "friend" relationship with Mr. White (sole blocker for profiles reaching 8.0)
+Run PROMPT_analyze.md — re-analyze monkeys_paw to verify Morris now has "friend" relationship with Mr. White

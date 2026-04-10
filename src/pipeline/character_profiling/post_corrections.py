@@ -1194,6 +1194,9 @@ class OutputCharacterCorrector:
         _NEIGHBOR_WORDS = frozenset({
             "neighbor", "next door", "next to", "lives near",
         })
+        _FRIEND_WORDS = frozenset({
+            "friend", "friends", "friendship", "comrade", "companion", "buddy", "pal",
+        })
         # Creator/creation relationships.
         # "is [their] creator" / "created by" / "maker" → other char IS the creator → "creator"
         # "is [their] creation" / "as his creation" / "created [other]" → other char IS the creation → "creation"
@@ -1219,6 +1222,8 @@ class OutputCharacterCorrector:
                 return "enemy"
             if any(w in sl for w in _NEIGHBOR_WORDS):
                 return "neighbor"
+            if any(re.search(r'\b' + re.escape(w) + r'\b', sl) for w in _FRIEND_WORDS):
+                return "friend"
             # Check spousal indicators before kinship terms — "married" is a clear
             # spousal signal even when no explicit "husband"/"wife" word is present.
             if re.search(r'\b(?:married|marries|spouse)\b', sl):
@@ -2446,6 +2451,30 @@ class OutputCharacterCorrector:
                                 has_evidence = True
                                 break
                         if has_evidence:
+                            break
+
+                # Exception: if the character's evidence array contains a statement
+                # explicitly calling this pair "friend" (with the other char's name),
+                # trust that LLM-identified textual evidence over the proximity heuristic.
+                # This fires when friendship is described via possessive pronouns
+                # ("his old friend the sergeant-major") rather than both names in one sentence.
+                if not has_evidence:
+                    char_evidence = getattr(char, 'evidence', None) or []
+                    other_names_lower = (
+                        [other_char.canonical_name.lower()]
+                        + [a.lower() for a in (getattr(other_char, 'aliases', None) or [])]
+                    )
+                    for ev in char_evidence:
+                        if not isinstance(ev, dict):
+                            continue
+                        stmt = (ev.get('statement', '') or '').lower()
+                        if 'friend' not in stmt:
+                            continue
+                        if any(
+                            re.search(r'\b' + re.escape(n) + r'\b', stmt)
+                            for n in other_names_lower if len(n) >= 3
+                        ):
+                            has_evidence = True
                             break
 
                 if not has_evidence:
