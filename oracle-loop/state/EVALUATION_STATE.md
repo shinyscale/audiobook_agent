@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 6
-- **Phase:** awaiting_analysis
+- **Attempt:** 7
+- **Phase:** awaiting_evaluation
 - **baseline_score: 5.8**
 
 ## Latest Scores
@@ -151,9 +151,14 @@ The most likely failure chain:
 - Temperature: 0.7 across all agents
 - No profiling quality concerns (0 retries across all stages)
 
-## Output Files (Attempt 6)
+## Output Files (Attempt 7)
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
+
+## Pipeline Notes (Attempt 7)
+- Completed in 18m 17s, 5 characters found (Mr. White, Mrs. White, Herbert White, Sergeant-Major Morris, monkey's paw)
+- Non-fatal warnings: LLM marker proposer returned non-list (x2); Step 6.95 narrator fix skipped (method missing)
+- No crashes or blocking errors
 
 ## Next Action
 Run PROMPT_fix.md to add late-stage evidence-based friend restoration in post_corrections.py run_all()
