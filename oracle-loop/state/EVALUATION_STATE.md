@@ -3,145 +3,126 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 3
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score: 5.8**
 
 ## Latest Scores
-- Structure Detection: 5/10 ✗
-- Character Extraction: 4/10 ✗
-  - Completeness: 5/10
-  - Identity Resolution: 3/10
-  - Alias Grouping: 4/10
-- Character Profiles: 5/10 ✗
-- Chapter Summaries: 7/10 ✗
+- Structure Detection: 9/10 ✓
+- Character Extraction: 7.5/10 ✗
+  - Completeness: 8.5/10
+  - Identity Resolution: 7/10
+  - Alias Grouping: 7/10
+- Character Profiles: 7.5/10 ✗
+- Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 8.5/10 ✓
-- **Overall: 5.8/10** (reference only)
+- **Overall: 8.25/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (4 categories below threshold)
+**Status:** FAIL (2 categories below threshold: Character Extraction, Character Profiles)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | FAIL | - | Pipeline crashed |
 | 2 | 5.8 | - | First successful run — baseline set |
+| 3 | 8.25 | +2.45 | Structure fixed, characters much improved, 2 categories still below 8.0 |
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
 
-1. **Mrs. White completely missing from character list** [Completeness, Identity Resolution]
-   - Problem: Mrs. White is a major character who drives the climactic action (demands the 2nd wish, rushes to open the door). She appears in the summary's "Characters" tag but is absent from the character list entirely.
-   - Evidence: The analysis notes from attempt 2 state she was "detected, blocked as alias of Mr. White by Rule 0.4 (different titled people), then dropped." Rule 0.4 correctly identified her as different from Mr. White, but she was not retained as a separate character.
-   - Location: V2 character extraction pipeline — likely `src/pipeline/character_extraction_v2/main_cast.py` or the orchestration code that handles rejected aliases. When an alias is blocked by Rule 0.4, the rejected name should be checked for independent character status.
-   - Fix: When Rule 0.4 (or any rule) blocks an alias because it identifies a DIFFERENT person, the pipeline should create or retain that name as an independent character rather than silently dropping it.
-
-2. **"Herbert White" falsely listed as alias of "Mr. White"** [Identity Resolution, Alias Grouping]
-   - Problem: Herbert White (the son, 14 mentions) is incorrectly assigned as an alias of Mr. White (the father, 12 mentions). They are father and son — distinct characters who share a surname.
-   - Evidence: `analysis.json` shows Mr. White (main_cast_0) has aliases: ["Herbert White"]. Meanwhile Herbert White also exists as a separate supporting character (supporting_0). This contradictory state means the alias was added but the character wasn't removed.
-   - Location: V2 alias resolution in `src/pipeline/character_extraction_v2/main_cast.py` — the LLM proposed "Herbert White" as alias of "Mr. White" and the pipeline accepted it despite them having different first names/titles.
-   - Fix: A name like "Herbert White" should NOT be accepted as alias of "Mr. White" — they share a surname but "Herbert" is not a title variant of "Mr." The pipeline should have a rule: if the existing canonical uses a title (Mr./Mrs./Dr.) and the proposed alias uses a different first name, they are likely different people.
-
-3. **3-part structure not detected** [Structure]
-   - Problem: The source text has clear section markers "I.", "II.", "III." at lines 45, 284, 411. The pipeline found no structure and treated the entire 3,954-word story as a single untitled chapter.
-   - Evidence: `grep -n "^I\.\|^II\.\|^III\." "Test_Texts/The_Monkey's_Paw.txt"` shows markers at lines 45, 284, 411.
-   - Location: Structure detection in `src/pipeline/chapter_detection/` — likely the regex patterns in marker detection don't match standalone Roman numeral markers like "I.", "II.", "III." on their own lines.
-   - Fix: Add regex pattern for standalone Roman numerals with period (e.g., `^(I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)\.\s*$`) as valid section markers.
+1. **"the stranger" and "the visitor" falsely aliased to the monkey's paw** [Identity Resolution, Alias Grouping]
+   - Problem: The monkey's paw (main_cast_5) has aliases `["the paw", "the stranger", "the visitor"]`. "The stranger" and "the visitor" in Part II refer to the Maw and Meggins representative who delivers news of Herbert's death — a human character, not the paw.
+   - Evidence: Chapter 2 summary explicitly says "the arrival of a well-dressed stranger" who is "representing the firm 'Maw and Meggins'". The stranger is the company representative, not the supernatural object.
+   - Location: V2 alias resolution — the LLM proposed these aliases and the pipeline accepted them. The core issue is that human-descriptor aliases ("stranger", "visitor", "man") should not be assigned to non-human/symbolic entities.
+   - Fix approach: This needs a rule in `src/pipeline/character_extraction_v2/main_cast.py` (verify_aliases or a post-verification check): if the canonical character is a non-human entity (object, force, symbolic — detectable by lack of human names, or by `is_symbolic=True`), then aliases that are clearly human descriptors (stranger, visitor, man, woman, figure, gentleman, etc.) should be blocked. Alternatively, since the stranger already maps to Maw and Meggins contextually, the pipeline could recognize that "the stranger" appears in summaries where "Maw and Meggins" is the active entity and block the alias.
 
 ### HIGH
 
-4. **Herbert White classified as supporting instead of main** [Completeness]
-   - Problem: Herbert has 14 mentions (highest in the story) and is central to the plot — his death is the pivotal event. He's listed as supporting_0 instead of main cast.
-   - Evidence: `analysis.json` shows Herbert White with ID "supporting_0" despite having the most mentions of any character.
-   - Location: V2 pipeline main_cast vs supporting classification logic.
-   - Fix: May resolve naturally if the Herbert White alias issue (#2) is fixed, since his mentions would no longer be conflated with Mr. White's.
+2. **Sergeant-Major Morris missing "friend" relationship to Mr. White** [Profiles]
+   - Problem: Morris has `"relationships": {}` — zero relationships. The text explicitly establishes him as "his old friend the sergeant-major" (Mr. White's old friend).
+   - Evidence: Part I: Morris arrives as an old friend of Mr. White; they share whiskey and stories. The summary correctly says "Sergeant-Major Morris arrives."
+   - Location: Profile generation in `src/analyzer.py` — `_generate_character_profile()`. The relationship extraction likely missed the "old friend" reference because Morris appears in only one section.
+   - Fix: May be a profiler LLM issue (relationship not extracted from text). Could also be a post-corrections issue where `reject_unfounded_friend_labels` is too aggressive and removed a legitimate "friend" label.
 
-5. **Morris missing full title "Sergeant-Major"** [Alias Grouping]
-   - Problem: Canonical name is just "Morris" but the text consistently uses "Sergeant-Major Morris." The title is important for narrator voice (military bearing).
-   - Evidence: `analysis.json` shows Morris (supporting_1) with no aliases. The summary correctly uses "Sergeant-Major Morris."
-   - Location: V2 character extraction — title detection or canonical name selection.
-   - Fix: Pipeline should prefer the full titled form "Sergeant-Major Morris" as canonical, or at minimum include it as an alias.
+3. **All characters classified as "protagonist"** [Profiles]
+   - Problem: Every character including Morris, the monkey's paw, and Maw and Meggins has `role: "protagonist"`. Morris is a supporting catalyst, the monkey's paw is an antagonistic force/object, and Maw and Meggins is a minor supporting entity.
+   - Evidence: `jq '.characters[].role' analysis.json` → all return "protagonist"
+   - Location: Role assignment in V2 character extraction pipeline or profiling.
+   - Fix: Role classification should distinguish protagonist (Mr./Mrs. White, Herbert) from supporting (Morris, Maw and Meggins) and antagonist (the monkey's paw). This may be an LLM prompt issue in role assignment.
 
-6. **Mr. White's relationships are wrong/incomplete** [Profiles]
-   - Problem: Only relationship listed is "monkey's paw: creation" — which is semantically wrong (Mr. White didn't create the paw). Missing: Herbert (son), Mrs. White (wife), Morris (friend).
-   - Evidence: `analysis.json` shows `"relationships": {"the monkey's paw": "creation"}` for Mr. White.
-   - Location: Profile generation in `src/analyzer.py` — `_generate_character_profile()`.
-   - Fix: Relationship extraction needs to correctly identify family relationships from the text (explicit references to "his son Herbert", "his wife", "his old friend").
+4. **monkey's paw `is_symbolic` should be `true`** [Identity Resolution]
+   - Problem: `is_symbolic: false` for the monkey's paw. It is a supernatural object/force, not a regular character. Marking it symbolic would help downstream logic (e.g., blocking human-descriptor aliases).
+   - Evidence: The paw is explicitly described as "a mummified talisman enchanted by a fakir."
+   - Location: V2 character extraction — symbolic entity detection.
+   - Fix: The pipeline's symbolic detection criteria may not fire for named objects. If it checked for non-human canonical names (object nouns like "paw", "ring", "clock"), it could set `is_symbolic=True`.
 
 ### MEDIUM
 
-7. **Herbert White has zero relationships** [Profiles]
-   - Problem: No relationships listed despite being Mr. White's son and Mrs. White's son.
-   - Evidence: `analysis.json` shows `"relationships": {}` for Herbert White.
-   - Location: Profile generation — may improve if character extraction issues are fixed first.
+5. **Chapter 3 character list shows aliases alongside canonical names** [Presentation]
+   - Problem: Ch3 characters listed as: "the old man", "the old woman", "Mr. White". "The old man" is an alias of Mr. White (so Mr. White appears twice under different names), and "the old woman" is Mrs. White's alias but "Mrs. White" doesn't appear.
+   - Evidence: HTML report lines 914-924 show the Ch3 character tags.
+   - Location: Summary → character mapping in `src/analyzer.py` or HTML template generation. The summarizer used descriptors instead of canonical names in Ch3, and the pipeline didn't resolve them back.
+   - Fix: When building chapter character lists, resolve aliases to canonical names and deduplicate.
 
-8. **Chapter summary is one block instead of three** [Summaries]
-   - Problem: The summary covers the entire story in one 170-word paragraph. A narrator would benefit from per-section summaries for each of the 3 parts.
-   - Evidence: Only 1 chapter-card in report.html.
-   - Depends on: Fix #3 (structure detection). Once 3 parts are detected, summaries will naturally split.
-
-9. **"rubicund" IPA stress likely incorrect** [Pronunciation]
+6. **rubicund IPA stress incorrect** [Pronunciation]
    - Problem: Listed as /ruːˈbɪkʌnd/ (stress on 2nd syllable) but standard pronunciation is /ˈruː.bɪ.kənd/ (stress on 1st syllable).
    - Location: LLM-generated IPA in pronunciation enricher.
+   - Fix: Add "rubicund" to `KNOWN_IRREGULAR_IPA` in `src/pipeline/pronunciation/enricher.py` with correct IPA /ˈruː.bɪ.kənd/.
 
-10. **fakir/fakirs listed as separate entries** [Pronunciation]
-    - Problem: Both singular "fakir" and plural "fakirs" are listed separately with essentially the same IPA. This is redundant.
-    - Location: Pronunciation deduplication logic.
+7. **fakir/fakirs listed as separate entries with inconsistent IPA** [Pronunciation]
+   - Problem: "fakir" → /fəˈkɪər/ and "fakirs" → /ˈfɑː.kɪrz/. Different vowel patterns for the same root word, and the plural is redundant.
+   - Location: Pronunciation deduplication logic.
+   - Fix: Deduplicate singular/plural forms; use consistent IPA (standard: /fəˈkɪər/).
 
 ### LOW
 
-11. **Grammar: "This book contains 1 chapters"** [Presentation]
-    - Problem: Should be "1 chapter" (singular).
-    - Location: HTML template generation.
+8. **narrative_style is null** [Profiles]
+   - Problem: `narrative_style: null` instead of "third-person" or "third-person omniscient". Correct detection but null representation.
+   - Location: Narrator detection in `src/analyzer.py`.
 
-12. **Monkey's paw labeled "protagonist"** [Profiles]
-    - Problem: The monkey's paw is more accurately an antagonistic force/object, not a protagonist. It's the source of tragedy.
-    - Location: Role assignment in character extraction.
+9. **"Chapters have descriptive titles" label** [Presentation]
+   - Problem: HTML says "Chapters have descriptive titles" but "I.", "II.", "III." are Roman numeral markers, not descriptive titles.
+   - Location: HTML template generation logic that classifies title types.
 
 ## Fix History
 - Attempt 1 fix: Fixed two crash-level bugs in analyzer.py (CharacterMap constructor) and summarizer.py (undefined `text` variable)
-- Attempt 2 fix A: Added `roman_numeral_with_period` regex pattern (`^\s*([IVXLC]+)\.\s*$`, confidence 0.90, hard boundary) to catch "I.", "II.", "III." section markers
-  - Root cause: `src/pipeline/chapter_detection/proposers/regex.py` — no pattern matched period-terminated Roman numerals
-  - Smoke test: PASS — pattern confirmed added, 381/381 tests pass
-- Attempt 2 fix B: Fixed `_are_different_titled_people()` Case 2 to block multi-word untitled names ("Herbert White") from being aliases of titled names ("Mr. White") when they share a surname
-  - Root cause: `src/pipeline/character_extraction_v2/main_cast.py:_are_different_titled_people()` lines 2057-2074 — `surname1 in name2_lower` was True for "white" in "herbert white", bypassing the block
-  - Smoke test: PASS — all 7 test cases correct (Herbert White, Samuel Johnson, Gatsby, etc.)
-- Attempt 2 fix C: Added Rule 1 blocked alias salvage logic — when `_are_different_titled_people()` blocks an alias, the alias is saved and a new character profile is created if not already in cast
-  - Root cause: `src/pipeline/character_extraction_v2/main_cast.py:verify_aliases()` — Rule 1 dropped "Mrs. White" without creating a separate character
-  - Universal: grounding gate is the safety net (0-mention hallucinations will be rejected)
-  - Smoke test: PASS — `_rule1_blocked_names` instance variable present, salvage block present in extract()
+- Attempt 2 fix A: Added `roman_numeral_with_period` regex pattern to catch "I.", "II.", "III." section markers — CONFIRMED WORKING ✓
+- Attempt 2 fix B: Fixed `_are_different_titled_people()` Case 2 to block "Herbert White" as alias of "Mr. White" — CONFIRMED WORKING ✓
+- Attempt 2 fix C: Added Rule 1 blocked alias salvage logic for Mrs. White — CONFIRMED WORKING ✓
 
 ## Modification History
 
 | Attempt | Issue | Files Modified | Result |
 |---------|-------|----------------|--------|
-| 1→2 | Pipeline crash: summarizer `text` undefined | src/pipeline/summarizer.py | Fixed |
-| 1→2 | Pipeline crash: CharacterMap invalid kwargs | src/analyzer.py | Fixed |
-| 2→3 | Structure: "I.", "II.", "III." not detected | src/pipeline/chapter_detection/proposers/regex.py | Awaiting analysis |
-| 2→3 | Characters: Herbert White false alias of Mr. White | src/pipeline/character_extraction_v2/main_cast.py | Awaiting analysis |
-| 2→3 | Characters: Mrs. White missing (dropped by Rule 1) | src/pipeline/character_extraction_v2/main_cast.py | Awaiting analysis |
+| 1→2 | Pipeline crash: summarizer `text` undefined | src/pipeline/summarizer.py | Fixed ✓ |
+| 1→2 | Pipeline crash: CharacterMap invalid kwargs | src/analyzer.py | Fixed ✓ |
+| 2→3 | Structure: "I.", "II.", "III." not detected | src/pipeline/chapter_detection/proposers/regex.py | Fixed ✓ (9/10) |
+| 2→3 | Characters: Herbert White false alias of Mr. White | src/pipeline/character_extraction_v2/main_cast.py | Fixed ✓ |
+| 2→3 | Characters: Mrs. White missing (dropped by Rule 1) | src/pipeline/character_extraction_v2/main_cast.py | Fixed ✓ |
+
+## What Improved (Attempt 2 → 3)
+- Structure: 5/10 → 9/10 (3 parts correctly detected)
+- Characters: 4/10 → 7.5/10 (Mrs. White present, Herbert separated, Morris has full title)
+- Profiles: 5/10 → 7.5/10 (family relationships now correct)
+- Summaries: 7/10 → 9/10 (per-section summaries instead of single block)
+- Overall: 5.8/10 → 8.25/10
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (Ollama) for all agents
 - think_mode: false (correct for qwen3 family)
 - Temperature: 0.7 across all agents — may be too high for character extraction (consider 0.3-0.5)
-- No profiling quality concerns flagged
+- No profiling quality concerns (0 retries, 0 JSON parse failures, all HIGH confidence)
+- Profile generation took 526s (8.7 min) — most expensive stage
 
 ## Output Files (Attempt 3)
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
 
-## Pipeline Notes (Attempt 3)
-- 3 chapters detected ✓ (Roman numeral "I.", "II.", "III." fix confirmed working)
-- Mrs. White present as main character (26 mentions) ✓ (Rule 1 salvage fix confirmed working)
-- Herbert White listed separately from Mr. White (15 mentions, aliases: Herbert, the son) ✓
-- Sergeant-Major Morris with full title in aliases ✓
-- Contradictory relationships logged: Mr. White→Herbert White='child' AND Herbert White→Mr. White='child' (both sides assigned 'child' instead of parent/child)
-- "Step 6.95 structural narrator fix failed: type object 'ChapterSummarizer' has no attribute '_fix_narrator_attribution'" (minor)
-- 6 total characters including Maw and Meggins (added via F6 reconciliation)
-- the monkey's paw aliases include 'the stranger' (may be incorrect)
-- Run time: 18m 47s
-
 ## Next Action
-Evaluate attempt 3 output.
+Run PROMPT_fix.md to address:
+1. CRITICAL: Remove "the stranger"/"the visitor" from monkey's paw aliases (false human-descriptor aliases on non-human entity)
+2. HIGH: Morris missing "friend" relationship to Mr. White
+3. HIGH: Role classification — not everything should be "protagonist"
+Focus on #1 (character extraction → 8.0) and #2 (profiles → 8.0) as minimum to pass.
