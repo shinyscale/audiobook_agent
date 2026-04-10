@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 4
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score: 5.8**
 
 ## Latest Scores
@@ -121,6 +121,11 @@ If #1-#4 are fixed, Character Extraction should reach 8+ (no false split, correc
 - Attempt 2 fix B: Fixed `_are_different_titled_people()` Case 2 to block "Herbert White" as alias of "Mr. White" — CONFIRMED WORKING ✓
 - Attempt 2 fix C: Added Rule 1 blocked alias salvage logic for Mrs. White — CONFIRMED WORKING ✓
 - Attempt 3 fix: Improved `CHARACTER_IDENTIFICATION_PROMPT` for is_symbolic and role guidance — is_symbolic now True during extraction ✓, but roles still wrong and is_symbolic lost in output
+- Attempt 4 fix A: Added Fix EEE-b guard in STEP 3.95 (characters.py) — if summary text identifies character as "their son/daughter FirstName", skip the parent-child split (prevents Herbert White false split)
+  - Root cause: LLM assigned "the father" alias to Herbert (from "Herbert's father's army friend" in summary), PLUS "the son" alias (correct), triggering STEP 3.95 alias contradiction split
+  - Smoke test: verified guard matches "their son Herbert" in Ch1 summary ✓
+- Attempt 4 fix B: Added is_symbolic=getattr(pc, "is_symbolic", False) to OutputCharacter constructor in analyzer.py
+  - Root cause: OutputCharacter was built without passing is_symbolic, so it defaulted to False even when the pipeline character had is_symbolic=True
 
 ## Modification History
 
@@ -133,8 +138,8 @@ If #1-#4 are fixed, Character Extraction should reach 8+ (no false split, correc
 | 2→3 | Characters: Mrs. White missing (dropped by Rule 1) | src/pipeline/character_extraction_v2/main_cast.py | Fixed ✓ |
 | 3→4 | Characters: is_symbolic prompt guidance | src/pipeline/character_extraction_v2/main_cast.py | Partial — is_symbolic True during extraction but lost in output |
 | 3→4 | Characters: role classification prompt | src/pipeline/character_extraction_v2/main_cast.py | No change — roles still wrong |
-| 4→5 | Characters: Herbert White false split | src/pipeline/character_extraction_v2/characters.py (likely) | Pending |
-| 4→5 | Characters: is_symbolic lost in output | src/analyzer.py (likely) | Pending |
+| 4→5 | Characters: Herbert White false split | src/agents/characters.py | Fixed ✓ — Fix EEE-b guard added |
+| 4→5 | Characters: is_symbolic lost in output | src/analyzer.py | Fixed ✓ — is_symbolic now passed to OutputCharacter |
 | 4→5 | Profiles: Morris missing friend relationship | src/pipeline/post_corrections.py (likely) | Pending |
 
 ## Configuration Notes
@@ -149,4 +154,8 @@ If #1-#4 are fixed, Character Extraction should reach 8+ (no false split, correc
 - JSON: ../output/monkeys_paw/analysis.json
 
 ## Next Action
-Run PROMPT_fix.md to address Herbert White false split (Critical #1), is_symbolic preservation (#4), Morris relationships (#3), and Mrs. White relationship label (#2).
+Re-run analysis (PROMPT_analyze.md) to verify fixes:
+- Herbert White false split should be gone (single Herbert, no "the father" label)
+- monkey's paw is_symbolic should be True in final output
+- Mrs. White→Herbert "daughter" relationship may self-resolve with Herbert split fixed
+- Morris relationships may improve with profile regeneration

@@ -537,6 +537,10 @@ class CharacterAgent(Agent):
                 )
                 self._refresh_mentions(post_split_aliases_added, main_cast, searcher, mention_results)
 
+        # Pre-compute summary text used in STEP 3.95 Fix EEE-b guard and STEP 3.95b patterns.
+        import re as _re395b
+        _summary_all_395b = " ".join(chapter_summaries) if chapter_summaries else ""
+
         # STEP 3.95: Split over-merged same-name characters using alias contradiction detection.
         # Universal invariant: a single character CANNOT simultaneously hold a parent-generation
         # role alias ("the father", "the mother") AND a child-generation role alias ("the boy",
@@ -594,6 +598,24 @@ class CharacterAgent(Agent):
             ):
                 logger.info(f"V2 Step 3.95: Skipping split for '{_char.canonical_name}' — parent role {_cpr} claimed by another character")
                 continue
+
+            # Fix EEE-b: Skip split if summary text clearly identifies this character as a CHILD.
+            # Universal invariant: "their/his/her son/daughter {FirstName}" marks the character as
+            # a child — any parent-tier alias on them is an LLM labeling error (e.g., the LLM saw
+            # "Herbert's father's army friend" and incorrectly assigned "the father" to Herbert).
+            if _summary_all_395b:
+                _cn_395 = _char.canonical_name.split("(")[0].strip() if "(" in _char.canonical_name else _char.canonical_name
+                _fn_395 = _cn_395.split()[0] if " " in _cn_395 else _cn_395
+                if len(_fn_395) >= 3 and _re395b.search(
+                    r"(?i)\b(?:their|his|her|the|our)\s+(?:son|daughter|child)\s+"
+                    + _re395b.escape(_fn_395) + r"\b",
+                    _summary_all_395b,
+                ):
+                    logger.info(
+                        f"V2 Step 3.95: Skipping split for '{_char.canonical_name}' — "
+                        f"summary identifies '{_fn_395}' as a child, not a parent"
+                    )
+                    continue
 
             _neutral_als = [
                 a for a in _char.aliases
@@ -657,8 +679,6 @@ class CharacterAgent(Agent):
         # (neutral aliases), AND has substantial mentions (≥10), a false merge is present.
         # Example: "a stretcher-bearer named John Donaldson ... to realize he was his long-lost father"
         # → "John Donaldson" was extracted as one character combining father + son.
-        import re as _re395b
-        _summary_all_395b = " ".join(chapter_summaries) if chapter_summaries else ""
 
         if _summary_all_395b:
             for _char_395b in list(main_cast):

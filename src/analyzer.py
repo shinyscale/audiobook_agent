@@ -5749,6 +5749,7 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
                     voice_guidance=getattr(pc, "voice_guidance", None),
                     role=getattr(pc, "role", None),
                     relationships=getattr(pc, "relationships", {}),
+                    is_symbolic=getattr(pc, "is_symbolic", False),
                 )
             )
 
