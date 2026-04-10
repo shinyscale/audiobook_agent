@@ -66,6 +66,8 @@ SCALPEL_REGISTRY = {
         "num_classes": 5,
         "max_length": 512,
         "base_model": "microsoft/deberta-v3-small",
+        "pooling": "mean_first_max",  # mean + max over first 150 tokens, concatenated
+        "head": "mlp",
         "labels": {
             0: "single_narrator",       # Non-nested: one narrator throughout
             1: "frame_narrator",        # Outer/frame narrator (e.g., Walton, Lockwood)
@@ -164,12 +166,14 @@ class ScalpelModel:
             self.pool_attn = nn.Linear(hidden_size, 1)
 
         self.head_type = config.get("head", "linear")
+        # Concat pooling doubles the input dimension
+        pool_out_dim = hidden_size * 2 if self.pooling_type == "mean_first_max" else hidden_size
         if self.head_type == "mlp":
-            # 2-layer MLP head: hidden_size -> hidden_size//4 -> num_classes (GELU)
-            self.hidden = nn.Linear(hidden_size, hidden_size // 4)
+            # 2-layer MLP head: pool_out_dim -> hidden_size//4 -> num_classes (GELU)
+            self.hidden = nn.Linear(pool_out_dim, hidden_size // 4)
             self.classifier = nn.Linear(hidden_size // 4, self.num_classes)
         else:
-            self.classifier = nn.Linear(hidden_size, self.num_classes)
+            self.classifier = nn.Linear(pool_out_dim, self.num_classes)
         self.class_bias = nn.Parameter(torch.zeros(self.num_classes))
 
         # Load weights from checkpoint state dict
@@ -249,6 +253,15 @@ class ScalpelModel:
                 scores = scores.masked_fill(inputs["attention_mask"] == 0, float("-inf"))
                 weights = torch.softmax(scores, dim=-1)  # [B, L]
                 pooled = (weights.unsqueeze(-1) * hidden).sum(dim=1)  # [B, H]
+            elif self.pooling_type == "mean_first_max":
+                # Mean over all tokens + Max over first 150 tokens, concatenated
+                mask = inputs["attention_mask"].unsqueeze(-1).float()
+                mean_pool = (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-9)
+                first_n_mask = inputs["attention_mask"].clone()
+                first_n_mask[:, 150:] = 0
+                fill_val = torch.finfo(hidden.dtype).min
+                max_pool = hidden.masked_fill(first_n_mask.unsqueeze(-1) == 0, fill_val).max(dim=1).values
+                pooled = torch.cat([mean_pool, max_pool], dim=-1)  # [B, 2H]
             else:
                 # Mean pooling over non-padding tokens
                 mask = inputs["attention_mask"].unsqueeze(-1).float()
@@ -306,6 +319,14 @@ class ScalpelModel:
                 scores = scores.masked_fill(inputs["attention_mask"] == 0, float("-inf"))
                 weights = torch.softmax(scores, dim=-1)
                 pooled = (weights.unsqueeze(-1) * hidden).sum(dim=1)
+            elif self.pooling_type == "mean_first_max":
+                mask = inputs["attention_mask"].unsqueeze(-1).float()
+                mean_pool = (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-9)
+                first_n_mask = inputs["attention_mask"].clone()
+                first_n_mask[:, 150:] = 0
+                fill_val = torch.finfo(hidden.dtype).min
+                max_pool = hidden.masked_fill(first_n_mask.unsqueeze(-1) == 0, fill_val).max(dim=1).values
+                pooled = torch.cat([mean_pool, max_pool], dim=-1)
             else:
                 mask = inputs["attention_mask"].unsqueeze(-1).float()
                 pooled = (hidden * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-9)
