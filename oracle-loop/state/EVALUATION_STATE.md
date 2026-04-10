@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 3
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score: 5.8**
 
 ## Latest Scores
@@ -91,6 +91,14 @@
 - Attempt 2 fix A: Added `roman_numeral_with_period` regex pattern to catch "I.", "II.", "III." section markers — CONFIRMED WORKING ✓
 - Attempt 2 fix B: Fixed `_are_different_titled_people()` Case 2 to block "Herbert White" as alias of "Mr. White" — CONFIRMED WORKING ✓
 - Attempt 2 fix C: Added Rule 1 blocked alias salvage logic for Mrs. White — CONFIRMED WORKING ✓
+- Attempt 3 fix: Improved `CHARACTER_IDENTIFICATION_PROMPT` to clarify `is_symbolic` usage:
+  - Extended Rule 1: "For non-human entities (objects, talismans, supernatural forces), set `is_symbolic: true`"
+  - Added note after output format: clarifies symbolic vs human characters
+  - Updated Rule 8 antagonist: "Characters or entities that work against or cause harm to the protagonists (villains, harmful supernatural forces/objects)"
+  - Updated Rule 8 supporting: "Important recurring characters, title characters, family members, catalysts who drive the plot without being the central focus"
+  - Root cause: LLM set is_symbolic=False for the monkey's paw, so verify_aliases Rule 0.5 never ran, allowing "the stranger"/"the visitor" (human descriptors from the Maw & Meggins scene) to pass as aliases of the paw
+  - Smoke test: PASS — with is_symbolic=True, Rule 0.5 blocks "the stranger" (noun "stranger" ≠ "paw") and "the visitor" (noun "visitor" ≠ "paw"), while allowing "the paw" (same noun)
+  - Addresses: CRITICAL alias issue + HIGH role classification issue
 
 ## Modification History
 
@@ -101,6 +109,8 @@
 | 2→3 | Structure: "I.", "II.", "III." not detected | src/pipeline/chapter_detection/proposers/regex.py | Fixed ✓ (9/10) |
 | 2→3 | Characters: Herbert White false alias of Mr. White | src/pipeline/character_extraction_v2/main_cast.py | Fixed ✓ |
 | 2→3 | Characters: Mrs. White missing (dropped by Rule 1) | src/pipeline/character_extraction_v2/main_cast.py | Fixed ✓ |
+| 3→4 | Characters: is_symbolic=False → false aliases on paw | src/pipeline/character_extraction_v2/main_cast.py | Pending |
+| 3→4 | Profiles: all characters role="protagonist" | src/pipeline/character_extraction_v2/main_cast.py | Pending |
 
 ## What Improved (Attempt 2 → 3)
 - Structure: 5/10 → 9/10 (3 parts correctly detected)
@@ -121,8 +131,8 @@
 - JSON: ../output/monkeys_paw/analysis.json
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. CRITICAL: Remove "the stranger"/"the visitor" from monkey's paw aliases (false human-descriptor aliases on non-human entity)
-2. HIGH: Morris missing "friend" relationship to Mr. White
-3. HIGH: Role classification — not everything should be "protagonist"
-Focus on #1 (character extraction → 8.0) and #2 (profiles → 8.0) as minimum to pass.
+Re-run analysis (attempt 4) to verify:
+1. CRITICAL fix: monkey's paw no longer has "the stranger"/"the visitor" as aliases
+2. HIGH fix: monkey's paw gets role="antagonist", Morris gets role="supporting"
+3. Remaining HIGH: Morris missing "friend" relationship (not fixed in this attempt)
+If Character Extraction and Character Profiles both reach ≥8.0, the run passes.

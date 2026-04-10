@@ -84,7 +84,7 @@ TASK: Identify the main characters based on the chapter summaries below. Typical
 NOTE: Chapter summaries include a [Characters: ...] list showing who appears in each chapter. Extract ALL characters who appear multiple times across chapters. Treat each entry as a distinct character even if names are similar (e.g., "John" and "John Donaldson" are separate if both appear in the lists).
 
 IMPORTANT RULES:
-1. Include plot-central people/creatures AND symbolic objects/forces that have AGENCY or POWER (e.g., a cursed object that grants wishes, a haunting presence that affects characters). Do NOT include settings/locations where events happen (e.g., a library, a house, a garden, a room) - these are backdrops, not characters.
+1. Include plot-central people/creatures AND symbolic objects/forces that have AGENCY or POWER (e.g., a cursed object that grants wishes, a haunting presence that affects characters). Do NOT include settings/locations where events happen (e.g., a library, a house, a garden, a room) - these are backdrops, not characters. For non-human entities (objects, talismans, supernatural forces), set `is_symbolic: true` in the output.
 2. **NARRATOR DETECTION (CRITICAL)**: Always include the narrator as a main character. Look for these signals:
    - Phrases like "letter written by X", "X writes to Y", "X expresses/describes/recounts"
    - Repeated third-person references to a character across many summaries (e.g., "Victor Frankenstein receiving...", "Victor consumed by...", "Victor's obsessive pursuit...")
@@ -97,8 +97,8 @@ IMPORTANT RULES:
 7. Do NOT list aliases in this pass
 8. **ROLE ASSIGNMENT**:
    - **protagonist**: Main character(s), narrators (especially first-person narrators), characters the story follows
-   - **antagonist**: Characters who ACTIVELY OPPOSE the protagonist (villains, rivals) - requires active harmful intent
-   - **supporting**: Important recurring characters, title characters, victims, family members (NOT antagonists)
+   - **antagonist**: Characters or entities that work against or cause harm to the protagonists (villains, harmful supernatural forces/objects)
+   - **supporting**: Important recurring characters, title characters, family members, catalysts who drive the plot without being the central focus
    - **minor**: Characters with limited appearances
 
 CHAPTER SUMMARIES:
@@ -121,6 +121,8 @@ Return a JSON object with a "characters" array:
     }}
   ]
 }}
+
+Note: Set `is_symbolic: true` for non-human entities (cursed objects, supernatural forces, talismans, enchanted items). Human characters — even descriptively named ones like "the old man" or "the stranger" — use `is_symbolic: false`.
 
 Do not include explanations or reasoning. Return ONLY the JSON object above.
 

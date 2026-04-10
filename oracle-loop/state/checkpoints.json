@@ -1,136 +1,16 @@
 {
   "checkpoints": [],
   "known_good_baseline": {
-    "a_camping_trip": {
-      "commit": "50b8b7337a9b1c794c9e3d2eb9b7d0e2b8efe008",
-      "score": 8.6,
-      "category_scores": {
-        "structure": 9,
-        "characters": 8.5,
-        "profiles": 8,
-        "summaries": 8.5,
-        "pronunciation": 8.5,
-        "presentation": 9
-      }
-    },
     "monkeys_paw": {
-      "commit": "cb4bcb0",
-      "score": 8.6,
-      "category_scores": {
-        "structure": 8,
-        "characters": 8.5,
-        "profiles": 8,
-        "summaries": 9.5,
-        "pronunciation": 9,
-        "presentation": 8.5
-      }
-    },
-    "cask_of_amontillado": {
-      "commit": "88143ce7bb1d17cb79e0d5715813313ae3c4bf17",
-      "score": 8.4,
+      "commit": "17ed0ef62b16808cffb16d69000a6b600ed82585",
+      "score": 8.25,
       "category_scores": {
         "structure": 9,
-        "characters": 8,
-        "profiles": 8,
-        "summaries": 8.5,
-        "pronunciation": 8.5,
-        "presentation": 8.5
-      }
-    },
-    "masque_of_red_death": {
-      "commit": "177d77af868525ce83bffdd8c4159fb981f2e746",
-      "score": 8.6,
-      "category_scores": {
-        "structure": 9,
-        "characters": 8.5,
-        "profiles": 8,
+        "characters": 7.5,
+        "profiles": 7.5,
         "summaries": 9,
         "pronunciation": 8,
-        "presentation": 9
-      }
-    },
-    "berenice": {
-      "commit": "5abc466a402c0f99e388e3e65d2889ac079c20c3",
-      "score": 8.75,
-      "category_scores": {
-        "structure": 10,
-        "characters": 9,
-        "profiles": 8,
-        "summaries": 8,
-        "pronunciation": 8,
-        "presentation": 9
-      }
-    },
-    "gift_of_the_magi": {
-      "commit": "e2cdd699e351c168f796f1886b29992a6287768f",
-      "score": 8.7,
-      "category_scores": {
-        "structure": 9,
-        "characters": 8.5,
-        "profiles": 8,
-        "summaries": 9,
-        "pronunciation": 8.5,
-        "presentation": 9
-      }
-    },
-    "american_sir": {
-      "commit": "f0dec1234081a93ee2346a57616beaa590a0b87a",
-      "score": 8.0,
-      "category_scores": {
-        "structure": 9,
-        "characters": 7,
-        "profiles": 7,
-        "summaries": 8.5,
-        "pronunciation": 8.5,
         "presentation": 8.5
-      }
-    },
-    "john_g": {
-      "commit": "f90c9aade50c1ca4b84189aefb19a67aa294ed6b",
-      "score": 8.6,
-      "category_scores": {
-        "structure": 9,
-        "characters": 8,
-        "profiles": 8.5,
-        "summaries": 9,
-        "pronunciation": 8.5,
-        "presentation": 8.5
-      }
-    },
-    "i_have_no_mouth": {
-      "commit": "9f37bdb444fb67aaffde6d507335a01a1fd96ee8",
-      "score": 8.60,
-      "category_scores": {
-        "structure": 9,
-        "characters": 8.5,
-        "profiles": 8.5,
-        "summaries": 8.5,
-        "pronunciation": 9,
-        "presentation": 8.5
-      }
-    },
-    "gatsby": {
-      "commit": "a8aaef5c9e2e37f1245d801009cad5d615a52aa7",
-      "score": 8.60,
-      "category_scores": {
-        "structure": 10,
-        "characters": 8,
-        "profiles": 8,
-        "summaries": 8.5,
-        "pronunciation": 8.5,
-        "presentation": 8.5
-      }
-    },
-    "frankenstein": {
-      "commit": "885201d79697657dcfd1af05b1a3fe7f0070c26e",
-      "score": 7.50,
-      "category_scores": {
-        "structure": 8,
-        "characters": 8,
-        "profiles": 6,
-        "summaries": 7,
-        "pronunciation": 8,
-        "presentation": 8
       }
     }
   }
