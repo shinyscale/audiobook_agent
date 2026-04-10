@@ -66,6 +66,15 @@ CHAPTER_PATTERNS = [
         description="roman_numeral_centered",
         is_hard_boundary=True,
     ),
+    # Roman numeral with trailing period (e.g., "I.", "II.", "III." on own line)
+    # Period disambiguates from "I" pronoun — unambiguous section markers in classic literature
+    # HARD BOUNDARY
+    ChapterPattern(
+        re.compile(r"^\s*([IVXLC]+)\.\s*$", re.MULTILINE),
+        confidence=0.90,
+        description="roman_numeral_with_period",
+        is_hard_boundary=True,
+    ),
     # RELAXED but safer: Requires 2+ characters to avoid matching "I" pronoun in dialogue
     # This is a softer signal, not a hard boundary
     ChapterPattern(

@@ -249,6 +249,10 @@ class MainCastExtractor:
         # Collect vote records for consensus logging
         self.vote_records: list[dict] = []
 
+        # Names blocked by Rule 1 (different titled people) during verify_aliases.
+        # These are salvaged in extract() as new character profiles.
+        self._rule1_blocked_names: list[str] = []
+
         # Initialize competitive LLM clients if enabled
         if (
             competitive_config
@@ -466,6 +470,35 @@ class MainCastExtractor:
         # CRITICAL: Verify aliases to prevent false merges
         # This catches LLM hallucinations like "Mr. Sloane" with alias "Mr. McKee"
         profiles = self.verify_aliases(profiles, chapter_summaries)
+
+        # SALVAGE: Rule 1 may have blocked aliases that are actually separate characters
+        # (e.g., "Mrs. White" blocked as alias of "Mr. White" — she's a different person)
+        # Create minimal profiles for these so they can pass through the grounding gate.
+        if self._rule1_blocked_names:
+            # Build lookup of all already-known names (canonical + aliases, lowercased)
+            existing_lower: set[str] = set()
+            for p in profiles:
+                existing_lower.add(p.canonical_name.lower())
+                for a in p.aliases:
+                    existing_lower.add(a.lower())
+
+            for blocked_name in self._rule1_blocked_names:
+                if blocked_name.lower() not in existing_lower:
+                    logger.info(
+                        f"SALVAGE: Creating character profile from Rule 1 blocked alias '{blocked_name}' "
+                        f"(identified as a distinct person sharing a surname with an existing cast member)"
+                    )
+                    profiles.append(
+                        MainCastProfile(
+                            canonical_name=blocked_name,
+                            aliases=[],
+                            uncertain_aliases=[],
+                            role="supporting",
+                            is_symbolic=False,
+                            description="Character identified as distinct from cast members sharing a surname.",
+                        )
+                    )
+                    existing_lower.add(blocked_name.lower())
 
         # POST-PROCESSING: Merge descriptive entity references
         # The LLM sometimes creates separate entries for "the creature", "the monster", etc.
@@ -1079,6 +1112,9 @@ class MainCastExtractor:
         # Combine all summaries into searchable text
         "\n".join(chapter_summaries).lower()
 
+        # Reset the Rule 1 blocked-names buffer for this verification pass
+        self._rule1_blocked_names = []
+
         logger.info(
             f"verify_aliases: Checking {len(profiles)} profiles: "
             f"{[(p.canonical_name, p.aliases) for p in profiles]}"
@@ -1288,8 +1324,10 @@ class MainCastExtractor:
                 if are_different:
                     logger.warning(
                         f"BLOCKED alias: '{alias}' cannot be alias of '{profile.canonical_name}' "
-                        f"(different titled people)"
+                        f"(different titled people) — saving as candidate character"
                     )
+                    # Collect for potential character creation in extract()
+                    self._rule1_blocked_names.append(alias)
                     continue
                 else:
                     # Debug: Log when we DON'T block
@@ -2058,6 +2096,17 @@ Return JSON:
             # name1 has title, name2 doesn't
             surname1 = match1.group(2).strip().lower()
             name2_lower = name2.lower()
+            name2_words = name2_lower.split()
+
+            # Multi-word untitled name containing the surname as a word component = different people
+            # "Herbert White" + "Mr. White" → different people (same surname, different first name)
+            # "Samuel Johnson" + "Mrs. Johnson" → different people
+            if len(name2_words) >= 2 and surname1 in name2_words:
+                logger.warning(
+                    f"DETECTED different titled people: '{name1}' vs '{name2}' "
+                    f"(full name with matching surname = different person)"
+                )
+                return True
 
             # If the untitled name is NOT contained in the surname, different people
             # Exception: substring relationships are OK ("Gatsby" in "Mr. Gatsby")
@@ -2068,6 +2117,15 @@ Return JSON:
             # name2 has title, name1 doesn't
             surname2 = match2.group(2).strip().lower()
             name1_lower = name1.lower()
+            name1_words = name1_lower.split()
+
+            # Multi-word untitled name containing the surname as a word component = different people
+            if len(name1_words) >= 2 and surname2 in name1_words:
+                logger.warning(
+                    f"DETECTED different titled people: '{name1}' vs '{name2}' "
+                    f"(full name with matching surname = different person)"
+                )
+                return True
 
             # If the untitled name is NOT contained in the surname, different people
             if name1_lower not in surname2 and surname2 not in name1_lower:

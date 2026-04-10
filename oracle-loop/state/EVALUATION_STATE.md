@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 2
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score: 5.8**
 
 ## Latest Scores
@@ -101,6 +101,16 @@
 
 ## Fix History
 - Attempt 1 fix: Fixed two crash-level bugs in analyzer.py (CharacterMap constructor) and summarizer.py (undefined `text` variable)
+- Attempt 2 fix A: Added `roman_numeral_with_period` regex pattern (`^\s*([IVXLC]+)\.\s*$`, confidence 0.90, hard boundary) to catch "I.", "II.", "III." section markers
+  - Root cause: `src/pipeline/chapter_detection/proposers/regex.py` — no pattern matched period-terminated Roman numerals
+  - Smoke test: PASS — pattern confirmed added, 381/381 tests pass
+- Attempt 2 fix B: Fixed `_are_different_titled_people()` Case 2 to block multi-word untitled names ("Herbert White") from being aliases of titled names ("Mr. White") when they share a surname
+  - Root cause: `src/pipeline/character_extraction_v2/main_cast.py:_are_different_titled_people()` lines 2057-2074 — `surname1 in name2_lower` was True for "white" in "herbert white", bypassing the block
+  - Smoke test: PASS — all 7 test cases correct (Herbert White, Samuel Johnson, Gatsby, etc.)
+- Attempt 2 fix C: Added Rule 1 blocked alias salvage logic — when `_are_different_titled_people()` blocks an alias, the alias is saved and a new character profile is created if not already in cast
+  - Root cause: `src/pipeline/character_extraction_v2/main_cast.py:verify_aliases()` — Rule 1 dropped "Mrs. White" without creating a separate character
+  - Universal: grounding gate is the safety net (0-mention hallucinations will be rejected)
+  - Smoke test: PASS — `_rule1_blocked_names` instance variable present, salvage block present in extract()
 
 ## Modification History
 
@@ -108,6 +118,9 @@
 |---------|-------|----------------|--------|
 | 1→2 | Pipeline crash: summarizer `text` undefined | src/pipeline/summarizer.py | Fixed |
 | 1→2 | Pipeline crash: CharacterMap invalid kwargs | src/analyzer.py | Fixed |
+| 2→3 | Structure: "I.", "II.", "III." not detected | src/pipeline/chapter_detection/proposers/regex.py | Awaiting analysis |
+| 2→3 | Characters: Herbert White false alias of Mr. White | src/pipeline/character_extraction_v2/main_cast.py | Awaiting analysis |
+| 2→3 | Characters: Mrs. White missing (dropped by Rule 1) | src/pipeline/character_extraction_v2/main_cast.py | Awaiting analysis |
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (Ollama) for all agents
@@ -116,8 +129,8 @@
 - No profiling quality concerns flagged
 
 ## Next Action
-Run PROMPT_fix.md to address:
-1. **Priority 1**: Mrs. White missing — fix V2 pipeline to retain characters rejected from alias merge by Rule 0.4
-2. **Priority 2**: Herbert White false alias — add rule preventing "FirstName LastName" from being alias of "Title LastName" when first name ≠ title
-3. **Priority 3**: Structure detection — add Roman numeral standalone markers ("I.", "II.", etc.) to regex patterns
-4. Remaining issues (profiles, relationships) may improve naturally once character extraction is fixed
+Re-run analysis on monkeys_paw (attempt 3). Fixes applied:
+1. Structure: "I.", "II.", "III." markers should now be detected → 3-part structure expected
+2. Characters: Herbert White should no longer be alias of Mr. White → separate extraction expected
+3. Characters: Mrs. White should now be created as separate character from Rule 1 salvage
+4. Profiles/relationships/summaries may improve naturally once structure + character extraction are fixed
