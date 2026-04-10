@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 4
-- **Phase:** awaiting_analysis
+- **Attempt:** 5
+- **Phase:** awaiting_evaluation
 - **baseline_score: 5.8**
 
 ## Latest Scores
@@ -149,13 +149,17 @@ If #1-#4 are fixed, Character Extraction should reach 8+ (no false split, correc
 - No profiling quality concerns (0 retries across all stages)
 - Profile generation took 446s (7.4 min) — most expensive stage
 
-## Output Files (Attempt 4)
+## Output Files (Attempt 5)
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
 
+## Pipeline Notes (Attempt 5)
+- Herbert White: single character with aliases "Herbert", "son" — FALSE SPLIT IS GONE ✓
+- monkey's paw: 5 mentions — is_symbolic status needs verification in JSON
+- Contradictory relationships removed: parent→Herbert and Herbert→parent both labeled "child" (bidirectional child label, should be parent↔son)
+- Warning: "Step 6.95 structural narrator fix failed" — minor, ChapterSummarizer attribute missing
+- Warning: "LLM marker proposer returned non-list" — minor, structure stage
+- Analysis completed in 17m 51s
+
 ## Next Action
-Re-run analysis (PROMPT_analyze.md) to verify fixes:
-- Herbert White false split should be gone (single Herbert, no "the father" label)
-- monkey's paw is_symbolic should be True in final output
-- Mrs. White→Herbert "daughter" relationship may self-resolve with Herbert split fixed
-- Morris relationships may improve with profile regeneration
+Evaluate the output (PROMPT_evaluate.md)
