@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 8
-- **Phase:** awaiting_analysis
+- **Phase:** awaiting_evaluation
 - **baseline_score: 5.8**
 
 ## Latest Scores
@@ -148,13 +148,14 @@ Yet the final relationship labels are "brother"/"brother" (Mr. White↔Herbert) 
 - Temperature: 0.7 across all agents
 - No profiling quality concerns (0 retries across all stages)
 
-## Output Files (Attempt 7)
+## Output Files (Attempt 8)
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
 
-## Pipeline Notes (Attempt 7)
-- Completed in 18m 17s, 5 characters found (Mr. White, Mrs. White, Herbert White, Sergeant-Major Morris, monkey's paw)
-- Non-fatal warnings: LLM marker proposer returned non-list (x2); Step 6.95 narrator fix skipped (method missing)
+## Pipeline Notes (Attempt 8)
+- Completed in 18m 50s, 6 characters found (Mr. White, Mrs. White, Herbert White, Sergeant-Major Morris, monkey's paw, + Maw and Meggins added via F6)
+- Non-fatal warnings: LLM marker proposer returned non-list (x2); Step 6.95 narrator fix skipped (method missing); contradictory child/child labels removed for White family pairs (LLM set both directions to "child" — evidence restoration should override these)
+- Note: "Removing contradictory relationship: 'Mr. White'→'Herbert White'='child'" — pipeline detected symmetric "child" and removed both; evidence-based restoration then sets correct labels
 - No crashes or blocking errors
 
 ## Next Action
