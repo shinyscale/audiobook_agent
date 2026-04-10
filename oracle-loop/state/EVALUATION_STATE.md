@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 5
-- **Phase:** awaiting_analysis
+- **Attempt:** 6
+- **Phase:** awaiting_evaluation
 - **baseline_score: 5.8**
 
 ## Latest Scores
@@ -135,9 +135,18 @@ Fix approach:
 - Temperature: 0.7 across all agents
 - No profiling quality concerns (0 retries across all stages)
 
-## Output Files (Attempt 5)
+## Output Files (Attempt 6)
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
 
+## Pipeline Notes (Attempt 6)
+- 7 characters found: Mr. White, Mrs. White, Herbert White, Sergeant-Major Morris, the stranger, + 2 more
+- Contradictory parent/child labels removed (both parents/children marked "child" — pipeline fixed to asymmetric)
+- Step 6.95 structural narrator fix failed: `ChapterSummarizer` has no `_fix_narrator_attribution` attribute (pre-existing)
+- Narrator: Not definitively identified ("No definitive narrator identified from plot summary") — third-person text
+- Pronunciation JSON mode validation error (minor, non-fatal)
+- All output files confirmed: analysis.json and report.html ✓
+- Duration: 19m 8s
+
 ## Next Action
-Run PROMPT_analyze.md — re-analyze monkeys_paw to verify Morris now has "friend" relationship with Mr. White
+Run PROMPT_evaluate.md — evaluate attempt 6 to verify Morris now has "friend" relationship with Mr. White
