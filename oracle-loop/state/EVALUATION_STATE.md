@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 7
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score: 5.8**
 
 ## Latest Scores
@@ -12,14 +12,14 @@
   - Completeness: 9/10
   - Identity Resolution: 9.5/10
   - Alias Grouping: 8.5/10
-- Character Profiles: 7.5/10 ✗ (FAILING — sole blocker)
+- Character Profiles: 6.5/10 ✗ (FAILING — sole blocker)
 - Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 8/10 ✓
 - HTML Presentation: 8/10 ✓
-- **Overall: 8.45/10** (reference only)
+- **Overall: 8.30/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (1 category below threshold: Character Profiles 7.5/10)
+**Status:** FAIL (1 category below threshold: Character Profiles 6.5/10)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -30,89 +30,84 @@
 | 4 | 7.93 | +2.13 | Alias fix worked, but Herbert false split + wrong label appeared |
 | 5 | 8.45 | +2.65 | Herbert split FIXED, Mrs. White→Herbert FIXED. Only Profiles still below 8.0 |
 | 6 | 8.45 | +2.65 | Fix to _infer_rel + reject_unfounded_friend_labels applied but Morris still has NO "friend" relationship — fix INEFFECTIVE |
+| 7 | 8.30 | +2.50 | Morris↔Mr. White "friend" FIXED ✓ — but parent-child relationships ALL WRONG (LLM non-determinism regression) |
 
-## What Changed (Attempt 5 → 6)
-- **FIX APPLIED BUT INEFFECTIVE**: Added `_FRIEND_WORDS` to `_infer_rel()` and evidence-based exception in `reject_unfounded_friend_labels`. Morris STILL has no "friend" relationship with Mr. White. Relationships dict: `{"monkey's paw": "creation"}`.
-- **IMPROVED**: monkey's paw no longer has hallucinated "squatting up on top of the wardrobe" feature — now correctly shows "Shrivelled; dirty; little."
-- **UNCHANGED**: All other scores identical to attempt 5.
+## What Changed (Attempt 6 → 7)
+- **FIX WORKED**: `_restore_evidence_based_friend_labels()` successfully injected Morris↔Mr. White "friend" relationship. Morris now has `{"the monkey's paw": "creation", "Mr. White": "friend"}` and Mr. White has `{"Sergeant-Major Morris": "friend"}` ✓
+- **IMPROVED**: Mr. White physical description no longer contaminated with Morris's features ("beady of eye, rubicund of visage" gone; now correctly shows only "thin grey beard")
+- **REGRESSION (LLM non-determinism)**: Parent-child relationships between White family members are ALL WRONG:
+  - Mr. White→Herbert: "brother" (should be "father")
+  - Herbert→Mr. White: "brother" (should be "son")
+  - Mrs. White→Herbert: "daughter" (should be "mother")
+  - Herbert→Mrs. White: "father" (should be "son")
+- **EVIDENCE SAYS CORRECT THING**: Mr. White evidence: "He is the father of Herbert White". Herbert evidence: "Herbert is the son of Mr. and Mrs. White". The evidence arrays have the right information but the relationship labels in the output are wrong.
+- **UNCHANGED**: paw "creation"/"creator" labels still wrong; all characters still "protagonist"; is_symbolic still False
 
-## Root Cause Analysis: Why the Fix Failed
+## Root Cause Analysis: Why Parent-Child Relationships Are Wrong
 
-The fix correctly targets two steps in the pipeline:
-1. `_infer_rel()` now returns "friend" for evidence with "friend" words → Morris→Mr. White should get "friend" from `extract_relationships_from_evidence` (line 847)
-2. `reject_unfounded_friend_labels` now has evidence-array exception → should keep "friend" even without text proximity
+The evidence arrays clearly contain the correct information:
+- Mr. White evidence item: "He is the father of Herbert White" (confidence: high)
+- Herbert evidence item: "Herbert is the son of Mr. and Mrs. White" (confidence: high)
 
-**BUT**: `verify_relationships_from_text` runs at line 869, BETWEEN these two steps. This method scans 500-char co-mention windows for relationship phrases and can OVERRIDE "friend" with a different term.
+Yet the final relationship labels are "brother"/"brother" (Mr. White↔Herbert) and "daughter"/"father" (Mrs. White↔Herbert). This is the SAME pattern as the Morris "friend" issue: correct information exists in evidence but is mangled by the post-corrections pipeline chain.
 
-The most likely failure chain:
-1. `extract_relationships_from_evidence` sets Morris→Mr.White = "friend" ✓
-2. `verify_relationships_from_text` processes Morris→Mr.White pair:
-   - In the Part I scene, Morris, Mr. White, Herbert, and Mrs. White are all present
-   - `_all_rel_phrase_re` finds "his old friend" → "friend", but also finds "his wife", "his son", "father" in the same co-mention windows
-   - If a family term (e.g., "son", "father") has higher count than "friend", it becomes `best`
-   - At line 2221, `_strong_family_evidence` triggers if the family term appears 2+ times
-   - No cross-tier guard fires (because "friend" is not in any family tier)
-   - Override fires at line 2323: Morris→Mr.White = "father" (or "son" or whatever family term won)
-3. `reject_unfounded_familial_labels` strips the hallucinated family label → "acquaintance"
-4. `clean_unknown_relationships` removes "acquaintance"
-5. `reject_unfounded_friend_labels` never sees "friend" — it was already overwritten in step 2
+**Most likely failure chain:**
+1. `extract_relationships_from_evidence` correctly sets Mr. White→Herbert = "father", Herbert→Mr. White = "son"
+2. `verify_relationships_from_text` scans co-mention windows. In the text, Mr. White, Mrs. White, and Herbert are all in the same scenes. Windows containing "his wife", "his old friend", "father and son", "his mother" create competing signals.
+3. Some combination of phrase counting, strong-family-evidence logic, or cross-character interference overrides the correct labels with wrong ones.
+4. `enforce_gender_consistency` may then swap labels to match character gender (e.g., "sister"→"brother"), producing the observed "brother" labels.
+5. The labels survive `reject_unfounded_familial_labels` because family keywords DO exist near the characters in text — just assigned to the wrong relationship type.
 
-**Alternative failure path**: If `comention_count == 0` for Morris↔Mr.White (possible if `_build_name_patterns` fails to match hyphenated "Sergeant-Major" in source text), then line 2356 fires and downgrades "friend" to "associated" even without finding any relationship phrases.
+**Key insight:** This is the exact same class of problem as Morris's "friend" — the `_restore_evidence_based_friend_labels()` approach WORKS. Extending it to cover parent/child/son/daughter/mother/father keywords will fix this too.
 
 ## Current Issues (Priority Order)
 
-### HIGH
-1. **Sergeant-Major Morris has zero relationships with Mr. White** [Profiles — MAIN BLOCKER]
-   - Problem: Morris.relationships = `{"monkey's paw": "creation"}`. No "Mr. White": "friend" despite evidence item ev-4-3 explicitly stating "Is a close friend of Mr. White".
-   - Root cause: `verify_relationships_from_text` overrides or removes the "friend" label set by `extract_relationships_from_evidence`. See Root Cause Analysis above.
-   - Location: `src/pipeline/character_profiling/post_corrections.py` — `verify_relationships_from_text()` at lines ~2083-2371
-   - **Fix approach (NEW — previous approach was insufficient)**:
-     - Option A (RECOMMENDED): Add a **late-stage evidence-based friend restoration** pass that runs AFTER `clean_unknown_relationships` (line 902) but BEFORE `_propagate_missing_reverses` (line 908). This new method scans each character's evidence array for "friend" + another character's name. If found and the relationship is missing/empty, it injects "friend". This completely bypasses the verify→reject→clean chain that strips the label.
-     - Option B: In `verify_relationships_from_text`, add a guard that prevents overriding "friend" with a family term when the "friend" label originated from evidence mining. Would need a way to tag evidence-sourced labels.
-     - Option C: In `verify_relationships_from_text`, when `cur_lower == "friend"` AND `found.get("friend", 0) > 0`, skip the override entirely (friend corroborated by text → keep it). This is simple but may have edge cases.
-   - Impact: This is the SOLE issue preventing Character Profiles from reaching 8.0. Fixing it likely pushes profiles to 8.0+.
+### CRITICAL
+1. **Parent-child relationships ALL wrong for White family** [Profiles — MAIN BLOCKER]
+   - Problem: Mr. White→Herbert: "brother" (should be "father"); Herbert→Mr. White: "brother" (should be "son"); Mrs. White→Herbert: "daughter" (should be "mother"); Herbert→Mrs. White: "father" (should be "son")
+   - Evidence: Mr. White evidence says "He is the father of Herbert White"; Herbert evidence says "Herbert is the son of Mr. and Mrs. White" — evidence arrays have correct info
+   - Location: `src/pipeline/character_profiling/post_corrections.py` — the verify→reject→clean chain mangles the labels before final output
+   - **Fix approach (RECOMMENDED)**: Extend `_restore_evidence_based_friend_labels()` to also restore parent/child relationships from evidence. Rename to `_restore_evidence_based_labels()`. Add parent/child/son/daughter/mother/father vocabulary. When evidence says "X is the father of Y", set X→Y = "father" and Y→X = "son" (with gender awareness: father/mother, son/daughter). This method already runs late in the pipeline (after clean_unknown_relationships, before _propagate_missing_reverses), so it will bypass the chain that mangles the labels.
+   - Impact: Fixing this likely pushes Profiles from 6.5 → 8.0+ since the White family dynamics are the core of the story.
 
 ### MEDIUM
-2. **Mr. White has Morris's physical features** [Profiles]
-   - Problem: Mr. White's appearance shows "beady of eye, rubicund of visage" — these are Morris's features from the text "followed by a tall, burly man, beady of eye and rubicund of visage" (the tall, burly man is Morris, not Mr. White). Mr. White correctly has "thin grey beard" but the other features are cross-contaminated.
-   - Location: Profile generation LLM in `src/analyzer.py` — `_generate_character_profile()` or post_corrections appearance propagation
-   - Fix: Low priority — this is a profiler accuracy issue that would require more context-aware extraction.
+2. **Morris→monkey's paw "creation" is semantically wrong** [Profiles]
+   - Problem: Morris didn't create the paw. A fakir created it. Morris possessed/brought it from India.
+   - Location: Evidence mining `_infer_rel()` or `_CREATOR_LABEL_RE` / `_CREATION_LABEL_RE` patterns
+   - Fix: Low priority — doesn't significantly impact narrator prep.
 
-3. **Morris→monkey's paw "creation" is semantically wrong** [Profiles]
-   - Problem: Morris didn't create the paw. He possessed and brought it from India. A fakir created it.
-   - Evidence: Text says "It had a spell put on it by an old fakir" — the fakir is the creator, not Morris.
-   - Location: Evidence mining `_infer_rel()` or the `_CREATOR_LABEL_RE` / `_CREATION_LABEL_RE` patterns
-   - Fix: Low priority — the "creation" label comes from evidence statement "Reveals the monkey's paw as a cursed object..." where the regex may be misinterpreting "cursed object" as a creation relationship.
-
-4. **All 5 main characters labeled "protagonist"** [Extraction/Profiles]
+3. **All 5 main characters labeled "protagonist"** [Extraction/Profiles]
    - Problem: Morris should be "supporting" (appears only in Part I), paw should be "antagonist".
    - Location: V2 character extraction role assignment
-   - Fix: Low priority for this text — doesn't affect profile accuracy score.
+   - Fix: Low priority for this text.
 
-5. **is_symbolic=False for monkey's paw persists** [Extraction metadata]
+4. **is_symbolic=False for monkey's paw persists** [Extraction metadata]
    - Problem: Despite prior fixes, is_symbolic still False in final output.
    - Location: Character object transformation chain in analyzer.py
    - Fix: Low priority — metadata, not profile accuracy.
 
 ### LOW
-6. **Ch3 character tags show aliases alongside canonical names** [Presentation]
-   - Problem: Ch3 shows "the old man", "the old woman", "Mr. White" — "the old man" is Mr. White's alias (duplicate).
-7. **condoled IPA uses non-standard /ō/** [Pronunciation]
-8. **fakir/fakirs listed separately** [Pronunciation]
-9. **narrative_style is null** [Metadata]
+5. **Ch3 character tags show aliases alongside canonical names** [Presentation]
+   - Problem: Ch3 shows "the old man", "the old woman", "Mr. White" — aliases shown as separate tags.
+6. **fakir/fakirs listed separately** [Pronunciation]
+   - Minor duplication, both have correct IPA.
+7. **narrative_style is null** [Metadata]
 
-## Fix Priority for Attempt 7
+## Fix Priority for Attempt 8
 
-**ONLY ONE FIX NEEDED**: Morris's missing "friend" relationship with Mr. White (HIGH #1).
+**ONLY ONE FIX NEEDED**: Extend evidence-based label restoration to cover parent-child relationships (CRITICAL #1).
 
-**CRITICAL CHANGE FROM PREVIOUS APPROACH**: Do NOT modify `_infer_rel` or `reject_unfounded_friend_labels` further — those fixes are already in place and correct. The problem is that `verify_relationships_from_text` overrides/removes the "friend" label BEFORE `reject_unfounded_friend_labels` can protect it.
-
-**Recommended fix: Late-stage evidence-based friend restoration**
-1. Add a new method `_restore_evidence_based_friend_labels(self, characters)` to `OutputCharacterCorrector`
-2. For each character, scan evidence array for statements containing "friend" + another character's name
-3. If the character has NO relationship (or "associated"/"unknown") with that other character, set it to "friend"
-4. Wire this method into `run_all()` AFTER `clean_unknown_relationships` (line 902) and BEFORE `_propagate_missing_reverses` (line 908)
-5. This guarantees evidence-based "friend" labels survive the entire correction chain
+**Specific implementation:**
+1. Rename `_restore_evidence_based_friend_labels()` → `_restore_evidence_based_labels()` (or add family logic to existing method)
+2. Add family vocabulary: {"father", "mother", "parent", "son", "daughter", "child"}
+3. For each character's evidence array, scan for statements matching pattern: "[character] is the {father|mother|son|daughter} of [other character]"
+4. When found, set the correct relationship label with gender awareness:
+   - "father of Y" → X→Y = "father", Y→X = "son" (if Y is male) or "daughter" (if Y is female)
+   - "son of Y" → X→Y = "son", Y→X = "father" (if Y is male) or "mother" (if Y is female)
+   - Use character gender from the character object if available, otherwise infer from names/aliases
+5. Override current label if it's absent, "associated", "unknown", or a WRONG family label (e.g., "brother" when evidence says "father")
+6. Keep the existing friend restoration logic alongside the new family logic
+7. Wire into `run_all()` at same location (already after clean_unknown_relationships, before _propagate_missing_reverses)
 
 **DO NOT attempt fixes for MEDIUM/LOW issues this round.**
 
@@ -124,8 +119,8 @@ The most likely failure chain:
 - Attempt 3 fix: Improved `CHARACTER_IDENTIFICATION_PROMPT` for is_symbolic and role guidance — is_symbolic now True during extraction ✓, but roles still wrong and is_symbolic lost in output
 - Attempt 4 fix A: Added Fix EEE-b guard in STEP 3.95 (characters.py) — prevents Herbert White false split — CONFIRMED WORKING ✓
 - Attempt 4 fix B: Added is_symbolic=getattr(pc, "is_symbolic", False) to OutputCharacter constructor — NOT WORKING (is_symbolic still False in output)
-- Attempt 6 fix: Added `_FRIEND_WORDS` to `_infer_rel` + evidence exception in `reject_unfounded_friend_labels` — **NOT WORKING** (Morris still has empty friendship). Root cause: `verify_relationships_from_text` overrides the "friend" label before the evidence exception can protect it.
-- Attempt 7 fix: Added `_restore_evidence_based_friend_labels()` to `OutputCharacterCorrector`. Runs in `run_all()` AFTER `clean_unknown_relationships` and BEFORE `_propagate_missing_reverses`. Scans each character's evidence array for "friend" vocabulary co-occurring with another character's name; if the relationship is currently absent/generic, injects "friend". This bypasses the verify→reject→clean chain that was stripping the label. `_propagate_missing_reverses` then symmetrically adds Mr.White→Morris: "friend".
+- Attempt 6 fix: Added `_FRIEND_WORDS` to `_infer_rel` + evidence exception in `reject_unfounded_friend_labels` — NOT WORKING alone (verify_relationships_from_text overrides before they take effect)
+- Attempt 7 fix: Added `_restore_evidence_based_friend_labels()` — CONFIRMED WORKING ✓ (Morris↔Mr. White "friend" now present). But parent-child labels regressed due to LLM non-determinism — same pipeline chain mangles family labels too.
 
 ## Modification History
 
@@ -140,10 +135,12 @@ The most likely failure chain:
 | 3→4 | Characters: role classification prompt | src/pipeline/character_extraction_v2/main_cast.py | No change — roles still wrong |
 | 4→5 | Characters: Herbert White false split | src/agents/characters.py | Fixed ✓ — Fix EEE-b guard added |
 | 4→5 | Characters: is_symbolic lost in output | src/analyzer.py | No change — is_symbolic still False |
-| 4→5 | Profiles: Mrs. White→Herbert "daughter" | (resolved by Herbert split fix) | Fixed ✓ |
-| 5→6 | Profiles: Morris missing "friend" relationship | src/pipeline/character_profiling/post_corrections.py | **NOT WORKING** — _infer_rel fix + evidence exception correct in isolation, but verify_relationships_from_text overrides before they take effect |
+| 4→5 | Profiles: Mrs. White→Herbert "daughter" | (resolved by Herbert split fix) | Fixed ✓ (attempt 5) but regressed in attempt 7 |
+| 5→6 | Profiles: Morris missing "friend" relationship | src/pipeline/character_profiling/post_corrections.py | NOT WORKING — _infer_rel fix + evidence exception correct in isolation, but verify_relationships_from_text overrides |
+| 6→7 | Profiles: Morris missing "friend" relationship | src/pipeline/character_profiling/post_corrections.py | **FIXED ✓** — `_restore_evidence_based_friend_labels()` bypasses the pipeline chain |
+| 7→? | Profiles: Parent-child relationships ALL wrong | src/pipeline/character_profiling/post_corrections.py | Pending — extend evidence-based restoration to cover family labels |
 
-**STUCK PATTERN ALERT**: post_corrections.py has been modified for Morris's "friend" once without success. The fix phase modified the WRONG methods — _infer_rel and reject_unfounded_friend_labels are downstream/upstream of the actual blocker (verify_relationships_from_text). Next fix MUST target a different code path (late-stage restoration) or the correct method (verify_relationships_from_text itself).
+**PATTERN NOTE**: post_corrections.py `_restore_evidence_based_friend_labels()` approach is PROVEN. Extending it to cover family vocabulary is the natural next step. Same file, same method, same approach — NOT a stuck pattern; this is iterative improvement of a working solution.
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (Ollama) for all agents
@@ -161,4 +158,4 @@ The most likely failure chain:
 - No crashes or blocking errors
 
 ## Next Action
-Run PROMPT_fix.md to add late-stage evidence-based friend restoration in post_corrections.py run_all()
+Run PROMPT_fix.md to extend `_restore_evidence_based_friend_labels()` to also restore parent-child labels from evidence arrays.
