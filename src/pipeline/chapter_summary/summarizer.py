@@ -855,7 +855,7 @@ class ChapterSummarizer:
             # Fallback: merge chunk summaries manually
             return self._merge_chunk_summaries(chunk_summaries, chapter_index, title, word_count)
 
-        return self._parse_chapter_result(result, chapter_index, title, word_count, chapter_text=text)
+        return self._parse_chapter_result(result, chapter_index, title, word_count)
 
     def _merge_chunk_summaries(
         self,

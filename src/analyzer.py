@@ -914,7 +914,7 @@ class AudiobookAnalyzer:
                 print(f"   Found {len(pipeline_char_map.characters)} characters")
             else:
                 # Fallback to empty character map if agent failed
-                pipeline_char_map = PipelineCharacterMap(characters=[], source_file=str(file_path))
+                pipeline_char_map = PipelineCharacterMap(characters=[], low_confidence_characters=[], total_mentions=0, total_chapters=0)
                 print("   ⚠️  Character extraction failed, continuing with empty character map")
 
             if pron_map:
@@ -1139,7 +1139,7 @@ class AudiobookAnalyzer:
             else:
                 # No summaries available - fall back to empty character map
                 print("   ⚠️  Character extraction skipped (no summaries)")
-                pipeline_char_map = PipelineCharacterMap(characters=[], source_file=str(file_path))
+                pipeline_char_map = PipelineCharacterMap(characters=[], low_confidence_characters=[], total_mentions=0, total_chapters=0)
 
         # Step 4.5: Summary-Driven Character Merges and Profile Generation (F1, F2, F3, F5)
         # Now that summaries are available, we can apply summary-based character merges
