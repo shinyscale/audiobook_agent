@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 3
-- **Phase:** awaiting_analysis
+- **Attempt:** 4
+- **Phase:** awaiting_evaluation
 - **baseline_score: 5.8**
 
 ## Latest Scores
@@ -27,6 +27,7 @@
 | 1 | FAIL | - | Pipeline crashed |
 | 2 | 5.8 | - | First successful run — baseline set |
 | 3 | 8.25 | +2.45 | Structure fixed, characters much improved, 2 categories still below 8.0 |
+| 4 | (awaiting eval) | - | is_symbolic fix applied; paw blocked talisman aliases; run clean |
 
 ## Current Issues (Priority Order)
 
@@ -126,13 +127,20 @@
 - No profiling quality concerns (0 retries, 0 JSON parse failures, all HIGH confidence)
 - Profile generation took 526s (8.7 min) — most expensive stage
 
-## Output Files (Attempt 3)
+## Output Files (Attempt 4)
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
 
+## Pipeline Notes (Attempt 4)
+- Run time: 17m 37s
+- BLOCKED aliases: "a cursed talisman" and "the talisman" were blocked by Rule 0.5 (is_symbolic=True now active for monkey's paw)
+- monkey's paw aliases: only "the monkey's paw" (no "the stranger" / "the visitor" — fix appears effective)
+- 7 characters found total (6 from extraction + Maw and Meggins from F6 + Herbert White from post-4.5.9)
+- Warning: "Herbert White (the father)" may have confusing canonical name — Herbert is the son
+- Warning: "Step 6.95 structural narrator fix failed: type object 'ChapterSummarizer' has no attribute '_fix_narrator_attribution'" (non-critical)
+- No pronunciation JSON parse failures
+- 1 low-confidence character profile (likely Maw and Meggins — no passages found)
+- Contradictory relationship removed: Mr. White↔Herbert White both labeled "parent" (non-symmetric, logically impossible)
+
 ## Next Action
-Re-run analysis (attempt 4) to verify:
-1. CRITICAL fix: monkey's paw no longer has "the stranger"/"the visitor" as aliases
-2. HIGH fix: monkey's paw gets role="antagonist", Morris gets role="supporting"
-3. Remaining HIGH: Morris missing "friend" relationship (not fixed in this attempt)
-If Character Extraction and Character Profiles both reach ≥8.0, the run passes.
+Evaluate attempt 4 output.
