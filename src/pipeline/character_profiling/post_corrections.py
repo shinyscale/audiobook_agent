@@ -900,6 +900,12 @@ class OutputCharacterCorrector:
         # newly-established child→parent labels can drive parent→child corrections.
         self.enforce_inverse_consistency(characters)
         self.clean_unknown_relationships(characters)
+        # Restore evidence-based "friend" labels that were stripped by the
+        # verify_relationships_from_text → reject → clean chain. Runs after
+        # clean_unknown_relationships so only genuinely-missing relationships are
+        # restored; runs before _propagate_missing_reverses so symmetry propagation
+        # picks up the restored "friend" labels for both sides.
+        self._restore_evidence_based_friend_labels(characters)
         # _propagate_missing_reverses must be LAST — it adds reverse labels derived
         # from confirmed relationships (e.g., Margaret→Walton 'sister' → Walton→Margaret
         # 'sister'). Running before enforce_gender_consistency causes the propagated
@@ -3452,3 +3458,72 @@ class OutputCharacterCorrector:
                     f"Removed uninformative relationship: "
                     f"'{char.canonical_name}' → '{k}': '{_label}'"
                 )
+
+    def _restore_evidence_based_friend_labels(self, characters) -> None:
+        """Restore 'friend' relationship labels stripped by the correction chain.
+
+        Universal invariant: when a character's LLM-generated evidence array
+        explicitly states that character A is a friend of character B (using
+        "friend" vocabulary co-occurring with B's name), and A currently has
+        NO specific relationship with B after all other corrections have run,
+        inject "friend".
+
+        Context: verify_relationships_from_text can override an evidence-based
+        "friend" with a family term found in co-mention windows (a common false
+        positive in scenes where family members and a friend all appear together).
+        After clean_unknown_relationships removes the incorrect family label, the
+        "friend" label has been silently lost.  This method recovers it from the
+        evidence layer, which is more reliable than co-mention window scanning for
+        explicit social labels.
+
+        Only adds — never overrides existing non-generic relationships.
+        """
+        _friend_evidence_words = frozenset({
+            "friend", "friends", "friendship", "comrade", "companion", "buddy", "pal",
+        })
+        _generic = frozenset({"associated", "acquaintance", "associate", "unknown", ""})
+
+        for char in characters:
+            evidence = getattr(char, 'evidence', None) or []
+            rels = getattr(char, 'relationships', None)
+            if rels is None:
+                rels = {}
+                char.relationships = rels
+            if not isinstance(rels, dict):
+                continue
+
+            for ev in evidence:
+                if not isinstance(ev, dict):
+                    continue
+                stmt = (ev.get('statement', '') or '').strip()
+                if not stmt:
+                    continue
+                sl = stmt.lower()
+                # Check if statement contains a friend indicator word
+                if not any(
+                    re.search(r'\b' + re.escape(w) + r'\b', sl)
+                    for w in _friend_evidence_words
+                ):
+                    continue
+                # Find which other character is mentioned in this evidence statement
+                for other in characters:
+                    if other is char:
+                        continue
+                    other_name = other.canonical_name
+                    cur_rel = (rels.get(other_name) or "").lower().strip()
+                    # Only restore if relationship is currently absent or generic
+                    if other_name in rels and cur_rel not in _generic:
+                        continue
+                    # Check that other character's name (or alias) appears in statement
+                    all_names = [other_name] + list(getattr(other, 'aliases', None) or [])
+                    for n in all_names:
+                        if n and len(n) >= 3 and re.search(
+                            r'\b' + re.escape(n) + r'\b', stmt, re.IGNORECASE
+                        ):
+                            rels[other_name] = "friend"
+                            logger.info(
+                                f"Restored evidence-based friend: "
+                                f"'{char.canonical_name}' → '{other_name}' "
+                                f"from evidence: {stmt[:80]!r}"
+                            )
+                            break

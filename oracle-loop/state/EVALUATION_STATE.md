@@ -3,7 +3,7 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 6
-- **Phase:** awaiting_fix
+- **Phase:** awaiting_analysis
 - **baseline_score: 5.8**
 
 ## Latest Scores
@@ -125,6 +125,7 @@ The most likely failure chain:
 - Attempt 4 fix A: Added Fix EEE-b guard in STEP 3.95 (characters.py) — prevents Herbert White false split — CONFIRMED WORKING ✓
 - Attempt 4 fix B: Added is_symbolic=getattr(pc, "is_symbolic", False) to OutputCharacter constructor — NOT WORKING (is_symbolic still False in output)
 - Attempt 6 fix: Added `_FRIEND_WORDS` to `_infer_rel` + evidence exception in `reject_unfounded_friend_labels` — **NOT WORKING** (Morris still has empty friendship). Root cause: `verify_relationships_from_text` overrides the "friend" label before the evidence exception can protect it.
+- Attempt 7 fix: Added `_restore_evidence_based_friend_labels()` to `OutputCharacterCorrector`. Runs in `run_all()` AFTER `clean_unknown_relationships` and BEFORE `_propagate_missing_reverses`. Scans each character's evidence array for "friend" vocabulary co-occurring with another character's name; if the relationship is currently absent/generic, injects "friend". This bypasses the verify→reject→clean chain that was stripping the label. `_propagate_missing_reverses` then symmetrically adds Mr.White→Morris: "friend".
 
 ## Modification History
 
