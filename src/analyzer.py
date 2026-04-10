@@ -942,6 +942,10 @@ class AudiobookAnalyzer:
         # Instead, rely on summary-based narrator detection in Step 6.5, which is more accurate.
         narrator_detected = None
 
+        # V2 NarratorInfo from Step 4.5, used by Step 6.9 BBB scope dispatcher.
+        # Stays None if Step 4.5 was skipped (no summary_map or no llm).
+        _early_narrator_info_v2 = None
+
         # NOTE: Character profiles are now generated AFTER summaries (Step 4.5)
         # This allows us to use summary-derived features (F1, F2, F3, F5)
 
@@ -2164,14 +2168,39 @@ class AudiobookAnalyzer:
 
                 narrator_detector = NarratorDetector(llm)
 
-                # Extract chapter summaries
-                chapter_summaries = [s.summary for s in summary_map.summaries if s.summary]
+                # Build aligned chapter_summaries and chapter_opening_texts.
+                # Both derived from the same filtered list so scope predictions
+                # can be correlated to summary chapter_index via their order.
+                _filtered_summaries_45 = [s for s in summary_map.summaries if s.summary]
+                chapter_summaries = [s.summary for s in _filtered_summaries_45]
+
+                # Extract first ~2000 chars of each chapter for Scope scalpel.
+                # Scope uses mean + first-150-token-max pooling to detect frame
+                # markers (FOREWORD, letter salutations) at chapter openings.
+                chapter_opening_texts: list = []
+                if chapter_map and doc and doc.text:
+                    _chapters_by_index_45 = {
+                        ch.index: ch for ch in chapter_map.chapters
+                    }
+                    for _sum45 in _filtered_summaries_45:
+                        _ch45 = _chapters_by_index_45.get(_sum45.chapter_index)
+                        if _ch45 is None or _ch45.start_position is None:
+                            chapter_opening_texts.append("")  # keep alignment
+                            continue
+                        _sp45 = _ch45.start_position
+                        _ep45_cand = _ch45.end_position if _ch45.end_position is not None else (_sp45 + 2000)
+                        _ep45 = min(_ep45_cand, _sp45 + 2000)
+                        chapter_opening_texts.append(doc.text[_sp45:_ep45])
 
                 narrator_info = narrator_detector.detect(
                     chapter_summaries=chapter_summaries,
                     main_cast=pipeline_char_map.characters,
                     plot_summary=None,  # Not available yet
+                    chapter_opening_texts=chapter_opening_texts if chapter_opening_texts else None,
                 )
+
+                # Stash for Step 6.9 BBB dispatcher (scope-first nested chapter detection)
+                _early_narrator_info_v2 = narrator_info
 
                 if narrator_info.narrator_name and narrator_info.confidence >= 0.7:
                     # Adapt V2 NarratorInfo to work with _mark_narrator_in_character_map
@@ -3456,12 +3485,27 @@ class AudiobookAnalyzer:
                     else None
                 )
                 # Fix BBB: Build set of nested narrator chapter indices.
-                # In frame/nested narratives, some chapters are narrated by a deeper
-                # embedded narrator (e.g., the creature in Frankenstein within Victor's
-                # narration). Detect these by looking for an inner quotation mark within
-                # the first 2000 chars of the chapter text followed by ≥4 first-person
-                # pronouns. Skip narrator substitution for these chapters.
+                # PRIMARY: Scope scalpel predictions from Step 4.5 (if available).
+                #   deep_narrator (conf ≥ 0.45) → mark as embedded narrator
+                #   single/inner_narrator (conf ≥ 0.60) → trust scope, skip heuristic
+                #   uncertain → fall through to opening-quotation+FP-pronoun heuristic
+                # FALLBACK: existing heuristic for backward compatibility and scope misses.
                 _nested_narrator_indices_69: set = set()
+
+                # Build chapter_index → (scope_label, scope_conf) map from Step 4.5
+                _scope_map_69: dict = {}
+                if (_early_narrator_info_v2 is not None
+                        and getattr(_early_narrator_info_v2, "chapter_narrator_types", None)):
+                    _filtered_for_scope_69 = [s for s in summary_map.summaries if s.summary]
+                    _scope_types_69 = _early_narrator_info_v2.chapter_narrator_types
+                    _scope_confs_69 = _early_narrator_info_v2.chapter_narrator_confidences
+                    for _i69, _s69 in enumerate(_filtered_for_scope_69):
+                        if _i69 < len(_scope_types_69) and _i69 < len(_scope_confs_69):
+                            _scope_map_69[_s69.chapter_index] = (
+                                _scope_types_69[_i69],
+                                _scope_confs_69[_i69],
+                            )
+
                 _quoted_any_re_69 = re.compile(
                     r'(?:(?:Chapter|Letter)\s+\w+\.?\s*\n\s*|\A\s*)[\u201c"]',
                     re.IGNORECASE,
@@ -3469,6 +3513,29 @@ class AudiobookAnalyzer:
                 if chapter_map and doc:
                     for _ch69 in chapter_map.chapters:
                         try:
+                            # PRIMARY: Scope scalpel prediction
+                            _scope_entry = _scope_map_69.get(_ch69.index)
+                            if _scope_entry is not None:
+                                _scope_label, _scope_conf = _scope_entry
+                                if _scope_label == "deep_narrator" and _scope_conf >= 0.45:
+                                    _nested_narrator_indices_69.add(_ch69.index)
+                                    logger.info(
+                                        f"Fix BBB (scope): Chapter {_ch69.index} is "
+                                        f"deep_narrator (confidence={_scope_conf:.3f}); "
+                                        f"skipping narrator substitution"
+                                    )
+                                    continue
+                                if (_scope_label in ("single_narrator", "inner_narrator")
+                                        and _scope_conf >= 0.60):
+                                    logger.debug(
+                                        f"Fix BBB (scope): Chapter {_ch69.index} is "
+                                        f"{_scope_label} (confidence={_scope_conf:.3f}); "
+                                        f"not nested"
+                                    )
+                                    continue
+                                # Low-confidence scope → fall through to heuristic
+
+                            # FALLBACK: opening-quotation + first-person pronoun heuristic
                             _sp69 = _ch69.start_position
                             _ep69 = _ch69.end_position
                             if _sp69 is None or _ep69 is None:
@@ -3476,9 +3543,6 @@ class AudiobookAnalyzer:
                             _ct69 = doc.text[_sp69:_ep69]
                             if not _ct69:
                                 continue
-                            # Try heading-anchored match first; if not found, scan first 2000
-                            # chars for any quote character (handles chapters where inner
-                            # narrator's speech is preceded by a frame-narrator sentence).
                             _hm69 = _quoted_any_re_69.search(_ct69[:1000])
                             if _hm69:
                                 _inner_start_69 = _hm69.end()
@@ -3499,8 +3563,9 @@ class AudiobookAnalyzer:
                             if _fpc69 >= 4:
                                 _nested_narrator_indices_69.add(_ch69.index)
                                 logger.info(
-                                    f"Fix BBB: Chapter index {_ch69.index} is a nested narrator chapter "
-                                    f"(FP count={_fpc69}); skipping narrator substitution"
+                                    f"Fix BBB (heuristic): Chapter index {_ch69.index} "
+                                    f"is a nested narrator chapter (FP count={_fpc69}); "
+                                    f"skipping narrator substitution"
                                 )
                         except Exception:
                             pass

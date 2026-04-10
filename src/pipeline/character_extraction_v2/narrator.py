@@ -33,6 +33,11 @@ class NarratorInfo:
     is_nested: bool = False  # Multiple narrators (Frankenstein, Dracula)
     nested_narrators: list[str] = field(default_factory=list)  # Character IDs
     confidence: float = 0.8
+    # Scope scalpel: per-chapter narrator type classifications.
+    # Parallel to the chapter_summaries list passed to detect().
+    # Empty lists indicate scope didn't run (graceful degradation).
+    chapter_narrator_types: list[str] = field(default_factory=list)
+    chapter_narrator_confidences: list[float] = field(default_factory=list)
 
 
 NARRATOR_DETECTION_PROMPT = """You are analyzing a novel's narrative point of view.
@@ -90,6 +95,7 @@ class NarratorDetector:
         chapter_summaries: list[str],
         main_cast: list[Union[ModelsCharacter, V1Character, MainCastProfile]],
         plot_summary: Optional[str] = None,
+        chapter_opening_texts: Optional[list[str]] = None,
     ) -> NarratorInfo:
         """
         Detect narrative POV and narrator from summaries.
@@ -186,6 +192,61 @@ class NarratorDetector:
                 f"(scalpel confidence={confidence:.3f})"
             )
             parsed.pov = beacon_pov
+
+        # Scope scalpel: per-chapter narrator type classification.
+        # Lazy-gated: only runs when nested narrative is suspected, for performance.
+        # Skipped for confident third-person books via Beacon short-circuit above.
+        if chapter_opening_texts and scalpel_available("scope"):
+            should_run_scope = (
+                parsed.is_nested
+                or beacon_pov == "epistolary"
+                or (beacon_pov == "first-person" and len(chapter_opening_texts) >= 20)
+            )
+            if should_run_scope:
+                try:
+                    if len(chapter_opening_texts) != len(chapter_summaries):
+                        logger.warning(
+                            f"chapter_opening_texts length {len(chapter_opening_texts)} "
+                            f"!= chapter_summaries length {len(chapter_summaries)}, "
+                            f"skipping scope"
+                        )
+                    else:
+                        loader = ScalpelLoader()
+                        scope_results = loader.predict_batch(
+                            "scope", chapter_opening_texts
+                        )
+                        parsed.chapter_narrator_types = [r[0] for r in scope_results]
+                        parsed.chapter_narrator_confidences = [
+                            r[1] for r in scope_results
+                        ]
+
+                        from collections import Counter
+                        type_counts = Counter(parsed.chapter_narrator_types)
+                        logger.info(
+                            f"Scope scalpel classified {len(scope_results)} chapters: "
+                            f"{dict(type_counts)}"
+                        )
+                        for i, (label, conf) in enumerate(scope_results):
+                            if label != "single_narrator":
+                                logger.info(
+                                    f"  Chapter {i+1}: {label} (confidence={conf:.3f})"
+                                )
+
+                        # Promote is_nested if scope found any non-single chapters
+                        non_single = sum(
+                            1 for lbl in parsed.chapter_narrator_types
+                            if lbl != "single_narrator"
+                        )
+                        if non_single > 0 and not parsed.is_nested:
+                            logger.info(
+                                f"Scope promoting is_nested=True "
+                                f"({non_single} non-single chapters)"
+                            )
+                            parsed.is_nested = True
+                except Exception as e:
+                    logger.warning(f"Scope scalpel failed: {e}")
+                    parsed.chapter_narrator_types = []
+                    parsed.chapter_narrator_confidences = []
 
         return parsed
 

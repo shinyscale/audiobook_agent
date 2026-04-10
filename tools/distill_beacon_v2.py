@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
 """
-distill_beacon_v2.py — Generate expanded Beacon training data from 83-book corpus.
+distill_beacon_v2.py — Smarter Beacon training data from 83-book corpus.
 
-Beacon classifies narrative POV (first_person / third_person / third_person_omniscient /
-epistolary). Every book in our Gutenberg corpus has a known `expected_pov` in its
-metadata, so we can generate hundreds of labeled passages per book without LLM calls.
+Key improvements over the naive version:
+1. **Targeted sampling**: Prefer chapter openings where POV signals are strongest
+2. **Epistolary bias**: Sample passages containing letter/diary markers for epistolary class
+3. **Skip mixed-POV books**: Bleak House and A Study in Scarlet have alternating POVs — too noisy
+4. **Quality filtering**: Skip passages that look like TOC, frontmatter, or low-content
 
-Current Beacon training: 332 examples from 83 books (4 per book, heavy imbalance:
-only 10 epistolary examples). This script generates 20-40 examples per book for a
-target of ~2,500 new examples.
-
-Usage:
-    python tools/distill_beacon_v2.py              # Generate new data
-    python tools/distill_beacon_v2.py --merge      # Also merge with existing
-    python tools/distill_beacon_v2.py --samples N  # N passages per book (default 30)
+Current Beacon training: 332 examples from 83 books, mostly noisy.
+This generates ~1,500 high-quality examples targeted at clear POV signals.
 """
 
 import argparse
@@ -38,12 +34,10 @@ TOOLS_DIR = Path(__file__).parent
 CORPUS_DIR = TOOLS_DIR / "gutenberg_corpus"
 CORPUS_META = CORPUS_DIR / "corpus_metadata.json"
 
-# Output files
-DISTILLED_BEACON = TOOLS_DIR / "distilled_beacon.json"
 OUTPUT_NEW = TOOLS_DIR / "distilled_beacon_v2.json"
 OUTPUT_MERGED = TOOLS_DIR / "beacon_training_v2_merged.json"
+DISTILLED_BEACON = TOOLS_DIR / "distilled_beacon.json"
 
-# Label mapping (matches scalpels.py SCALPEL_REGISTRY)
 LABEL2ID = {
     "first_person": 0,
     "third_person": 1,
@@ -51,20 +45,32 @@ LABEL2ID = {
     "epistolary": 3,
 }
 
-# Passage sampling parameters
-MIN_PASSAGE_CHARS = 800
-MAX_PASSAGE_CHARS = 1500
-DEFAULT_SAMPLES_PER_BOOK = 30
+# Books with mixed/alternating POVs — skip because book-level label is noisy
+# Bleak House: alternates Esther (first-person) and omniscient chapters
+# A Study in Scarlet: Watson (first) → Utah (third) → Watson
+# Frankenstein: Walton letters (epistolary) → Victor (first) → Creature (first in quotes)
+SKIP_BOOKS = {
+    "bleak_house.txt",
+    "a_study_in_scarlet.txt",
+}
 
+# Target samples per book (more for minority classes)
+SAMPLES_PER_BOOK = {
+    "first_person": 20,
+    "third_person": 15,
+    "third_person_omniscient": 20,
+    "epistolary": 40,  # Boost minority class
+}
+
+PASSAGE_MIN_CHARS = 800
+PASSAGE_MAX_CHARS = 1500
 SEED = 42
 
 
 def strip_gutenberg_metadata(text: str) -> str:
-    """Remove Project Gutenberg preamble/postamble if present."""
-    # Common start markers
+    """Remove Project Gutenberg preamble/postamble."""
     start_markers = [
         r'\*\*\* START OF (?:THE |THIS )?PROJECT GUTENBERG.*?\*\*\*',
-        r'\*END\*THE SMALL PRINT.*?PROJECT GUTENBERG',
     ]
     for marker in start_markers:
         m = re.search(marker, text, re.IGNORECASE | re.DOTALL)
@@ -72,7 +78,6 @@ def strip_gutenberg_metadata(text: str) -> str:
             text = text[m.end():]
             break
 
-    # End markers
     end_markers = [
         r'\*\*\* END OF (?:THE |THIS )?PROJECT GUTENBERG.*',
         r'End of (?:the )?Project Gutenberg',
@@ -86,69 +91,95 @@ def strip_gutenberg_metadata(text: str) -> str:
     return text.strip()
 
 
-def extract_clean_passages(
-    text: str,
-    num_samples: int,
-    rng: random.Random,
-) -> list[str]:
-    """Extract `num_samples` clean prose passages from the book.
+def looks_like_prose(passage: str) -> bool:
+    """Filter out TOC, frontmatter, chapter lists."""
+    lines = [l.strip() for l in passage.split('\n') if l.strip()]
+    if len(lines) < 3:
+        return False
 
-    Samples at random positions to get coverage across the whole book.
-    Tries to start/end at paragraph boundaries for cleaner passages.
-    """
-    text = strip_gutenberg_metadata(text)
+    # If most lines are short (TOC-like), reject
+    short_lines = sum(1 for l in lines if len(l) < 50)
+    if short_lines > len(lines) * 0.7:
+        return False
 
-    # Skip table of contents area (first ~5% of text often contains TOC)
-    skip_chars = min(len(text) // 20, 5000)
-    usable_text = text[skip_chars:]
+    # Too many chapter headings = TOC area
+    chapter_count = len(re.findall(r'\b(?:CHAPTER|Chapter)\s+[IVXLCDM\d]+', passage))
+    if chapter_count > 3:
+        return False
 
-    if len(usable_text) < MIN_PASSAGE_CHARS * 2:
-        return [usable_text[:MAX_PASSAGE_CHARS]] if usable_text else []
+    return True
 
-    # Generate random start positions
+
+def find_chapter_openings(text: str, num_samples: int) -> list[str]:
+    """Find passages at chapter/section openings — strongest POV signal."""
+    patterns = [
+        r'\n\s*(?:CHAPTER|Chapter)\s+[IVXLCDM\d]+[.\s]*\n',
+        r'\n\s*(?:LETTER|Letter)\s+[IVXLCDM\d]+[.\s]*\n',
+        r'\n\s*(?:BOOK|Book|PART|Part)\s+[IVXLCDM\d]+[.\s]*\n',
+    ]
+
+    chapter_starts = []
+    for pattern in patterns:
+        for m in re.finditer(pattern, text):
+            chapter_starts.append(m.end())
+
+    chapter_starts.sort()
+
+    # Dedupe (same position from different patterns)
+    seen = set()
     passages = []
-    seen_positions = set()
+    for start in chapter_starts:
+        bucket = start // 2000
+        if bucket in seen:
+            continue
+        seen.add(bucket)
+
+        end = min(start + PASSAGE_MAX_CHARS, len(text))
+        passage = text[start:end].strip()
+
+        if len(passage) < PASSAGE_MIN_CHARS:
+            continue
+        if not looks_like_prose(passage):
+            continue
+
+        passages.append(passage)
+
+    return passages[:num_samples]
+
+
+def find_random_passages(text: str, num_samples: int, rng: random.Random) -> list[str]:
+    """Sample random passages from book body (fallback when no chapter markers)."""
+    # Skip first 5% and last 2% to avoid front/back matter
+    usable = text[len(text) // 20:int(len(text) * 0.98)]
+
+    if len(usable) < PASSAGE_MIN_CHARS * 2:
+        return []
+
+    passages = []
     attempts = 0
+    seen_buckets = set()
 
-    while len(passages) < num_samples and attempts < num_samples * 4:
+    while len(passages) < num_samples and attempts < num_samples * 6:
         attempts += 1
-
-        # Random start, but keep samples distributed
-        target_pos = rng.randint(0, len(usable_text) - MAX_PASSAGE_CHARS)
-
-        # Bucket to avoid overlapping samples
-        bucket = target_pos // (MAX_PASSAGE_CHARS // 2)
-        if bucket in seen_positions:
+        target = rng.randint(0, len(usable) - PASSAGE_MAX_CHARS)
+        bucket = target // (PASSAGE_MAX_CHARS // 2)
+        if bucket in seen_buckets:
             continue
-        seen_positions.add(bucket)
+        seen_buckets.add(bucket)
 
-        passage_len = rng.randint(MIN_PASSAGE_CHARS, MAX_PASSAGE_CHARS)
-
-        # Try to snap start to paragraph boundary
-        start = target_pos
-        for offset in range(min(200, passage_len // 4)):
-            if usable_text[target_pos + offset:target_pos + offset + 2] == "\n\n":
-                start = target_pos + offset + 2
+        # Snap to paragraph boundary
+        start = target
+        for offset in range(min(200, PASSAGE_MAX_CHARS // 4)):
+            if usable[target + offset:target + offset + 2] == "\n\n":
+                start = target + offset + 2
                 break
 
-        end = min(start + passage_len, len(usable_text))
+        end = min(start + rng.randint(PASSAGE_MIN_CHARS, PASSAGE_MAX_CHARS), len(usable))
+        passage = usable[start:end].strip()
 
-        # Try to snap end to paragraph boundary
-        for offset in range(min(200, passage_len // 4)):
-            check_pos = end - offset
-            if usable_text[check_pos:check_pos + 2] == "\n\n":
-                end = check_pos
-                break
-
-        passage = usable_text[start:end].strip()
-
-        # Skip if too short or mostly whitespace
-        if len(passage) < MIN_PASSAGE_CHARS // 2:
+        if len(passage) < PASSAGE_MIN_CHARS // 2:
             continue
-
-        # Skip if looks like TOC (lots of chapter headings close together)
-        chapter_count = len(re.findall(r'\bCHAPTER\b|\bChapter\b', passage[:500]))
-        if chapter_count > 3:
+        if not looks_like_prose(passage):
             continue
 
         passages.append(passage)
@@ -156,21 +187,58 @@ def extract_clean_passages(
     return passages
 
 
+def find_epistolary_passages(text: str, num_samples: int) -> list[str]:
+    """Find passages containing letter/diary markers for epistolary books."""
+    markers = [
+        r'(?:LETTER|Letter)\s+[IVXLCDM\d]+',
+        r'_[A-Z][a-z]+ \d+[a-z]*[,.]',  # Dates like "_May 3,_"
+        r'My dear \w+[,.]',
+        r'Dear \w+[,.]',
+        r'[A-Z][a-z]+\'s (?:Journal|Diary)',
+        r'(?:Journal|Diary) entry',
+        r'entry \d+',
+        r'(?:St|Mr)\. Petersburg',  # Letter datelines
+    ]
+
+    passages = []
+    seen_buckets = set()
+
+    for pattern in markers:
+        for m in re.finditer(pattern, text):
+            pos = m.start()
+            bucket = pos // 2500
+            if bucket in seen_buckets:
+                continue
+            seen_buckets.add(bucket)
+
+            start = max(0, pos - 100)
+            end = min(len(text), pos + PASSAGE_MAX_CHARS - 100)
+            passage = text[start:end].strip()
+
+            if len(passage) < PASSAGE_MIN_CHARS:
+                continue
+            if looks_like_prose(passage):
+                passages.append(passage)
+
+            if len(passages) >= num_samples:
+                return passages
+
+    return passages
+
+
 def distill_book(
     filepath: Path,
     meta: dict,
-    num_samples: int,
     rng: random.Random,
 ) -> list[dict]:
-    """Generate beacon training examples from one book."""
     title = meta["title"]
     author = meta.get("author", "Unknown")
     pov = meta.get("expected_pov")
 
     if pov not in LABEL2ID:
-        logger.warning(f"  Skipping {title}: unknown POV '{pov}'")
         return []
 
+    target_samples = SAMPLES_PER_BOOK.get(pov, 15)
     label_id = LABEL2ID[pov]
 
     try:
@@ -179,7 +247,25 @@ def distill_book(
         logger.error(f"  Failed to read {filepath}: {e}")
         return []
 
-    passages = extract_clean_passages(text, num_samples, rng)
+    text = strip_gutenberg_metadata(text)
+
+    # Strategy depends on POV type
+    if pov == "epistolary":
+        # For epistolary, find passages near letter/diary markers
+        passages = find_epistolary_passages(text, target_samples)
+        # Supplement with chapter openings if under target
+        if len(passages) < target_samples:
+            extra = find_chapter_openings(text, target_samples - len(passages))
+            passages.extend(extra)
+    else:
+        # For other POVs, prefer chapter openings (strong signal)
+        # then fall back to random sampling
+        passages = find_chapter_openings(text, target_samples)
+        if len(passages) < target_samples // 2:
+            random_passages = find_random_passages(
+                text, target_samples - len(passages), rng,
+            )
+            passages.extend(random_passages)
 
     examples = []
     for passage in passages:
@@ -189,17 +275,15 @@ def distill_book(
             "label_name": pov,
             "book": title,
             "author": author,
-            "source": "corpus_sampling_v2",
-            "confidence": 1.0,  # Ground truth from corpus metadata
+            "source": "corpus_targeted_v2",
+            "confidence": 1.0,
         })
 
     return examples
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate Beacon v2 training data from corpus")
-    parser.add_argument("--samples", type=int, default=DEFAULT_SAMPLES_PER_BOOK,
-                        help="Number of passages to sample per book")
+    parser = argparse.ArgumentParser()
     parser.add_argument("--merge", action="store_true",
                         help="Merge with existing distilled_beacon.json")
     args = parser.parse_args()
@@ -211,25 +295,25 @@ def main():
     with open(CORPUS_META) as f:
         corpus_meta = json.load(f)
 
-    logger.info(f"Generating {args.samples} passages per book from {len(corpus_meta)} books")
-
     rng = random.Random(SEED)
     all_examples = []
     book_count = 0
     skipped = 0
 
-    # Track POV distribution
     from collections import Counter
     pov_counts = Counter()
 
     for filename, meta in sorted(corpus_meta.items()):
-        filepath = CORPUS_DIR / filename
-        if not filepath.exists():
-            logger.warning(f"Missing: {filepath}")
+        if filename in SKIP_BOOKS:
+            logger.info(f"SKIP (mixed POV): {meta['title']}")
             skipped += 1
             continue
 
-        examples = distill_book(filepath, meta, args.samples, rng)
+        filepath = CORPUS_DIR / filename
+        if not filepath.exists():
+            continue
+
+        examples = distill_book(filepath, meta, rng)
         if examples:
             all_examples.extend(examples)
             book_count += 1
@@ -237,33 +321,28 @@ def main():
 
     logger.info(f"\n=== Summary ===")
     logger.info(f"Books processed: {book_count} (skipped {skipped})")
-    logger.info(f"Total new examples: {len(all_examples)}")
+    logger.info(f"Total examples: {len(all_examples)}")
     logger.info(f"POV distribution:")
     for pov, count in sorted(pov_counts.items(), key=lambda x: -x[1]):
         pct = count / len(all_examples) * 100
         logger.info(f"  {pov}: {count} ({pct:.1f}%)")
 
-    # Save new data
     with open(OUTPUT_NEW, "w") as f:
         json.dump(all_examples, f, indent=2, ensure_ascii=False)
-    logger.info(f"\nSaved new examples to {OUTPUT_NEW}")
+    logger.info(f"\nSaved to {OUTPUT_NEW}")
 
-    # Optionally merge with existing
     if args.merge:
         existing = []
         if DISTILLED_BEACON.exists():
             with open(DISTILLED_BEACON) as f:
                 existing = json.load(f)
-            logger.info(f"\nLoaded {len(existing)} existing examples from {DISTILLED_BEACON}")
+            logger.info(f"\nLoaded {len(existing)} existing examples")
 
         merged = existing + all_examples
-        logger.info(f"Merged total: {len(merged)} examples")
-
-        # Distribution of merged dataset
         merged_counts = Counter()
         for ex in merged:
             merged_counts[ex.get("label_name", "unknown")] += 1
-        logger.info(f"Merged POV distribution:")
+        logger.info(f"Merged total: {len(merged)}")
         for pov, count in sorted(merged_counts.items(), key=lambda x: -x[1]):
             pct = count / len(merged) * 100
             logger.info(f"  {pov}: {count} ({pct:.1f}%)")
