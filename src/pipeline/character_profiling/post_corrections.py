@@ -3460,28 +3460,75 @@ class OutputCharacterCorrector:
                 )
 
     def _restore_evidence_based_friend_labels(self, characters) -> None:
-        """Restore 'friend' relationship labels stripped by the correction chain.
+        """Restore relationship labels stripped/overridden by the correction chain.
 
-        Universal invariant: when a character's LLM-generated evidence array
-        explicitly states that character A is a friend of character B (using
-        "friend" vocabulary co-occurring with B's name), and A currently has
-        NO specific relationship with B after all other corrections have run,
-        inject "friend".
+        Covers two universal invariants:
 
-        Context: verify_relationships_from_text can override an evidence-based
-        "friend" with a family term found in co-mention windows (a common false
-        positive in scenes where family members and a friend all appear together).
-        After clean_unknown_relationships removes the incorrect family label, the
-        "friend" label has been silently lost.  This method recovers it from the
-        evidence layer, which is more reliable than co-mention window scanning for
-        explicit social labels.
+        1. FRIEND: when evidence explicitly states A is a friend of B and the
+           current label is absent or generic, inject "friend". (verify_from_text
+           can override evidence-based "friend" with a family term found in
+           co-mention windows; clean_unknown_relationships then removes it silently.)
 
-        Only adds — never overrides existing non-generic relationships.
+        2. PARENT-CHILD: when evidence explicitly states "X is the father/mother/
+           son/daughter of Y", set the correct label even if verify_from_text
+           already wrote a wrong sibling/cousin label. Universal invariant: an
+           explicit parent-child statement in evidence is more reliable than
+           co-mention window heuristics for distinguishing parent vs. sibling.
+
+        For friend: only adds, never overrides existing non-generic labels.
+        For parent-child: also overrides wrong sibling/cousin labels.
+        Does NOT override spousal labels (distinct relationship tier).
         """
         _friend_evidence_words = frozenset({
             "friend", "friends", "friendship", "comrade", "companion", "buddy", "pal",
         })
         _generic = frozenset({"associated", "acquaintance", "associate", "unknown", ""})
+
+        # Labels that parent-child evidence should override.
+        # Includes sibling/cousin AND wrong-direction parent-child labels
+        # (e.g., "father" when evidence says "son" — cross-direction error).
+        # Does NOT include spousal labels (different relationship tier).
+        _wrong_for_parent_child = frozenset({
+            "brother", "sister", "cousin", "nephew", "niece",
+            "father", "mother", "son", "daughter",
+        }) | _generic
+
+        # Regex for explicit parent-child statements: "is the {role} of"
+        _pc_re = re.compile(
+            r'\bis the (father|mother|son|daughter) of\b', re.IGNORECASE
+        )
+
+        def _gender(c) -> str:
+            return (getattr(c, 'gender', None) or '').lower()
+
+        def _child_label(c) -> str:
+            return 'daughter' if _gender(c) == 'female' else 'son'
+
+        def _parent_label(c) -> str:
+            return 'mother' if _gender(c) == 'female' else 'father'
+
+        def _name_in(text: str, c) -> bool:
+            all_names = [c.canonical_name] + list(getattr(c, 'aliases', None) or [])
+            return any(
+                n and len(n) >= 3 and re.search(r'\b' + re.escape(n) + r'\b', text, re.IGNORECASE)
+                for n in all_names
+            )
+
+        def _set_rel(char, other_name: str, label: str, override_set) -> None:
+            """Set char.relationships[other_name] = label if current is in override_set."""
+            rels = char.relationships
+            if not isinstance(rels, dict):
+                return
+            cur = (rels.get(other_name) or '').lower().strip()
+            if cur == label:
+                return
+            if cur not in override_set:
+                return
+            rels[other_name] = label
+            logger.info(
+                f"Restored evidence-based '{label}': "
+                f"'{char.canonical_name}' → '{other_name}'"
+            )
 
         for char in characters:
             evidence = getattr(char, 'evidence', None) or []
@@ -3499,31 +3546,47 @@ class OutputCharacterCorrector:
                 if not stmt:
                     continue
                 sl = stmt.lower()
-                # Check if statement contains a friend indicator word
-                if not any(
-                    re.search(r'\b' + re.escape(w) + r'\b', sl)
-                    for w in _friend_evidence_words
-                ):
-                    continue
-                # Find which other character is mentioned in this evidence statement
-                for other in characters:
-                    if other is char:
-                        continue
-                    other_name = other.canonical_name
-                    cur_rel = (rels.get(other_name) or "").lower().strip()
-                    # Only restore if relationship is currently absent or generic
-                    if other_name in rels and cur_rel not in _generic:
-                        continue
-                    # Check that other character's name (or alias) appears in statement
-                    all_names = [other_name] + list(getattr(other, 'aliases', None) or [])
-                    for n in all_names:
-                        if n and len(n) >= 3 and re.search(
-                            r'\b' + re.escape(n) + r'\b', stmt, re.IGNORECASE
-                        ):
-                            rels[other_name] = "friend"
-                            logger.info(
-                                f"Restored evidence-based friend: "
-                                f"'{char.canonical_name}' → '{other_name}' "
-                                f"from evidence: {stmt[:80]!r}"
-                            )
+
+                # --- Friend restoration ---
+                if any(re.search(r'\b' + re.escape(w) + r'\b', sl) for w in _friend_evidence_words):
+                    for other in characters:
+                        if other is char:
+                            continue
+                        other_name = other.canonical_name
+                        cur_rel = (rels.get(other_name) or '').lower().strip()
+                        if other_name in rels and cur_rel not in _generic:
+                            continue
+                        if _name_in(stmt, other):
+                            _set_rel(char, other_name, 'friend', _generic)
                             break
+
+                # --- Parent-child restoration ---
+                m = _pc_re.search(sl)
+                if m:
+                    role = m.group(1).lower()  # role that char plays toward other
+                    is_parent = role in ('father', 'mother')
+                    # "of" is at m.end(); names typically follow, but also check full stmt
+                    for other in characters:
+                        if other is char:
+                            continue
+                        if not _name_in(stmt, other):
+                            continue
+                        other_name = other.canonical_name
+                        # Ensure other's rels dict exists
+                        other_rels = getattr(other, 'relationships', None)
+                        if other_rels is None:
+                            other_rels = {}
+                            other.relationships = other_rels
+
+                        if is_parent:
+                            # char is parent → char→other = "father"/"mother"
+                            # other→char = "son"/"daughter" based on OTHER's gender
+                            _set_rel(char, other_name, role, _wrong_for_parent_child)
+                            if isinstance(other_rels, dict):
+                                _set_rel(other, char.canonical_name, _child_label(other), _wrong_for_parent_child)
+                        else:
+                            # char is child → char→other = "son"/"daughter"
+                            # other→char = "father"/"mother" based on OTHER's gender
+                            _set_rel(char, other_name, role, _wrong_for_parent_child)
+                            if isinstance(other_rels, dict):
+                                _set_rel(other, char.canonical_name, _parent_label(other), _wrong_for_parent_child)

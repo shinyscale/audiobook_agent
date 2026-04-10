@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 7
-- **Phase:** awaiting_fix
+- **Attempt:** 8
+- **Phase:** awaiting_analysis
 - **baseline_score: 5.8**
 
 ## Latest Scores
@@ -138,7 +138,7 @@ Yet the final relationship labels are "brother"/"brother" (Mr. White↔Herbert) 
 | 4→5 | Profiles: Mrs. White→Herbert "daughter" | (resolved by Herbert split fix) | Fixed ✓ (attempt 5) but regressed in attempt 7 |
 | 5→6 | Profiles: Morris missing "friend" relationship | src/pipeline/character_profiling/post_corrections.py | NOT WORKING — _infer_rel fix + evidence exception correct in isolation, but verify_relationships_from_text overrides |
 | 6→7 | Profiles: Morris missing "friend" relationship | src/pipeline/character_profiling/post_corrections.py | **FIXED ✓** — `_restore_evidence_based_friend_labels()` bypasses the pipeline chain |
-| 7→? | Profiles: Parent-child relationships ALL wrong | src/pipeline/character_profiling/post_corrections.py | Pending — extend evidence-based restoration to cover family labels |
+| 7→8 | Profiles: Parent-child relationships ALL wrong | src/pipeline/character_profiling/post_corrections.py | Extended `_restore_evidence_based_friend_labels()` to also restore parent-child labels from evidence. Smoke test: Mr. White→Herbert=father, Herbert→Mr. White=son, Herbert→Mrs. White=son, Mrs. White→Herbert=mother all correct ✓ |
 
 **PATTERN NOTE**: post_corrections.py `_restore_evidence_based_friend_labels()` approach is PROVEN. Extending it to cover family vocabulary is the natural next step. Same file, same method, same approach — NOT a stuck pattern; this is iterative improvement of a working solution.
 
@@ -158,4 +158,4 @@ Yet the final relationship labels are "brother"/"brother" (Mr. White↔Herbert) 
 - No crashes or blocking errors
 
 ## Next Action
-Run PROMPT_fix.md to extend `_restore_evidence_based_friend_labels()` to also restore parent-child labels from evidence arrays.
+Run PROMPT_analyze.md to re-analyze monkeys_paw with the parent-child evidence restoration fix applied.
