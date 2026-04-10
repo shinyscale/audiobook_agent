@@ -3,23 +3,23 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 4
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
 - **baseline_score: 5.8**
 
 ## Latest Scores
 - Structure Detection: 9/10 ✓
-- Character Extraction: 7.5/10 ✗
-  - Completeness: 8.5/10
-  - Identity Resolution: 7/10
-  - Alias Grouping: 7/10
-- Character Profiles: 7.5/10 ✗
+- Character Extraction: 7/10 ✗
+  - Completeness: 7.5/10
+  - Identity Resolution: 5.5/10 ← false split is primary blocker
+  - Alias Grouping: 8/10
+- Character Profiles: 6.5/10 ✗
 - Chapter Summaries: 9/10 ✓
 - Pronunciation Guide: 8/10 ✓
-- HTML Presentation: 8.5/10 ✓
-- **Overall: 8.25/10** (reference only)
+- HTML Presentation: 8/10 ✓
+- **Overall: 7.93/10** (reference only)
 
 **Pass Criteria:** ALL categories must be >= 8.0
-**Status:** FAIL (2 categories below threshold: Character Extraction, Character Profiles)
+**Status:** FAIL (2 categories below threshold: Character Extraction 7/10, Character Profiles 6.5/10)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
@@ -27,79 +27,100 @@
 | 1 | FAIL | - | Pipeline crashed |
 | 2 | 5.8 | - | First successful run — baseline set |
 | 3 | 8.25 | +2.45 | Structure fixed, characters much improved, 2 categories still below 8.0 |
-| 4 | (awaiting eval) | - | is_symbolic fix applied; paw blocked talisman aliases; run clean |
+| 4 | 7.93 | +2.13 | Alias fix worked (stranger/visitor gone), but Herbert White false split + wrong label appeared |
+
+## What Changed (Attempt 3 → 4)
+- **IMPROVED**: monkey's paw aliases — "the stranger" and "the visitor" no longer aliased to paw ✓
+- **IMPROVED**: "a cursed talisman" and "the talisman" blocked by Rule 0.5 ✓
+- **REGRESSED**: Herbert White now falsely split into two characters with wrong "(the father)" label
+- **UNCHANGED**: Morris still has zero relationships
+- **UNCHANGED**: monkey's paw role still "protagonist", is_symbolic=False in output
+- **UNCHANGED**: Mrs. White → Herbert relationship says "daughter" instead of "mother"
 
 ## Current Issues (Priority Order)
 
 ### CRITICAL
-
-1. **"the stranger" and "the visitor" falsely aliased to the monkey's paw** [Identity Resolution, Alias Grouping]
-   - Problem: The monkey's paw (main_cast_5) has aliases `["the paw", "the stranger", "the visitor"]`. "The stranger" and "the visitor" in Part II refer to the Maw and Meggins representative who delivers news of Herbert's death — a human character, not the paw.
-   - Evidence: Chapter 2 summary explicitly says "the arrival of a well-dressed stranger" who is "representing the firm 'Maw and Meggins'". The stranger is the company representative, not the supernatural object.
-   - Location: V2 alias resolution — the LLM proposed these aliases and the pipeline accepted them. The core issue is that human-descriptor aliases ("stranger", "visitor", "man") should not be assigned to non-human/symbolic entities.
-   - Fix approach: This needs a rule in `src/pipeline/character_extraction_v2/main_cast.py` (verify_aliases or a post-verification check): if the canonical character is a non-human entity (object, force, symbolic — detectable by lack of human names, or by `is_symbolic=True`), then aliases that are clearly human descriptors (stranger, visitor, man, woman, figure, gentleman, etc.) should be blocked. Alternatively, since the stranger already maps to Maw and Meggins contextually, the pipeline could recognize that "the stranger" appears in summaries where "Maw and Meggins" is the active entity and block the alias.
+1. **FALSE SPLIT: Herbert White split into two characters with wrong label** [Identity Resolution]
+   - Problem: "Herbert White (the father)" (`main_cast_2_parent`, 27 mentions) and "Herbert White" (`4e195cae6189`, 2 mentions) are listed as separate characters. Herbert is the **SON** of Mr. and Mrs. White — NOT a father. There is only ONE Herbert White in the story.
+   - Evidence: The text explicitly establishes Herbert as Mr. and Mrs. White's young adult son who works at Maw and Meggins and dies in a machinery accident. There is no second Herbert.
+   - ID pattern: `main_cast_2_parent` — the `_parent` suffix indicates the V2 pipeline's same-name disambiguation logic (`characters.py`) incorrectly created a parent/child split for Herbert. The pipeline likely saw "father" near "Herbert" in text (referring to Herbert's father Mr. White, not to Herbert himself being a father) and triggered the split.
+   - Location: `src/pipeline/character_extraction_v2/characters.py` — look for same-name disambiguation logic that appends `_parent` suffix to character IDs. The split is being triggered when "father" appears near a character's name but refers to ANOTHER character's role (Mr. White is the father, Herbert is the son).
+   - Fix: The same-name split should not fire when there is only ONE instance of a name in the extraction. It should require evidence of TWO distinct individuals with the same name (different ages, different time periods, explicit "Sr."/"Jr." markers). A single character having a relative who is "father" does not mean the character IS a father-named-Herbert.
+   - Impact: This single issue drags down Identity Resolution (5.5), Character Profiles (phantom empty profile), and indirectly Completeness (Herbert's real profile data split across two entries).
 
 ### HIGH
+2. **Mrs. White → Herbert White relationship labeled "daughter"** [Profiles]
+   - Problem: Mrs. White's relationship to Herbert White shows `"daughter"` — this is WRONG. Mrs. White is Herbert's MOTHER. The relationship label should be "mother".
+   - Evidence: The text establishes Mrs. White as the mother throughout: she grieves his death, demands the second wish to bring her son back.
+   - Location: Profile generation in `src/analyzer.py` — `_generate_character_profile()` or relationship post-corrections in `src/pipeline/post_corrections.py`.
+   - Fix: The profiler LLM may have confused the relationship direction (it set the label from Herbert's perspective "daughter" instead of Mrs. White's perspective "mother"). Or `enforce_gender_consistency` may have incorrectly swapped a label.
+   - Note: This may self-resolve once the Herbert split (CRITICAL #1) is fixed — the split likely confuses the profiler about who is who.
 
-2. **Sergeant-Major Morris missing "friend" relationship to Mr. White** [Profiles]
-   - Problem: Morris has `"relationships": {}` — zero relationships. The text explicitly establishes him as "his old friend the sergeant-major" (Mr. White's old friend).
-   - Evidence: Part I: Morris arrives as an old friend of Mr. White; they share whiskey and stories. The summary correctly says "Sergeant-Major Morris arrives."
-   - Location: Profile generation in `src/analyzer.py` — `_generate_character_profile()`. The relationship extraction likely missed the "old friend" reference because Morris appears in only one section.
-   - Fix: May be a profiler LLM issue (relationship not extracted from text). Could also be a post-corrections issue where `reject_unfounded_friend_labels` is too aggressive and removed a legitimate "friend" label.
+3. **Sergeant-Major Morris has zero relationships** [Profiles]
+   - Problem: Morris has `"relationships": {}`. The text explicitly says he is "his old friend the sergeant-major" — Mr. White's old friend.
+   - Evidence: Part I: Morris arrives as an old friend, they share whiskey and stories. The summary correctly notes this.
+   - Location: Either `_generate_character_profile()` didn't extract the friendship, or `reject_unfounded_friend_labels` in `src/pipeline/post_corrections.py` removed it.
+   - Fix: Check if `reject_unfounded_friend_labels` is being too aggressive. The text has "his old friend" directly adjacent to Morris's name — this should pass the 150-char window check. If the profiler never generated the label, it's a prompt issue.
 
-3. **All characters classified as "protagonist"** [Profiles]
-   - Problem: Every character including Morris, the monkey's paw, and Maw and Meggins has `role: "protagonist"`. Morris is a supporting catalyst, the monkey's paw is an antagonistic force/object, and Maw and Meggins is a minor supporting entity.
-   - Evidence: `jq '.characters[].role' analysis.json` → all return "protagonist"
-   - Location: Role assignment in V2 character extraction pipeline or profiling.
-   - Fix: Role classification should distinguish protagonist (Mr./Mrs. White, Herbert) from supporting (Morris, Maw and Meggins) and antagonist (the monkey's paw). This may be an LLM prompt issue in role assignment.
-
-4. **monkey's paw `is_symbolic` should be `true`** [Identity Resolution]
-   - Problem: `is_symbolic: false` for the monkey's paw. It is a supernatural object/force, not a regular character. Marking it symbolic would help downstream logic (e.g., blocking human-descriptor aliases).
-   - Evidence: The paw is explicitly described as "a mummified talisman enchanted by a fakir."
-   - Location: V2 character extraction — symbolic entity detection.
-   - Fix: The pipeline's symbolic detection criteria may not fire for named objects. If it checked for non-human canonical names (object nouns like "paw", "ring", "clock"), it could set `is_symbolic=True`.
+4. **monkey's paw is_symbolic=False in final output** [Identity Resolution]
+   - Problem: Despite the prompt fix making is_symbolic=True during extraction (confirmed by pipeline notes: Rule 0.5 fired correctly), the final analysis.json shows `is_symbolic: false`.
+   - Evidence: Pipeline notes say "BLOCKED aliases: 'a cursed talisman' and 'the talisman' were blocked by Rule 0.5 (is_symbolic=True now active)". But final JSON has `is_symbolic: false`.
+   - Location: Something between extraction and final output is resetting is_symbolic. Check profiling stage in `src/analyzer.py` — the profile generation or character serialization may overwrite is_symbolic.
+   - Fix: Ensure is_symbolic is preserved through the entire pipeline. The profile generation step should not reset character metadata flags.
 
 ### MEDIUM
+5. **Role classification still wrong for Morris and monkey's paw** [Profiles]
+   - Problem: Morris (`role: "protagonist"`) should be "supporting" — he's a catalyst who appears only in Part I. monkey's paw (`role: "protagonist"`) should be "antagonist" — it's the supernatural force causing harm.
+   - Evidence: Morris delivers the paw and leaves; he doesn't drive the central conflict. The paw is the antagonistic force.
+   - Location: V2 character extraction role assignment in `src/pipeline/character_extraction_v2/main_cast.py` — the `CHARACTER_IDENTIFICATION_PROMPT` was updated in attempt 3 but roles are still wrong.
+   - Fix: The LLM may be ignoring role guidance. Consider: (a) a post-extraction role correction pass, or (b) stronger prompt emphasis. For a short story with 5 main characters, labeling all as "protagonist" suggests the LLM defaults to "protagonist" when uncertain.
 
-5. **Chapter 3 character list shows aliases alongside canonical names** [Presentation]
-   - Problem: Ch3 characters listed as: "the old man", "the old woman", "Mr. White". "The old man" is an alias of Mr. White (so Mr. White appears twice under different names), and "the old woman" is Mrs. White's alias but "Mrs. White" doesn't appear.
-   - Evidence: HTML report lines 914-924 show the Ch3 character tags.
-   - Location: Summary → character mapping in `src/analyzer.py` or HTML template generation. The summarizer used descriptors instead of canonical names in Ch3, and the pipeline didn't resolve them back.
+6. **monkey's paw → Mr. White relationship labeled "creator"** [Profiles]
+   - Problem: Mr. White did not create the monkey's paw. A holy fakir enchanted it. Morris brought it from India.
+   - Evidence: Text says the fakir put a spell on the paw; Morris acquired it in India.
+   - Location: Profile generation LLM output.
+   - Fix: Minor — may self-resolve with better is_symbolic handling.
+
+7. **Chapter 3 character tags show aliases alongside canonical names** [Presentation]
+   - Problem: Ch3 characters: "the old man", "the old woman", "Mr. White". "The old man" is Mr. White's alias (appears twice under different names), "the old woman" is Mrs. White's alias (but "Mrs. White" doesn't appear).
+   - Location: Chapter-to-character mapping in `src/analyzer.py` or HTML template. The summarizer used descriptors in Ch3 and the pipeline didn't resolve them to canonical names.
    - Fix: When building chapter character lists, resolve aliases to canonical names and deduplicate.
 
-6. **rubicund IPA stress incorrect** [Pronunciation]
-   - Problem: Listed as /ruːˈbɪkʌnd/ (stress on 2nd syllable) but standard pronunciation is /ˈruː.bɪ.kənd/ (stress on 1st syllable).
-   - Location: LLM-generated IPA in pronunciation enricher.
-   - Fix: Add "rubicund" to `KNOWN_IRREGULAR_IPA` in `src/pipeline/pronunciation/enricher.py` with correct IPA /ˈruː.bɪ.kənd/.
-
-7. **fakir/fakirs listed as separate entries with inconsistent IPA** [Pronunciation]
-   - Problem: "fakir" → /fəˈkɪər/ and "fakirs" → /ˈfɑː.kɪrz/. Different vowel patterns for the same root word, and the plural is redundant.
-   - Location: Pronunciation deduplication logic.
-   - Fix: Deduplicate singular/plural forms; use consistent IPA (standard: /fəˈkɪər/).
+8. **fakir/fakirs listed as separate pronunciation entries** [Pronunciation]
+   - Problem: "fakir" → /fəˈkɪər/ and "fakirs" → /fəˈkɪrz/ — different base vowel patterns for singular/plural.
+   - Location: Pronunciation deduplication in `src/pipeline/pronunciation/`.
+   - Fix: Deduplicate singular/plural forms.
 
 ### LOW
-
-8. **narrative_style is null** [Profiles]
-   - Problem: `narrative_style: null` instead of "third-person" or "third-person omniscient". Correct detection but null representation.
+9. **narrative_style is null** [Profiles]
+   - Problem: `narrative_style: null` instead of "third-person omniscient".
    - Location: Narrator detection in `src/analyzer.py`.
 
-9. **"Chapters have descriptive titles" label** [Presentation]
-   - Problem: HTML says "Chapters have descriptive titles" but "I.", "II.", "III." are Roman numeral markers, not descriptive titles.
-   - Location: HTML template generation logic that classifies title types.
+10. **"Chapters have descriptive titles" label** [Presentation]
+    - Problem: HTML says "Chapters have descriptive titles" but "I.", "II.", "III." are Roman numeral markers.
+    - Location: HTML template title classification logic.
+
+11. **condoled IPA uses non-standard symbol** [Pronunciation]
+    - Problem: /kənˈdōld/ uses /ō/ which is not standard IPA (should be /oʊ/ or /əʊ/).
+    - Location: LLM pronunciation output normalization.
+
+## Fix Priority for Attempt 5
+
+Focus on the two failing categories (Character Extraction and Character Profiles). The CRITICAL Herbert split (#1) is the highest-impact fix — resolving it will likely improve both categories by 1+ points each:
+
+1. **Fix Herbert White false split** — trace the `_parent` suffix logic in characters.py, understand why it fires for a single Herbert, and prevent false same-name splits when there's only one individual
+2. **Fix is_symbolic preservation** — ensure is_symbolic=True survives from extraction to final output
+3. **Check Morris relationship** — verify whether reject_unfounded_friend_labels is stripping a legitimate "friend" label
+4. **Fix Mrs. White→Herbert "daughter" relationship** — may self-resolve with #1, but verify
+
+If #1-#4 are fixed, Character Extraction should reach 8+ (no false split, correct symbolic flag) and Character Profiles should reach 8+ (correct relationships, Morris friendship).
 
 ## Fix History
 - Attempt 1 fix: Fixed two crash-level bugs in analyzer.py (CharacterMap constructor) and summarizer.py (undefined `text` variable)
 - Attempt 2 fix A: Added `roman_numeral_with_period` regex pattern to catch "I.", "II.", "III." section markers — CONFIRMED WORKING ✓
 - Attempt 2 fix B: Fixed `_are_different_titled_people()` Case 2 to block "Herbert White" as alias of "Mr. White" — CONFIRMED WORKING ✓
 - Attempt 2 fix C: Added Rule 1 blocked alias salvage logic for Mrs. White — CONFIRMED WORKING ✓
-- Attempt 3 fix: Improved `CHARACTER_IDENTIFICATION_PROMPT` to clarify `is_symbolic` usage:
-  - Extended Rule 1: "For non-human entities (objects, talismans, supernatural forces), set `is_symbolic: true`"
-  - Added note after output format: clarifies symbolic vs human characters
-  - Updated Rule 8 antagonist: "Characters or entities that work against or cause harm to the protagonists (villains, harmful supernatural forces/objects)"
-  - Updated Rule 8 supporting: "Important recurring characters, title characters, family members, catalysts who drive the plot without being the central focus"
-  - Root cause: LLM set is_symbolic=False for the monkey's paw, so verify_aliases Rule 0.5 never ran, allowing "the stranger"/"the visitor" (human descriptors from the Maw & Meggins scene) to pass as aliases of the paw
-  - Smoke test: PASS — with is_symbolic=True, Rule 0.5 blocks "the stranger" (noun "stranger" ≠ "paw") and "the visitor" (noun "visitor" ≠ "paw"), while allowing "the paw" (same noun)
-  - Addresses: CRITICAL alias issue + HIGH role classification issue
+- Attempt 3 fix: Improved `CHARACTER_IDENTIFICATION_PROMPT` for is_symbolic and role guidance — is_symbolic now True during extraction ✓, but roles still wrong and is_symbolic lost in output
 
 ## Modification History
 
@@ -110,37 +131,22 @@
 | 2→3 | Structure: "I.", "II.", "III." not detected | src/pipeline/chapter_detection/proposers/regex.py | Fixed ✓ (9/10) |
 | 2→3 | Characters: Herbert White false alias of Mr. White | src/pipeline/character_extraction_v2/main_cast.py | Fixed ✓ |
 | 2→3 | Characters: Mrs. White missing (dropped by Rule 1) | src/pipeline/character_extraction_v2/main_cast.py | Fixed ✓ |
-| 3→4 | Characters: is_symbolic=False → false aliases on paw | src/pipeline/character_extraction_v2/main_cast.py | Pending |
-| 3→4 | Profiles: all characters role="protagonist" | src/pipeline/character_extraction_v2/main_cast.py | Pending |
-
-## What Improved (Attempt 2 → 3)
-- Structure: 5/10 → 9/10 (3 parts correctly detected)
-- Characters: 4/10 → 7.5/10 (Mrs. White present, Herbert separated, Morris has full title)
-- Profiles: 5/10 → 7.5/10 (family relationships now correct)
-- Summaries: 7/10 → 9/10 (per-section summaries instead of single block)
-- Overall: 5.8/10 → 8.25/10
+| 3→4 | Characters: is_symbolic prompt guidance | src/pipeline/character_extraction_v2/main_cast.py | Partial — is_symbolic True during extraction but lost in output |
+| 3→4 | Characters: role classification prompt | src/pipeline/character_extraction_v2/main_cast.py | No change — roles still wrong |
+| 4→5 | Characters: Herbert White false split | src/pipeline/character_extraction_v2/characters.py (likely) | Pending |
+| 4→5 | Characters: is_symbolic lost in output | src/analyzer.py (likely) | Pending |
+| 4→5 | Profiles: Morris missing friend relationship | src/pipeline/post_corrections.py (likely) | Pending |
 
 ## Configuration Notes
 - Model: qwen3-next:80b-a3b-instruct-q8_0 (Ollama) for all agents
 - think_mode: false (correct for qwen3 family)
 - Temperature: 0.7 across all agents — may be too high for character extraction (consider 0.3-0.5)
-- No profiling quality concerns (0 retries, 0 JSON parse failures, all HIGH confidence)
-- Profile generation took 526s (8.7 min) — most expensive stage
+- No profiling quality concerns (0 retries across all stages)
+- Profile generation took 446s (7.4 min) — most expensive stage
 
 ## Output Files (Attempt 4)
 - HTML: ../output/monkeys_paw/report.html
 - JSON: ../output/monkeys_paw/analysis.json
 
-## Pipeline Notes (Attempt 4)
-- Run time: 17m 37s
-- BLOCKED aliases: "a cursed talisman" and "the talisman" were blocked by Rule 0.5 (is_symbolic=True now active for monkey's paw)
-- monkey's paw aliases: only "the monkey's paw" (no "the stranger" / "the visitor" — fix appears effective)
-- 7 characters found total (6 from extraction + Maw and Meggins from F6 + Herbert White from post-4.5.9)
-- Warning: "Herbert White (the father)" may have confusing canonical name — Herbert is the son
-- Warning: "Step 6.95 structural narrator fix failed: type object 'ChapterSummarizer' has no attribute '_fix_narrator_attribution'" (non-critical)
-- No pronunciation JSON parse failures
-- 1 low-confidence character profile (likely Maw and Meggins — no passages found)
-- Contradictory relationship removed: Mr. White↔Herbert White both labeled "parent" (non-symmetric, logically impossible)
-
 ## Next Action
-Evaluate attempt 4 output.
+Run PROMPT_fix.md to address Herbert White false split (Critical #1), is_symbolic preservation (#4), Morris relationships (#3), and Mrs. White relationship label (#2).
