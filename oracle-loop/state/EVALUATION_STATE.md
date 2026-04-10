@@ -3,36 +3,121 @@
 ## Active Text
 - **Name:** monkeys_paw
 - **Attempt:** 2
-- **Phase:** awaiting_evaluation
+- **Phase:** awaiting_fix
+- **baseline_score: 5.8**
 
 ## Latest Scores
-(Awaiting evaluation)
+- Structure Detection: 5/10 ✗
+- Character Extraction: 4/10 ✗
+  - Completeness: 5/10
+  - Identity Resolution: 3/10
+  - Alias Grouping: 4/10
+- Character Profiles: 5/10 ✗
+- Chapter Summaries: 7/10 ✗
+- Pronunciation Guide: 8/10 ✓
+- HTML Presentation: 8.5/10 ✓
+- **Overall: 5.8/10** (reference only)
+
+**Pass Criteria:** ALL categories must be >= 8.0
+**Status:** FAIL (4 categories below threshold)
 
 ## Score History
 | Attempt | Score | Delta from Baseline | Notes |
 |---------|-------|---------------------|-------|
 | 1 | FAIL | - | Pipeline crashed |
-| 2 | TBD | - | Completed 23m 20s — awaiting evaluation |
+| 2 | 5.8 | - | First successful run — baseline set |
 
-## Pipeline Errors (Attempt 1) — FIXED
-1. `LLM marker proposer returned non-list: <class 'dict'>` — non-critical warning, already handled by fallback in llm.py:232
-2. `Summarization failed for chapter 1: name 'text' is not defined` — **FIXED**: `_consolidate_chunks` in summarizer.py:858 referenced undefined `text` var; removed the unused kwarg (uses default `""`)
-3. `CharacterMap.__init__() got an unexpected keyword argument 'source_file'` — **FIXED**: Two fallback calls in analyzer.py:917 and 1142 passed invalid `source_file` kwarg; replaced with correct fields (`low_confidence_characters=[], total_mentions=0, total_chapters=0`)
+## Current Issues (Priority Order)
 
-## Pipeline Notes (Attempt 2)
-- Analysis completed in 23m 20s (exit code 0)
-- 4 characters found: Mr. White (aka Herbert White), the monkey's paw, Herbert White (aka Herbert), Morris
-- Mrs. White: detected, blocked as alias of Mr. White by Rule 0.4 (different titled people), then dropped — MISSING from output
-- Non-fatal warning: `Step 6.95 structural narrator fix failed: 'ChapterSummarizer' has no attribute '_fix_narrator_attribution'`
-- Pronunciation: 14 words flagged (9 unknown, 3 homograph, 2 proper noun)
-- Structure: treated as 1 chapter (no high-confidence boundaries found)
+### CRITICAL
 
-## Output Files
-- HTML: ../output/monkeys_paw/report.html (37794 bytes, Apr 10 12:26)
-- JSON: ../output/monkeys_paw/analysis.json (91330 bytes, Apr 10 12:26)
+1. **Mrs. White completely missing from character list** [Completeness, Identity Resolution]
+   - Problem: Mrs. White is a major character who drives the climactic action (demands the 2nd wish, rushes to open the door). She appears in the summary's "Characters" tag but is absent from the character list entirely.
+   - Evidence: The analysis notes from attempt 2 state she was "detected, blocked as alias of Mr. White by Rule 0.4 (different titled people), then dropped." Rule 0.4 correctly identified her as different from Mr. White, but she was not retained as a separate character.
+   - Location: V2 character extraction pipeline — likely `src/pipeline/character_extraction_v2/main_cast.py` or the orchestration code that handles rejected aliases. When an alias is blocked by Rule 0.4, the rejected name should be checked for independent character status.
+   - Fix: When Rule 0.4 (or any rule) blocks an alias because it identifies a DIFFERENT person, the pipeline should create or retain that name as an independent character rather than silently dropping it.
+
+2. **"Herbert White" falsely listed as alias of "Mr. White"** [Identity Resolution, Alias Grouping]
+   - Problem: Herbert White (the son, 14 mentions) is incorrectly assigned as an alias of Mr. White (the father, 12 mentions). They are father and son — distinct characters who share a surname.
+   - Evidence: `analysis.json` shows Mr. White (main_cast_0) has aliases: ["Herbert White"]. Meanwhile Herbert White also exists as a separate supporting character (supporting_0). This contradictory state means the alias was added but the character wasn't removed.
+   - Location: V2 alias resolution in `src/pipeline/character_extraction_v2/main_cast.py` — the LLM proposed "Herbert White" as alias of "Mr. White" and the pipeline accepted it despite them having different first names/titles.
+   - Fix: A name like "Herbert White" should NOT be accepted as alias of "Mr. White" — they share a surname but "Herbert" is not a title variant of "Mr." The pipeline should have a rule: if the existing canonical uses a title (Mr./Mrs./Dr.) and the proposed alias uses a different first name, they are likely different people.
+
+3. **3-part structure not detected** [Structure]
+   - Problem: The source text has clear section markers "I.", "II.", "III." at lines 45, 284, 411. The pipeline found no structure and treated the entire 3,954-word story as a single untitled chapter.
+   - Evidence: `grep -n "^I\.\|^II\.\|^III\." "Test_Texts/The_Monkey's_Paw.txt"` shows markers at lines 45, 284, 411.
+   - Location: Structure detection in `src/pipeline/chapter_detection/` — likely the regex patterns in marker detection don't match standalone Roman numeral markers like "I.", "II.", "III." on their own lines.
+   - Fix: Add regex pattern for standalone Roman numerals with period (e.g., `^(I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)\.\s*$`) as valid section markers.
+
+### HIGH
+
+4. **Herbert White classified as supporting instead of main** [Completeness]
+   - Problem: Herbert has 14 mentions (highest in the story) and is central to the plot — his death is the pivotal event. He's listed as supporting_0 instead of main cast.
+   - Evidence: `analysis.json` shows Herbert White with ID "supporting_0" despite having the most mentions of any character.
+   - Location: V2 pipeline main_cast vs supporting classification logic.
+   - Fix: May resolve naturally if the Herbert White alias issue (#2) is fixed, since his mentions would no longer be conflated with Mr. White's.
+
+5. **Morris missing full title "Sergeant-Major"** [Alias Grouping]
+   - Problem: Canonical name is just "Morris" but the text consistently uses "Sergeant-Major Morris." The title is important for narrator voice (military bearing).
+   - Evidence: `analysis.json` shows Morris (supporting_1) with no aliases. The summary correctly uses "Sergeant-Major Morris."
+   - Location: V2 character extraction — title detection or canonical name selection.
+   - Fix: Pipeline should prefer the full titled form "Sergeant-Major Morris" as canonical, or at minimum include it as an alias.
+
+6. **Mr. White's relationships are wrong/incomplete** [Profiles]
+   - Problem: Only relationship listed is "monkey's paw: creation" — which is semantically wrong (Mr. White didn't create the paw). Missing: Herbert (son), Mrs. White (wife), Morris (friend).
+   - Evidence: `analysis.json` shows `"relationships": {"the monkey's paw": "creation"}` for Mr. White.
+   - Location: Profile generation in `src/analyzer.py` — `_generate_character_profile()`.
+   - Fix: Relationship extraction needs to correctly identify family relationships from the text (explicit references to "his son Herbert", "his wife", "his old friend").
+
+### MEDIUM
+
+7. **Herbert White has zero relationships** [Profiles]
+   - Problem: No relationships listed despite being Mr. White's son and Mrs. White's son.
+   - Evidence: `analysis.json` shows `"relationships": {}` for Herbert White.
+   - Location: Profile generation — may improve if character extraction issues are fixed first.
+
+8. **Chapter summary is one block instead of three** [Summaries]
+   - Problem: The summary covers the entire story in one 170-word paragraph. A narrator would benefit from per-section summaries for each of the 3 parts.
+   - Evidence: Only 1 chapter-card in report.html.
+   - Depends on: Fix #3 (structure detection). Once 3 parts are detected, summaries will naturally split.
+
+9. **"rubicund" IPA stress likely incorrect** [Pronunciation]
+   - Problem: Listed as /ruːˈbɪkʌnd/ (stress on 2nd syllable) but standard pronunciation is /ˈruː.bɪ.kənd/ (stress on 1st syllable).
+   - Location: LLM-generated IPA in pronunciation enricher.
+
+10. **fakir/fakirs listed as separate entries** [Pronunciation]
+    - Problem: Both singular "fakir" and plural "fakirs" are listed separately with essentially the same IPA. This is redundant.
+    - Location: Pronunciation deduplication logic.
+
+### LOW
+
+11. **Grammar: "This book contains 1 chapters"** [Presentation]
+    - Problem: Should be "1 chapter" (singular).
+    - Location: HTML template generation.
+
+12. **Monkey's paw labeled "protagonist"** [Profiles]
+    - Problem: The monkey's paw is more accurately an antagonistic force/object, not a protagonist. It's the source of tragedy.
+    - Location: Role assignment in character extraction.
 
 ## Fix History
-- Attempt 1 fix: Fixed two crash-level bugs in analyzer.py and summarizer.py
+- Attempt 1 fix: Fixed two crash-level bugs in analyzer.py (CharacterMap constructor) and summarizer.py (undefined `text` variable)
 
-## Notes
-Attempt 2 completed successfully. Ready for evaluation.
+## Modification History
+
+| Attempt | Issue | Files Modified | Result |
+|---------|-------|----------------|--------|
+| 1→2 | Pipeline crash: summarizer `text` undefined | src/pipeline/summarizer.py | Fixed |
+| 1→2 | Pipeline crash: CharacterMap invalid kwargs | src/analyzer.py | Fixed |
+
+## Configuration Notes
+- Model: qwen3-next:80b-a3b-instruct-q8_0 (Ollama) for all agents
+- think_mode: false (correct for qwen3 family)
+- Temperature: 0.7 across all agents — may be too high for character extraction (consider 0.3-0.5)
+- No profiling quality concerns flagged
+
+## Next Action
+Run PROMPT_fix.md to address:
+1. **Priority 1**: Mrs. White missing — fix V2 pipeline to retain characters rejected from alias merge by Rule 0.4
+2. **Priority 2**: Herbert White false alias — add rule preventing "FirstName LastName" from being alias of "Title LastName" when first name ≠ title
+3. **Priority 3**: Structure detection — add Roman numeral standalone markers ("I.", "II.", etc.) to regex patterns
+4. Remaining issues (profiles, relationships) may improve naturally once character extraction is fixed

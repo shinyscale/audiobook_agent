@@ -7,80 +7,68 @@
         {
             "name": "monkeys_paw",
             "file": "Test_Texts/The_Monkey's_Paw.txt",
-            "complete": true,
-            "attempts": 4,
-            "final_score": 8.6
+            "complete": false,
+            "attempts": 2
         },
         {
             "name": "cask_of_amontillado",
             "file": "Test_Texts/The Cask of Amontillado - Poe.txt",
-            "complete": true,
-            "attempts": 2,
-            "final_score": 8.4
+            "complete": false,
+            "attempts": 0
         },
         {
             "name": "masque_of_red_death",
             "file": "Test_Texts/Masque of the Red Death - Poe.txt",
-            "complete": true,
-            "attempts": 2,
-            "final_score": 8.6
+            "complete": false,
+            "attempts": 0
         },
         {
             "name": "berenice",
             "file": "Test_Texts/Berenice - Poe.txt",
-            "complete": true,
-            "attempts": 1,
-            "final_score": 8.75
+            "complete": false,
+            "attempts": 0
         },
         {
             "name": "gift_of_the_magi",
             "file": "Test_Texts/The Gift of the Magi - O_Henry.txt",
-            "complete": true,
-            "attempts": 5,
-            "final_score": 8.7
+            "complete": false,
+            "attempts": 0
         },
         {
             "name": "a_camping_trip",
             "file": "Test_Texts/A Camping Trip.txt",
-            "complete": true,
-            "attempts": 5,
-            "final_score": 8.6
+            "complete": false,
+            "attempts": 0
         },
         {
             "name": "american_sir",
             "file": "Test_Texts/American Sir.txt",
             "complete": false,
-            "attempts": 26,
-            "final_score": 6.55,
-            "skipped": true,
-            "skip_reason": "Architecturally intractable same-name disambiguation (father/son both named John Donaldson) after 26 attempts. Score oscillated 5.8-8.0, never stable above threshold."
+            "attempts": 0
         },
         {
             "name": "john_g",
             "file": "Test_Texts/John G - Katherine Mayo.txt",
-            "complete": true,
-            "attempts": 4,
-            "final_score": 8.6
+            "complete": false,
+            "attempts": 0
         },
         {
             "name": "i_have_no_mouth",
             "file": "Test_Texts/I_Have_No_Mouth_And_I_Must_Scream.pdf",
-            "complete": true,
-            "attempts": 23,
-            "final_score": 8.6
+            "complete": false,
+            "attempts": 0
         },
         {
             "name": "gatsby",
             "file": "Test_Texts/gatsby.txt",
-            "complete": true,
-            "attempts": 24,
-            "final_score": 8.6
+            "complete": false,
+            "attempts": 0
         },
         {
             "name": "frankenstein",
             "file": "Test_Texts/Frankenstein_ebook.txt",
             "complete": false,
-            "attempts": 26
+            "attempts": 0
         },
         {
             "name": "dracula",
