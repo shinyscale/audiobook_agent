@@ -2,8 +2,8 @@
 
 ## Active Text
 - **Name:** monkeys_paw
-- **Attempt:** 2
-- **Phase:** awaiting_analysis
+- **Attempt:** 3
+- **Phase:** awaiting_evaluation
 - **baseline_score: 5.8**
 
 ## Latest Scores
@@ -128,9 +128,20 @@
 - Temperature: 0.7 across all agents — may be too high for character extraction (consider 0.3-0.5)
 - No profiling quality concerns flagged
 
+## Output Files (Attempt 3)
+- HTML: ../output/monkeys_paw/report.html
+- JSON: ../output/monkeys_paw/analysis.json
+
+## Pipeline Notes (Attempt 3)
+- 3 chapters detected ✓ (Roman numeral "I.", "II.", "III." fix confirmed working)
+- Mrs. White present as main character (26 mentions) ✓ (Rule 1 salvage fix confirmed working)
+- Herbert White listed separately from Mr. White (15 mentions, aliases: Herbert, the son) ✓
+- Sergeant-Major Morris with full title in aliases ✓
+- Contradictory relationships logged: Mr. White→Herbert White='child' AND Herbert White→Mr. White='child' (both sides assigned 'child' instead of parent/child)
+- "Step 6.95 structural narrator fix failed: type object 'ChapterSummarizer' has no attribute '_fix_narrator_attribution'" (minor)
+- 6 total characters including Maw and Meggins (added via F6 reconciliation)
+- the monkey's paw aliases include 'the stranger' (may be incorrect)
+- Run time: 18m 47s
+
 ## Next Action
-Re-run analysis on monkeys_paw (attempt 3). Fixes applied:
-1. Structure: "I.", "II.", "III." markers should now be detected → 3-part structure expected
-2. Characters: Herbert White should no longer be alias of Mr. White → separate extraction expected
-3. Characters: Mrs. White should now be created as separate character from Rule 1 salvage
-4. Profiles/relationships/summaries may improve naturally once structure + character extraction are fixed
+Evaluate attempt 3 output.
