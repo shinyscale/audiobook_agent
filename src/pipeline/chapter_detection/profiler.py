@@ -202,11 +202,21 @@ class DocumentProfiler:
 
         toc_text = text[toc_start:toc_end]
 
-        # Parse TOC entries
-        entries = self._parse_toc_entries(toc_text, toc_start)
+        # Parse TOC entries. _parse_toc_entries now reports the offset within
+        # toc_text of the last line that produced a valid entry; we use that to
+        # tighten toc_end when the initial region overshoots into body prose.
+        entries, consumed_rel = self._parse_toc_entries(toc_text, toc_start)
 
         if not entries:
             return None
+
+        tightened_toc_end = toc_start + consumed_rel
+        if tightened_toc_end < toc_end:
+            logger.info(
+                f"[DEBUG] TOC end tightened from {toc_end} to {tightened_toc_end} "
+                f"based on last valid TOC entry"
+            )
+            toc_end = tightened_toc_end
 
         # region agent log (chapter-i-null) - hypothesis I1
         try:
@@ -298,8 +308,12 @@ class DocumentProfiler:
         # Check for dates (commonly in metadata)
         if re.search(r"\b(19|20)\d{2}\b", line):
             return True
-        # Also reject very long lines (likely prose, not TOC)
-        if len(line) > 80:
+        # Also reject very long lines (likely prose, not TOC). Measure length
+        # AFTER collapsing dotted leaders, so legitimate entries like
+        # "Chapter 1: Title ................ 42" aren't rejected for having
+        # a long run of dots.
+        de_dotted = re.sub(r"\.{2,}|…+", " ", line)
+        if len(de_dotted) > 80:
             return True
         # Reject lines that are mostly numbers (page number lists, etc.)
         non_digits = re.sub(r"[\d\s\.\-]", "", line)
@@ -424,43 +438,107 @@ class DocumentProfiler:
 
         return entries
 
-    def _parse_toc_entries(self, toc_text: str, toc_start: int) -> list[TOCEntry]:
-        """Parse individual TOC entries."""
+    def _parse_toc_entries(
+        self, toc_text: str, toc_start: int
+    ) -> tuple[list[TOCEntry], int]:
+        """Parse individual TOC entries.
+
+        Returns (entries, consumed_chars). consumed_chars is the offset within
+        toc_text of the end of the last line that produced a valid entry; callers
+        can use it to tighten toc_end_position when the initial TOC region
+        overshoots into body prose.
+        """
         entries = []
 
-        # Skip the header line
-        lines = toc_text.split("\n")[1:]
-
+        lines = toc_text.split("\n")
+        # Compute absolute line-end offsets within toc_text (relative).
+        offsets = []
+        cursor = 0
         for line in lines:
+            line_end = cursor + len(line)
+            offsets.append(line_end)
+            cursor = line_end + 1  # +1 for the '\n' separator
+
+        # Skip the header line (index 0).
+        last_good_end = offsets[0] if offsets else 0
+        consecutive_non_entries = 0
+        # Tight limit: real TOCs are usually dense. A short run of non-TOC
+        # lines (blank-separated page numbers like "vii"/"viii", or a title
+        # page repeat) indicates we've left the TOC region and are heading
+        # into body matter that should not be parsed as TOC entries.
+        STREAK_LIMIT = 3
+
+        for i in range(1, len(lines)):
+            line = lines[i]
             line_stripped = line.strip()
             if not line_stripped:
                 continue
 
-            # Skip non-entry lines
             if line_stripped.lower() in ["table of contents", "contents"]:
                 continue
 
-            # Skip metadata lines
             if self._is_metadata_line(line_stripped):
                 logger.debug(f"TOC: skipping metadata line: {line_stripped[:50]}")
                 continue
 
-            # Try to parse as TOC entry
             entry = self._parse_toc_line(line, toc_start)
             if entry:
-                entries.append(entry)
+                # Expand range-style entries like "Chapter 1: to 22" into
+                # individual chapter entries so downstream chapter-count
+                # enforcement reflects the real count rather than just the
+                # number of range lines in the TOC.
+                range_match = re.match(
+                    r"^Chapter\s+(\d+)\s*:\s*to\s+(\d+)$",
+                    entry.title.strip(),
+                    re.IGNORECASE,
+                )
+                if range_match:
+                    start_n = int(range_match.group(1))
+                    end_n = int(range_match.group(2))
+                    if 0 < start_n <= end_n and end_n - start_n < 200:
+                        for n in range(start_n, end_n + 1):
+                            entries.append(
+                                TOCEntry(
+                                    title=f"Chapter {n}",
+                                    position_in_toc=toc_start,
+                                    page_number=entry.page_number if n == start_n else None,
+                                    level=entry.level,
+                                )
+                            )
+                        logger.info(
+                            f"TOC parser: expanded range '{entry.title}' into "
+                            f"{end_n - start_n + 1} individual entries"
+                        )
+                    else:
+                        entries.append(entry)
+                else:
+                    entries.append(entry)
+                last_good_end = offsets[i]
+                consecutive_non_entries = 0
+            else:
+                consecutive_non_entries += 1
+                if consecutive_non_entries >= STREAK_LIMIT:
+                    logger.info(
+                        f"TOC parser: stopping after {STREAK_LIMIT} consecutive "
+                        f"non-TOC lines at line {i} (rel offset {offsets[i]})"
+                    )
+                    break
 
-        # Validate and filter entries
         validated = self._validate_toc_entries(entries)
 
-        return validated
+        return validated, last_good_end
 
     def _parse_toc_line(self, line: str, base_position: int) -> Optional[TOCEntry]:
-        """Parse a single TOC line."""
-        # Common TOC formats:
-        # "Chapter 1..........15"
-        # "I. The Beginning   1"
-        # "Part One"
+        """Parse a single TOC line.
+
+        A line is only accepted as a TOC entry if it carries at least one
+        TOC-like signal: dotted leaders, a trailing page number, a structural
+        keyword (Part/Chapter/Prologue/Epilogue/Glossary/etc.), or a standalone
+        Roman/Arabic numeral. This prevents body prose from being parsed as
+        TOC entries when the TOC region overshoots the real TOC.
+        """
+        # Detect dotted-leader signal BEFORE we strip them out.
+        has_dotted_leaders = bool(re.search(r"\.{2,}|…+", line))
 
         # Strip leader dots and extra spaces
         cleaned = re.sub(r"\.{2,}|…+", "  ", line)
@@ -480,9 +558,32 @@ class DocumentProfiler:
 
         title = " ".join(parts)
 
-        # Filter out lines that don't look like chapter entries
-        # Allow single-character Roman numerals (I, V, X, L, C, D, M)
+        # Signals that this is actually a TOC entry.
         is_roman_numeral = bool(re.match(r"^[IVXLCDM]+$", title))
+        is_standalone_number = bool(re.match(r"^\d+$", title)) and int(title) <= 200
+        is_structural = bool(
+            re.match(
+                r"^(Part|Chapter|CHAPTER|PART|Book|BOOK|Volume|VOLUME|"
+                r"Prologue|PROLOGUE|Epilogue|EPILOGUE|Foreword|FOREWORD|"
+                r"Preface|PREFACE|Introduction|INTRODUCTION|"
+                r"Acknowledg(e)?ments?|ACKNOWLEDG(E)?MENTS?|Dedication|DEDICATION|"
+                r"Appendix|APPENDIX|Glossary|GLOSSARY|Index|INDEX|"
+                r"Bibliography|BIBLIOGRAPHY|Notes|NOTES|Contents|CONTENTS|"
+                r"About the Author|ABOUT THE AUTHOR|Afterword|AFTERWORD)\b",
+                title,
+            )
+        )
+        has_toc_signal = (
+            has_dotted_leaders
+            or page_num is not None
+            or is_structural
+            or is_roman_numeral
+            or is_standalone_number
+        )
+        if not has_toc_signal:
+            return None
+
+        # Length sanity checks.
         if len(title) > 100:
             return None
         if len(title) < 2 and not is_roman_numeral:
