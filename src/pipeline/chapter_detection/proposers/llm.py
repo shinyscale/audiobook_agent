@@ -217,16 +217,30 @@ class LLMMarkerProposer(BaseProposer):
             )
             return []
 
-        # Unwrap dict responses: some models return {"markers": [...]} instead of bare [...]
+        # Unwrap dict responses. Different models return different shapes when
+        # the prompt asks for a JSON array:
+        #   - {"markers": [...]}                wrapper key (most common)
+        #   - {"marker_text": ..., "title": ...}   single marker not in a list
+        #   - {"error": "..."} / {"message": "..."}   explanation when none found
+        #   - {"other_key": [...]}              wrapper with unexpected key name
         if isinstance(result, dict):
             if "markers" in result and isinstance(result["markers"], list):
                 result = result["markers"]
+            elif "marker_text" in result:
+                # Single marker returned as a bare dict — wrap into a one-item list.
+                result = [result]
+            elif any(isinstance(v, list) for v in result.values()):
+                # Wrapper dict with a differently named list field.
+                result = next(v for v in result.values() if isinstance(v, list))
             else:
-                # Fall back to first list-valued key
-                for key, value in result.items():
-                    if isinstance(value, list):
-                        result = value
-                        break
+                # No list values anywhere — the model returned an explanation
+                # ("error" / "message" / refusal). Treat as empty marker set so
+                # the pipeline falls back cleanly to regex proposals.
+                logger.debug(
+                    f"LLM marker proposer: no markers found "
+                    f"(keys={list(result.keys())[:5]})"
+                )
+                return []
 
         if not isinstance(result, list):
             logger.warning(f"LLM marker proposer returned non-list: {type(result)}")
