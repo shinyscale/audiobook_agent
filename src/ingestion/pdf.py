@@ -142,6 +142,21 @@ class PDFIngester(DocumentIngester):
         # Join all pages
         full_text = "\n\n".join(t for t in page_texts if t.strip())
 
+        # Remove mid-page repeating headers. Some PDFs place running headers
+        # (author name, book title) in the middle of the extracted text rather
+        # than the first/last lines of each page, depending on how pdfplumber
+        # collates text. _identify_repeating_lines above only looks at page
+        # edges and misses these. This catches them by scanning the joined
+        # text for short alphabetic lines that repeat far above the noise floor.
+        mid_page_repeats = self._identify_mid_page_repeats(full_text, page_count)
+        if mid_page_repeats:
+            for line in mid_page_repeats:
+                # Match the line surrounded by newline separators to avoid
+                # eating substrings that happen inside body text.
+                pattern = r"(?m)^[ \t]*" + re.escape(line) + r"[ \t]*\n"
+                full_text = re.sub(pattern, "", full_text)
+                warnings.append(f"Removed repeating mid-page header: {line[:60]}")
+
         # Normalize if requested
         if self.normalize_whitespace:
             full_text = self._normalize_text(full_text)
@@ -254,6 +269,51 @@ class PDFIngester(DocumentIngester):
         ]
 
         return repeating_headers, repeating_footers
+
+    def _identify_mid_page_repeats(self, full_text: str, page_count: int) -> list[str]:
+        """Find short alphabetic lines that repeat far more often than any
+        legitimate phrase would, suggesting a running header that landed in
+        the middle of the text rather than at a detected page edge.
+
+        Threshold: a line must appear at least 30% of page_count times (and
+        at least 20 times absolute) to be removed. Must also contain letters
+        and be under 60 characters — this preserves scene-break rules like
+        '-----' and short repeated dialogue tags like '"Roger that."'.
+        """
+        if page_count < 10:
+            return []  # Too few pages to judge
+
+        threshold = max(20, int(page_count * HEADER_FOOTER_REPEAT_THRESHOLD * 0.5))
+
+        line_counts: Counter[str] = Counter()
+        for raw_line in full_text.split("\n"):
+            line = raw_line.strip()
+            if not line or len(line) > 60:
+                continue
+            # Must contain at least one letter — preserves scene breaks
+            # ("-----", "***", "..."), numeric-only footers, etc.
+            if not any(c.isalpha() for c in line):
+                continue
+            line_counts[line] += 1
+
+        # Patterns that look structural and should never be treated as noise
+        # even if they happen to repeat (defensive — unlikely to trigger).
+        structural_re = re.compile(
+            r"^(Chapter|CHAPTER|Part|PART|Book|BOOK|Prologue|Epilogue|"
+            r"Preface|Foreword|Introduction|Afterword|Glossary|Appendix|"
+            r"Acknowledg|Bibliography|Dedication|Index|Notes)\b",
+            re.IGNORECASE,
+        )
+
+        repeats = []
+        for line, count in line_counts.items():
+            if count < threshold:
+                continue
+            if structural_re.match(line):
+                continue
+            repeats.append(line)
+
+        return repeats
 
     def _remove_header_footer_lines(
         self, page_texts: list[str], headers_to_remove: list[str], footers_to_remove: list[str]

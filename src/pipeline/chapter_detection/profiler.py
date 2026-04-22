@@ -462,11 +462,12 @@ class DocumentProfiler:
         # Skip the header line (index 0).
         last_good_end = offsets[0] if offsets else 0
         consecutive_non_entries = 0
-        # Tight limit: real TOCs are usually dense. A short run of non-TOC
-        # lines (blank-separated page numbers like "vii"/"viii", or a title
-        # page repeat) indicates we've left the TOC region and are heading
-        # into body matter that should not be parsed as TOC entries.
-        STREAK_LIMIT = 3
+        # Tight limit: real TOCs are usually dense. Two consecutive non-TOC
+        # lines (e.g. front-matter page numbers "vii"/"viii") is enough signal
+        # that we've left the TOC region; any lines after that are body matter
+        # which may structurally resemble TOC entries ("Part 1: The FNG",
+        # "Chapter 1: The Briefing") but must not be added.
+        STREAK_LIMIT = 2
 
         for i in range(1, len(lines)):
             line = lines[i]
