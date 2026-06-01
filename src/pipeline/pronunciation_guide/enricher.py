@@ -132,9 +132,10 @@ KNOWN_IRREGULAR_IPA: dict[str, PronunciationEnrichment] = {
 
 ENRICHER_SYSTEM_PROMPT = """You are an expert phonetician helping audiobook narrators with pronunciation.
 
-CRITICAL: Base your pronunciation guidance ONLY on standard phonetic rules.
-Do NOT use any prior knowledge about how specific characters in famous novels are pronounced.
-If you recognize a character name from a famous work, provide standard phonetic guidance based on spelling alone.
+Use whatever phonological knowledge you have, including knowledge of how words from
+non-English languages (German, French, Italian, Latin, etc.) are pronounced. If a word
+comes from a famous literary work and you know how it is conventionally pronounced,
+you may use that knowledge — the goal is precision, not philosophical purity.
 
 For each word, provide:
 1. IPA transcription using International Phonetic Alphabet notation
