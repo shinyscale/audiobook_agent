@@ -278,6 +278,19 @@ class NarratorDetector:
         is_nested = result.get("is_nested", False)
         nested_narrators = result.get("nested_narrators", [])
 
+        # Third-person and omniscient narratives have no narrator CHARACTER,
+        # even if the LLM helpfully suggests one. Multi-POV books trip this
+        # because the LLM picks whichever POV character dominates summaries.
+        # Nested narratives (epistolary frames around third-person interior
+        # stories) can still have a frame narrator, so leave them alone.
+        if pov in ("third-person", "omniscient") and not is_nested:
+            if narrator_name:
+                logger.info(
+                    f"Dropping LLM-suggested narrator '{narrator_name}' "
+                    f"because pov={pov} (no narrator character on multi-POV books)"
+                )
+            narrator_name = None
+
         # Match narrator to main cast character
         narrator_id = None
         if narrator_name:
