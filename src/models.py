@@ -119,6 +119,11 @@ class Character(BaseModel):
     # Plot-central symbolic objects/forces (allowed in main cast when configured by prompts)
     is_symbolic: bool = False
 
+    # Voicing signal — populated at conversion time from mention contexts.
+    # False = no dialogue evidence found = candidate for background_references
+    # bucket (historical figures, name-drops in narration, etc.).
+    has_dialogue: bool = False
+
 
 class PronunciationEntry(BaseModel):
     """A word flagged for pronunciation attention."""
@@ -254,6 +259,10 @@ class AnalysisResult(BaseModel):
     metadata: BookMetadata
     structure: list[StructuralElement] = Field(default_factory=list)
     characters: list[Character] = Field(default_factory=list)
+    # Mentioned-but-not-voiced figures (historical references, name-drops in
+    # narrator commentary). Kept so the narrator can be informed when they
+    # appear, but not surfaced as voiceable cast members.
+    background_references: list[Character] = Field(default_factory=list)
     pronunciations: list[PronunciationEntry] = Field(default_factory=list)
     glossary: Optional[GlossaryMap] = None
 

@@ -105,6 +105,35 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+# Quote characters that indicate dialogue / quoted speech in narrative text.
+# Covers straight + curly singles/doubles + low-9 + french guillemets.
+_DIALOGUE_QUOTE_CHARS = "\"'“”‘’‚„«»"
+
+
+def _detect_has_dialogue_from_contexts(pc) -> bool:
+    """Return True if any mention's context contains a quote character.
+
+    Used to partition the cast list into voiced characters (who get a
+    character brief + voice sample slot) and background_references (historical
+    figures, name-drops in narration that the narrator doesn't voice).
+
+    The check is intentionally permissive — one quote anywhere in any mention
+    context is enough. False positives (narrative quoting a character) are
+    rare; false negatives (a speaking character whose mention contexts
+    happen to all miss the quote) are correctable later but would silently
+    drop them otherwise.
+    """
+    mentions = getattr(pc, "mentions", None) or []
+    for m in mentions:
+        ctx = getattr(m, "context", None) or ""
+        if any(q in ctx for q in _DIALOGUE_QUOTE_CHARS):
+            return True
+        # Some pipeline stages set in_dialogue/is_agentive — honor them when present.
+        if getattr(m, "in_dialogue", False) or getattr(m, "is_agentive", False):
+            return True
+    return False
+
+
 # Character profile system prompt for evidence-based generation
 CHARACTER_PROFILE_SYSTEM = """You are a literary analyst creating evidence-based character profiles for audiobook narration.
 
@@ -3887,10 +3916,36 @@ class AudiobookAnalyzer:
                     _narrator_char_id = _oc.id
                     break
 
+        # Partition: characters with no dialogue evidence and no narrator/
+        # protagonist/antagonist role are background references (historical
+        # figures, name-drops in narrator commentary). They get exported but
+        # not surfaced as voiceable cast — see has_dialogue on Character.
+        # Runs after safety-net + OutputCharacterCorrector so all character
+        # additions/corrections are partitioned together.
+        _voiced_cast: list[OutputCharacter] = []
+        background_references: list[OutputCharacter] = []
+        for _ch in characters:
+            _keep_in_cast = (
+                getattr(_ch, "has_dialogue", False)
+                or getattr(_ch, "is_narrator", False)
+                or _ch.role in ("protagonist", "antagonist")
+            )
+            if _keep_in_cast:
+                _voiced_cast.append(_ch)
+            else:
+                background_references.append(_ch)
+        if background_references:
+            logger.info(
+                f"Partitioned {len(background_references)} background references "
+                f"from {len(characters)} total characters (no dialogue evidence)"
+            )
+        characters = _voiced_cast
+
         result = AnalysisResult(
             metadata=metadata,
             structure=structure,
             characters=characters,
+            background_references=background_references,
             pronunciations=pronunciations,
             glossary=glossary_map,
             overview=overview,
@@ -5732,6 +5787,12 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
             # Extract evidence from pipeline character
             evidence = getattr(pc, "profile_evidence", [])
 
+            # Voicing signal: any mention context contains adjacent quoted
+            # speech => character is voiced. The pipeline's in_dialogue /
+            # is_agentive fields are declared but never populated by current
+            # extraction code, so we compute from raw context strings.
+            has_dialogue = _detect_has_dialogue_from_contexts(pc)
+
             characters.append(
                 OutputCharacter(
                     id=pc.id,
@@ -5750,6 +5811,7 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
                     role=getattr(pc, "role", None),
                     relationships=getattr(pc, "relationships", {}),
                     is_symbolic=getattr(pc, "is_symbolic", False),
+                    has_dialogue=has_dialogue,
                 )
             )
 
