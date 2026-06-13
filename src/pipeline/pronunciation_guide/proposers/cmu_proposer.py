@@ -683,6 +683,27 @@ CONTRACTION_FRAGMENTS = {
     "d",
 }
 
+# Closed-class function words that, when glued to the FRONT of a real word, signal
+# a missing space (e.g. "dosomething" = do + something, "bygrunts" = by + grunts).
+# Deliberately closed-class only — content words ("pink", "name") would create false
+# positives against real compounds and surnames.
+_ARTIFACT_FUNCTION_PREFIXES = frozenset({
+    "do", "of", "up", "an", "by", "to", "we", "it", "no", "us", "as", "be",
+    "is", "or", "at", "in", "on", "me", "my", "if", "he", "a", "i", "the",
+    "and", "for", "so", "then",
+})
+
+# Common verbs / adverbs / conjunctions that a proper name would never legitimately
+# be glued to — when one is the trailing segment, the token is a missing-space
+# artifact (e.g. "Beckmanstated" = Beckman + stated, "Calleyand" = Calley + and).
+# Superset of the original inline `common_suffixes` list below.
+_ARTIFACT_COMMON_SUFFIXES = frozenset({
+    "and", "was", "were", "stated", "said", "pointed", "worked", "admirably",
+    "replied", "asked", "told", "went", "came", "looked", "with", "from",
+    "into", "upon", "over", "then", "when", "that", "noted", "added",
+    "agreed", "nodded", "smiled",
+})
+
 
 class CMUProposer(BasePronunciationProposer):
     """Proposes words not found in CMU pronunciation dictionary."""
@@ -702,6 +723,22 @@ class CMUProposer(BasePronunciationProposer):
         self.min_word_length = min_word_length
         self.min_occurrences = min_occurrences
         self.known_words = self._load_cmu_dict()
+        self._wordsegment = self._load_wordsegment()
+
+    def _load_wordsegment(self):
+        """Load the wordsegment module (loads its unigram/bigram tables once).
+
+        Returns the module if available, else None so artifact detection degrades
+        gracefully to the cheap prefix/suffix tier (mirrors the CMU ImportError path).
+        """
+        try:
+            import wordsegment
+
+            wordsegment.load()
+            return wordsegment
+        except ImportError:
+            logger.warning("wordsegment library not available, merged-word detection limited")
+            return None
 
     def _load_cmu_dict(self) -> Set[str]:
         """Load words from CMU dictionary via pronouncing library."""
@@ -784,6 +821,36 @@ class CMUProposer(BasePronunciationProposer):
                         f"Detected OCR artifact: '{word}' = '{prefix}' + '{suffix}'"
                     )
                     return True
+
+        # Tier 2: wordsegment-backed detection for merges the cheap checks above miss
+        # (e.g. "Beckmanstated", "Mahoneypointed", "Kowalskiadmirably", "ofkitchen").
+        # Two conservative discriminators, each requiring a curated function/common word
+        # on one side so legitimate names ("Silkowski", "Pinkville") are never split.
+        if self._wordsegment is None:
+            return False
+        if len(word_lower) < 6 or "-" in word_lower or "'" in word_lower:
+            return False
+        parts = self._wordsegment.segment(word_lower)
+        if len(parts) < 2:
+            return False
+
+        # Case A — function-word PREFIX glued to a real word: "dosomething", "bygrunts"
+        head = parts[0]
+        remainder = "".join(parts[1:])
+        if (
+            head in _ARTIFACT_FUNCTION_PREFIXES
+            and len(remainder) >= 3
+            and (remainder in self.known_words or remainder in COMMON_WORDS_WHITELIST)
+        ):
+            logger.debug(f"Detected OCR artifact (segment): '{word}' = '{head}' + '{remainder}'")
+            return True
+
+        # Case B — name + common verb/adverb/conjunction SUFFIX: "Beckmanstated", "Calleyand"
+        tail = parts[-1]
+        prefix = "".join(parts[:-1])
+        if tail in _ARTIFACT_COMMON_SUFFIXES and len(prefix) >= 3:
+            logger.debug(f"Detected OCR artifact (segment): '{word}' = '{prefix}' + '{tail}'")
+            return True
 
         return False
 

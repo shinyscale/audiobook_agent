@@ -98,11 +98,22 @@ class PronunciationAgent(Agent):
     def recommended_models(self) -> list[str]:
         return ["qwen2.5:32b", "qwen2.5:14b", "llama3.2"]
 
-    def _get_pipeline(self) -> PronunciationGuidePipeline:
-        """Get or create the pronunciation pipeline."""
-        if self._pipeline is None:
+    def _get_pipeline(
+        self,
+        glossary_entries: Optional[list] = None,
+        body_range: Optional[tuple] = None,
+    ) -> PronunciationGuidePipeline:
+        """Get or create the pronunciation pipeline.
+
+        Rebuilt when glossary/body_range are supplied so the Glossary and Entity
+        proposers receive their data (the default proposer list is fixed at
+        construction time).
+        """
+        if self._pipeline is None or glossary_entries is not None or body_range is not None:
             self._pipeline = PronunciationGuidePipeline(
                 llm_client=self._llm_client,
+                glossary_entries=glossary_entries,
+                body_range=body_range,
             )
         return self._pipeline
 
@@ -142,7 +153,9 @@ class PronunciationAgent(Agent):
                 provider_used=provider_used,
             )
 
-        pipeline = self._get_pipeline()
+        glossary_entries = context.metadata.get("glossary_entries")
+        body_range = context.metadata.get("body_range")
+        pipeline = self._get_pipeline(glossary_entries=glossary_entries, body_range=body_range)
         pronunciation_map, _ = pipeline.run(
             full_text=context.text,
             chapter_map=context.chapter_map,

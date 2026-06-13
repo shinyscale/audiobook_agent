@@ -363,6 +363,10 @@ class PronunciationMap:
             # contain character names that are still needed for body narration.
             if entry.flag_reason == PronunciationFlag.CHARACTER:
                 return True
+            # Glossary-sourced terms live in back matter (the glossary itself) yet
+            # are exactly what the narrator needs; never filter them by position.
+            if "glossary" in (entry.supporting_strategies or []):
+                return True
             return body_start <= entry.first_position < body_end
 
         # Filter entries

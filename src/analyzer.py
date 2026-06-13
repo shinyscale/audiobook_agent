@@ -728,9 +728,13 @@ class AudiobookAnalyzer:
                     if pron_llm and pron_llm.config:
                         ctx.set_model(pron_llm.config.model, pron_llm.config.provider)
 
+                    pron_body_range = self._body_range_from_regions(doc)
+                    pron_glossary = doc.glossary.entries if doc.glossary else None
                     pronunciation_pipeline = PronunciationGuidePipeline(
                         llm_client=pron_llm,
                         progress_callback=self._wrap_progress("Pronunciation Guide"),
+                        glossary_entries=pron_glossary,
+                        body_range=pron_body_range,
                     )
                     pron_map, _ = pronunciation_pipeline.run(
                         doc.text, chapter_map, None, source_file=str(file_path)
@@ -3273,15 +3277,20 @@ class AudiobookAnalyzer:
                 if pron_llm and pron_llm.config:
                     ctx.set_model(pron_llm.config.model, pron_llm.config.provider)
 
+                pron_body_range = self._body_range_from_regions(doc)
+                pron_glossary = doc.glossary.entries if doc.glossary else None
                 pronunciation_pipeline = PronunciationGuidePipeline(
                     llm_client=pron_llm,
                     progress_callback=self._wrap_progress("Pronunciation Guide"),
+                    glossary_entries=pron_glossary,
+                    body_range=pron_body_range,
                 )
                 pron_map, _ = pronunciation_pipeline.run(
                     doc.text, chapter_map, pipeline_char_map, source_file=str(file_path)
                 )
 
-                # Filter out front/back matter entries
+                # Filter out front/back matter entries (glossary-sourced and
+                # character entries are exempted inside filter_by_body_region)
                 pron_map = self._filter_pronunciation_by_body(pron_map, doc)
 
                 # Record confidence metrics
@@ -5802,6 +5811,21 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
                         f"role={char.role}"
                     )
                     return
+
+    @staticmethod
+    def _body_range_from_regions(doc) -> Optional[tuple]:
+        """Return (start, end) of the BODY region, or None if unavailable.
+
+        Used to restrict the pronunciation EntityProposer's place-name detection
+        to the narrative body (skipping front/back matter).
+        """
+        regions = getattr(doc, "regions", None)
+        if not regions:
+            return None
+        body = [r for r in regions if r.region_type == RegionType.BODY]
+        if not body:
+            return None
+        return (body[0].start_position, body[0].end_position)
 
     @staticmethod
     def _clip_chapters_to_body(chapter_map, back_matter_start: int) -> int:

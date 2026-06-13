@@ -393,10 +393,23 @@ class RegionDetector:
                 # Look for a logical boundary (paragraph break or section end)
                 match_start = offset + match.start()
 
-                # Special handling for glossary: extend to end of section
-                # since glossaries contain many term/definition pairs separated by newlines
+                # Special handling for glossary: a glossary runs as many term/definition
+                # pairs separated by newlines, so it has no internal double-newline
+                # boundary. End it at the EARLIEST other back-matter heading that begins
+                # strictly after the glossary heading (afterword, bibliography/endnotes,
+                # acknowledgements, index, about-the-author) — otherwise the glossary
+                # swallows those sections and their lines parse as bogus glossary terms.
+                # Fall back to end of section when nothing follows.
                 if label == "glossary":
-                    match_end = offset + len(section_text)
+                    glossary_match_end = match.end()
+                    next_section_start = len(section_text)
+                    for other_pat, other_label, _ in patterns:
+                        if other_label == "glossary":
+                            continue
+                        m2 = other_pat.search(section_text, glossary_match_end)
+                        if m2 and m2.start() < next_section_start:
+                            next_section_start = m2.start()
+                    match_end = offset + next_section_start
                 else:
                     # Find end of section (next double newline or end of section)
                     search_start = match.end()

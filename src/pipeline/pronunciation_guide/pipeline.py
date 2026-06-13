@@ -24,7 +24,9 @@ from .proposers import (
     BasePronunciationProposer,
     CharacterProposer,
     CMUProposer,
+    EntityProposer,
     ForeignProposer,
+    GlossaryProposer,
     HomographProposer,
 )
 from .word_index import WordIndex
@@ -55,11 +57,14 @@ class PronunciationGuidePipeline:
         enrichment_max_workers: int = 4,
         enrichment_max_retries: int = 3,
         parallel_enrichment: bool = True,
+        glossary_entries: Optional[list] = None,
+        body_range: Optional[tuple[int, int]] = None,
     ):
         """
         Args:
             llm_client: LLM client for enrichment (optional)
-            proposers: List of proposers (default: CMU, Foreign, Homograph, Character)
+            proposers: List of proposers (default: CMU, Foreign, Homograph, Character,
+                Entity, Glossary)
             checkpoint_dir: Directory for saving checkpoints
             progress_callback: Callback(stage, current, total) for progress updates
             word_index_enabled: Enable single-pass word indexing for faster proposals
@@ -67,6 +72,10 @@ class PronunciationGuidePipeline:
             enrichment_max_workers: Concurrent LLM enrichment workers (default 4)
             enrichment_max_retries: Max retry attempts for failed batches (default 3)
             parallel_enrichment: Enable parallel LLM enrichment (default True)
+            glossary_entries: Extracted glossary entries (term/definition); each
+                becomes a guaranteed pronunciation entry via GlossaryProposer.
+            body_range: (start, end) of the narrative body, used by EntityProposer
+                to restrict place-name detection to the story.
         """
         self.llm = llm_client
         self.checkpoint_dir = checkpoint_dir
@@ -84,6 +93,10 @@ class PronunciationGuidePipeline:
                 # Share CMU known_words so CharacterProposer skips standard-pronunciation
                 # character name words (e.g., "Price", "Sergeant") that a narrator knows.
                 CharacterProposer(cmu_known_words=cmu_proposer.known_words),
+                # Multi-word foreign place names (e.g. "Chu Lai") via spaCy NER.
+                EntityProposer(body_range=body_range),
+                # Author-flagged glossary terms — always included regardless of CMU.
+                GlossaryProposer(glossary_entries=glossary_entries),
             ]
         else:
             self.proposers = proposers

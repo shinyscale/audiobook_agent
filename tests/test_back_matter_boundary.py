@@ -58,6 +58,54 @@ class TestDetectRegionsUsesBoundary:
         assert text.find("Charlie Varon") >= body.end_position
 
 
+class TestGlossaryBoundary:
+    """The glossary region must end at the next back-matter heading, not EOF,
+    so bibliography/afterword/acknowledgement lines don't parse as glossary terms.
+    """
+
+    def _glossary_region(self, text, chapters):
+        regions = detect_document_regions(text, chapters)
+        gloss = [r for r in regions if r.label == "glossary"]
+        return gloss[0] if gloss else None
+
+    def test_glossary_ends_at_following_bibliography(self):
+        story = "Combat narrative. " * 3000
+        gloss = "\n\nGlossary\nNVA: North Vietnamese Army.\nLZ: landing zone.\nFNG: a new arrival.\n"
+        # The following section must be long enough to push the glossary heading
+        # comfortably before EOF (the region detector ignores back matter in the
+        # final 500 chars), mirroring a real book's multi-KB bibliography.
+        biblio = "\n\nBibliography\n" + ("Karnow, Stanley. Vietnam. New York. " * 40)
+        text = story + gloss + biblio
+        chapters = [{"start_pos": 0, "end_pos": len(text), "title": "Last"}]
+        region = self._glossary_region(text, chapters)
+        biblio_pos = text.find("Bibliography")
+        assert region is not None
+        assert region.end_position <= biblio_pos
+        # the bibliography author must fall outside the glossary region
+        assert text.find("Karnow") >= region.end_position
+
+    def test_glossary_ends_at_following_afterword(self):
+        story = "Patrol moved out. " * 3000
+        text = (
+            story
+            + "\n\nGlossary\nKIA: killed in action.\nWIA: wounded.\nKlick: a kilometer.\n"
+            + "\n\nAfterword\n" + ("The author reflects on the war. " * 40)
+        )
+        chapters = [{"start_pos": 0, "end_pos": len(text), "title": "Last"}]
+        region = self._glossary_region(text, chapters)
+        after_pos = text.find("Afterword")
+        assert region is not None and region.end_position <= after_pos
+
+    def test_glossary_extends_to_eof_when_nothing_follows(self):
+        story = "The squad advanced. " * 3000
+        # Pad the glossary itself so its heading sits >500 chars before EOF.
+        gloss = "\n\nGlossary\n" + ("NVA: North Vietnamese Army, the regular army. " * 30)
+        text = story + gloss
+        chapters = [{"start_pos": 0, "end_pos": len(text), "title": "Last"}]
+        region = self._glossary_region(text, chapters)
+        assert region is not None and region.end_position == len(text)
+
+
 class TestClipChaptersToBody:
     class _Ch:
         def __init__(self, i, sp, ep):
