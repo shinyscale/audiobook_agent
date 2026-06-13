@@ -134,6 +134,37 @@ def _detect_has_dialogue_from_contexts(pc) -> bool:
     return False
 
 
+# A character relegated to background_references is exported but not surfaced as
+# voiceable cast. Mentions below this count, with no other presence signal, mark
+# a name-drop (historical figure, passing reference) rather than a participant.
+_BACKGROUND_MENTION_CEILING = 6
+
+
+def is_background_reference(ch) -> bool:
+    """True only when EVERY signal of narrative presence is absent.
+
+    A background reference is a name the narrative refers to but who does not
+    participate — a historical figure or name-drop. We relegate conservatively:
+    has_dialogue is too unreliable to gate on alone (the CRF attributor often
+    leaves it unset and the context-quote fallback yields false negatives for
+    real speakers), so a character is kept in the voiceable cast if ANY of these
+    hold — narrator, lead/main role, dialogue evidence, recurring mentions,
+    profiler-found substance (evidence or descriptions), or LLM main-cast
+    extraction. Only when none hold is it a true name-drop.
+    """
+    has_substance = bool(getattr(ch, "evidence", None)) or bool(
+        getattr(ch, "descriptions", None)
+    )
+    return (
+        not getattr(ch, "is_narrator", False)
+        and not getattr(ch, "has_dialogue", False)
+        and getattr(ch, "role", None) not in ("protagonist", "antagonist", "main")
+        and (getattr(ch, "mention_count", 0) or 0) < _BACKGROUND_MENTION_CEILING
+        and not has_substance
+        and not str(getattr(ch, "id", "")).startswith("main_cast_")
+    )
+
+
 # Character profile system prompt for evidence-based generation
 CHARACTER_PROFILE_SYSTEM = """You are a literary analyst creating evidence-based character profiles for audiobook narration.
 
@@ -754,6 +785,23 @@ class AudiobookAnalyzer:
         # Start metrics collection
         self._metrics.start_analysis()
 
+        # One-time scalpel availability report so runs are diagnosable:
+        # "no scalpel log lines" is ambiguous without this.
+        try:
+            from .pipeline.scalpels import SCALPEL_REGISTRY, scalpel_available
+            from .pipeline.dialogue_attribution import crf_available
+
+            _scalpel_status = {n: scalpel_available(n) for n in SCALPEL_REGISTRY}
+            _scalpel_status["attribution_crf"] = crf_available()
+            logger.info(f"Scalpel availability: {_scalpel_status}")
+            _unavailable = [n for n, ok in _scalpel_status.items() if not ok]
+            if _unavailable:
+                warnings.append(
+                    f"Scalpel models unavailable (LLM fallback used): {', '.join(_unavailable)}"
+                )
+        except Exception as e:
+            logger.warning(f"Scalpel availability check failed: {e}")
+
         # Reset consensus collector for this analysis
         from .pipeline.consensus_collector import consensus_collector
         consensus_collector.reset()
@@ -922,6 +970,38 @@ class AudiobookAnalyzer:
                     logger.info(f"Structure issue: {issue}")
 
         print(f"   Found {len(chapter_map.chapters)} chapters")
+
+        # Back-matter exclusion: recompute regions against the FINAL consensus
+        # chapters (refine computed them against raw ingestion chapters that
+        # always end at EOF, so back matter was never detected), then clip any
+        # chapter that over-extends into back matter. This keeps the summarizer,
+        # main-cast (F6), and supporting NER from ever seeing acknowledgements /
+        # glossary / bibliography names. The glossary stays in doc.text (only
+        # excluded from the BODY region), so pronunciation/glossary keep it.
+        try:
+            from .ingestion.regions import detect_document_regions
+
+            _chap_dicts = [
+                {
+                    "start_pos": c.start_position,
+                    "end_pos": c.end_position,
+                    "title": c.title,
+                }
+                for c in chapter_map.chapters
+            ]
+            doc.regions = detect_document_regions(doc.text, _chap_dicts)
+            _body = [r for r in doc.regions if r.region_type == RegionType.BODY]
+            if _body:
+                _bm_start = _body[0].end_position
+                _clipped = self._clip_chapters_to_body(chapter_map, _bm_start)
+                if _clipped:
+                    logger.info(
+                        f"Back-matter exclusion: adjusted {_clipped} chapter(s) "
+                        f"at body boundary {_bm_start}"
+                    )
+                    print(f"   Excluded back matter beyond position {_bm_start}")
+        except Exception as _bm_e:
+            logger.warning(f"Back-matter region recompute failed: {_bm_e}")
 
         # Check if parallel execution is enabled
         # NOTE: Parallel character+pronunciation is currently DISABLED because V2 character extraction
@@ -1092,6 +1172,25 @@ class AudiobookAnalyzer:
                 )
 
             print(f"   Generated {len(summary_map.summaries)} summaries")
+
+            # Persist stage artifacts so the character/pronunciation stages can
+            # be replayed in seconds (tools/replay_characters.py) without
+            # repeating hours of LLM chapter/summary work.
+            try:
+                from .pipeline.stage_cache import StageCache
+
+                _scache = StageCache(
+                    (self.output_dir or Path("output")) / "stage_cache"
+                )
+                _scache.save(
+                    file_path.stem, doc.text, "summaries", summary_map.to_dict()
+                )
+                if chapter_map is not None:
+                    _scache.save(
+                        file_path.stem, doc.text, "chapters", chapter_map.to_dict()
+                    )
+            except Exception as _sc_e:
+                logger.warning(f"Stage cache save failed: {_sc_e}")
         else:
             summary_map = None
             print("   ⚠️  Skipped (no LLM)")
@@ -1126,6 +1225,19 @@ class AudiobookAnalyzer:
                         competitive_config=competitive_config,
                     )
 
+                    # Body region bounds so character extraction can skip
+                    # front/back matter (acknowledgments, appendices, glossaries)
+                    _body_range = None
+                    if doc.regions:
+                        _body = [
+                            r for r in doc.regions if r.region_type == RegionType.BODY
+                        ]
+                        if _body:
+                            _body_range = (
+                                _body[0].start_position,
+                                _body[0].end_position,
+                            )
+
                     # Build context with summaries
                     # Store summaries result so v2 agent can access it
                     char_agent_context = AgentContext(
@@ -1133,6 +1245,7 @@ class AudiobookAnalyzer:
                         source_file=str(file_path),
                         chapter_map=chapter_map,
                         previous_results={"summaries": summary_map},
+                        metadata={"body_range": _body_range},
                     )
 
                     # Run V2 agent
@@ -2387,11 +2500,16 @@ class AudiobookAnalyzer:
                 _sn_role = getattr(_sn_char, "role", None) or "minor"
                 _sn_mentions = getattr(_sn_char, "mention_count", 0) or 0
                 if _sn_role in ("minor", "supporting") and _sn_mentions >= _sn_protagonist_threshold:
+                    # Mention count alone never proves protagonist status — a heavily
+                    # mentioned location/sidekick is not the protagonist. Promote to
+                    # "main"; only narrative-role evidence (narrator status, handled
+                    # above) justifies "protagonist".
                     logger.info(
                         f"Role safety net: '{_sn_char.canonical_name}' upgraded from "
-                        f"'{_sn_role}' to 'protagonist' ({_sn_mentions} mentions)"
+                        f"'{_sn_role}' to 'main' ({_sn_mentions} mentions; protagonist "
+                        f"requires narrative-role evidence, not mention count)"
                     )
-                    _sn_char.role = "protagonist"
+                    _sn_char.role = "main"
                 elif _sn_role == "minor" and _sn_mentions >= _sn_main_threshold:
                     logger.info(
                         f"Role safety net: '{_sn_char.canonical_name}' upgraded from "
@@ -3308,6 +3426,22 @@ class AudiobookAnalyzer:
                         if c.canonical_name.lower() in _plot_lower_66
                         and (getattr(c, "mention_count", 0) or 0) >= 20
                     ]
+                    # A first-person narrator is a dominant presence. Require the
+                    # candidate to hold a substantial share of the lead's mentions,
+                    # so this fallback can never crown a minor character (the
+                    # Captain-Haynes failure mode).
+                    _top_mentions_66 = max(
+                        (getattr(c, "mention_count", 0) or 0)
+                        for c in pipeline_char_map.characters
+                    )
+                    # Keep first-person narrator candidates that are a real
+                    # presence (>=10% of the lead's mentions), so the fallback
+                    # cannot crown a minor character while still allowing an
+                    # under-named narrator like Nick Carraway (~14% of Gatsby).
+                    _narrator_candidates_66 = [
+                        c for c in _narrator_candidates_66
+                        if (getattr(c, "mention_count", 0) or 0) >= 0.10 * _top_mentions_66
+                    ]
                     if _narrator_candidates_66:
                         _narrator_pick_66 = min(
                             _narrator_candidates_66,
@@ -3897,6 +4031,17 @@ class AudiobookAnalyzer:
         consensus_log_data = consensus_collector.build_log()
         consensus_log = ConsensusLog(**consensus_log_data) if consensus_log_data.get("total_votes", 0) > 0 else None
 
+        # Final cast cleanup (deterministic, text-grounded): reground
+        # hallucinated/namesake canonicals, then merge identical-mention-count
+        # name fragments ("Mitchell" + "Staff Sgt. Mike Mitchell" → one entity).
+        from .pipeline.cast_dedup import (
+            merge_fragment_duplicates,
+            reground_canonical_names,
+        )
+
+        reground_canonical_names(characters, doc.text)
+        characters = merge_fragment_duplicates(characters, doc.text)
+
         # Determine narrator_character_id from the converted output characters.
         # Fix AA: prefer the character whose name matches narrator_detected (the finalized
         # inner narrator, e.g. Victor Frankenstein) over the first is_narrator character
@@ -3916,24 +4061,34 @@ class AudiobookAnalyzer:
                     _narrator_char_id = _oc.id
                     break
 
+        # Reject an implausible narrator: a minor character cannot be the
+        # narrator of a book dominated by someone else (e.g. a fallback heuristic
+        # picking a 20-mention character beside a 1149-mention lead).
+        from .pipeline.cast_dedup import reject_implausible_narrator
+
+        _narrator_char_id = reject_implausible_narrator(characters, _narrator_char_id)
+
         # Partition: characters with no dialogue evidence and no narrator/
         # protagonist/antagonist role are background references (historical
         # figures, name-drops in narrator commentary). They get exported but
         # not surfaced as voiceable cast — see has_dialogue on Character.
         # Runs after safety-net + OutputCharacterCorrector so all character
         # additions/corrections are partitioned together.
+        # A character is a background reference ONLY when every signal of
+        # narrative presence is absent. has_dialogue alone is too unreliable to
+        # gate on (the CRF attributor often doesn't populate it, and the
+        # context-quote fallback yields false negatives for real speakers), so
+        # gating solely on it dumped heavily-mentioned cast — e.g. a soldier
+        # with 111 mentions and profiler evidence — into the background bucket.
+        # Relegate only true name-drops: low mention count, no dialogue, no
+        # profiler-found substance, minor/supporting role, not LLM main cast.
         _voiced_cast: list[OutputCharacter] = []
         background_references: list[OutputCharacter] = []
         for _ch in characters:
-            _keep_in_cast = (
-                getattr(_ch, "has_dialogue", False)
-                or getattr(_ch, "is_narrator", False)
-                or _ch.role in ("protagonist", "antagonist")
-            )
-            if _keep_in_cast:
-                _voiced_cast.append(_ch)
-            else:
+            if is_background_reference(_ch):
                 background_references.append(_ch)
+            else:
+                _voiced_cast.append(_ch)
         if background_references:
             logger.info(
                 f"Partitioned {len(background_references)} background references "
@@ -3955,6 +4110,14 @@ class AudiobookAnalyzer:
             low_confidence_items=low_confidence,
             narrator_character_id=_narrator_char_id,
         )
+
+        # Universal invariant gate: lint the finished result so pipeline bugs
+        # are self-flagged on ANY book (violations land in warnings + log).
+        from .pipeline.output_linter import apply_lint
+
+        _lint_violations = apply_lint(result, doc.text)
+        if _lint_violations:
+            print(f"⚠️  Output lint: {len(_lint_violations)} invariant violation(s) — see quality report")
 
         # Track analysis duration
         self._last_analysis_duration = time.time() - start_time
@@ -5640,6 +5803,31 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
                     )
                     return
 
+    @staticmethod
+    def _clip_chapters_to_body(chapter_map, back_matter_start: int) -> int:
+        """Clip chapters that extend into back matter; drop pure back-matter ones.
+
+        After this, no chapter's text range includes back matter, so the
+        summarizer (which slices full_text[start:end] and ignores body_range)
+        produces clean active_characters. Mutates chapter_map.chapters in place.
+        Returns the number of chapters clipped or removed.
+        """
+        if not getattr(chapter_map, "chapters", None):
+            return 0
+        kept = []
+        changed = 0
+        for ch in chapter_map.chapters:
+            if ch.start_position >= back_matter_start:
+                # Chapter begins inside back matter — drop it entirely.
+                changed += 1
+                continue
+            if ch.end_position > back_matter_start:
+                ch.end_position = back_matter_start
+                changed += 1
+            kept.append(ch)
+        chapter_map.chapters = kept
+        return changed
+
     def _convert_chapters(
         self,
         chapter_map: ChapterMap,
@@ -5673,6 +5861,7 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
             # Get summary if available
             summary_text = None
             characters_present = []
+            dialogue_speakers = []
             if chapter.index in summaries:
                 summary_obj = summaries[chapter.index]
                 # Final safety-net: apply structural narrator fix using exact chapter text.
@@ -5688,6 +5877,7 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
                         pass
                 summary_text = summary_obj.summary
                 characters_present = summary_obj.characters_present
+                dialogue_speakers = getattr(summary_obj, "dialogue_speakers", None) or []
 
             # Map confidence
             if chapter.confidence >= 0.8:
@@ -5709,6 +5899,7 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
                     confidence=confidence,
                     summary=summary_text,
                     characters_present=characters_present,
+                    dialogue_speakers=dialogue_speakers,
                 )
             )
 
@@ -5967,6 +6158,7 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
             PipelinePronunciationFlag.HOMOGRAPH: ModelPronunciationFlag.HOMOGRAPH,
             PipelinePronunciationFlag.UNKNOWN: ModelPronunciationFlag.UNKNOWN,
             PipelinePronunciationFlag.CHARACTER: ModelPronunciationFlag.PROPER_NOUN,  # Map CHARACTER to PROPER_NOUN
+            PipelinePronunciationFlag.ACRONYM: ModelPronunciationFlag.TECHNICAL,  # Acronyms render under technical terms
         }
 
         for pe in pron_map.entries:
@@ -5993,6 +6185,7 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
                     ipa=pe.ipa,
                     phonetic_spelling=pe.phonetic_spelling,
                     notes=pe.notes,
+                    priority=getattr(pe, "priority", 0.0),
                 )
             )
 
@@ -6012,9 +6205,12 @@ Example: {{"Alice": "murder victim", "Bob": "rival connoisseur"}}
                     ipa=pe.ipa,
                     phonetic_spelling=pe.phonetic_spelling,
                     notes=pe.notes,
+                    priority=getattr(pe, "priority", 0.0),
                 )
             )
 
+        # Highest review priority first (narrators read top-down)
+        entries.sort(key=lambda e: -e.priority)
         return entries
 
     def _convert_glossary(

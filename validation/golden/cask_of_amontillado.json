@@ -1,0 +1,10 @@
+{
+  "book": "The Cask of Amontillado",
+  "source_file": "Test_Texts/The Cask of Amontillado - Poe.txt",
+  "narrator": "Montresor",
+  "characters": [
+    {"canonical_name": "Montresor", "aliases": ["the narrator"], "role": "protagonist"},
+    {"canonical_name": "Fortunato", "aliases": [], "role": "main"}
+  ],
+  "forbidden": []
+}

@@ -1,0 +1,108 @@
+{
+  "book": "The Great Gatsby",
+  "source_file": "Test_Texts/gatsby.txt",
+  "narrator": "Nick Carraway",
+  "characters": [
+    {
+      "canonical_name": "Nick Carraway",
+      "aliases": [
+        "Nick"
+      ],
+      "role": "protagonist"
+    },
+    {
+      "canonical_name": "Jay Gatsby",
+      "aliases": [
+        "Gatsby",
+        "Mr. Gatsby",
+        "James Gatz",
+        "Jimmy Gatz"
+      ],
+      "role": "protagonist"
+    },
+    {
+      "canonical_name": "Daisy Buchanan",
+      "aliases": [
+        "Daisy",
+        "Daisy Fay"
+      ],
+      "role": "main"
+    },
+    {
+      "canonical_name": "Tom Buchanan",
+      "aliases": [
+        "Tom"
+      ],
+      "role": "antagonist"
+    },
+    {
+      "canonical_name": "Jordan Baker",
+      "aliases": [
+        "Jordan",
+        "Miss Baker"
+      ],
+      "role": "main"
+    },
+    {
+      "canonical_name": "Myrtle Wilson",
+      "aliases": [
+        "Myrtle",
+        "Mrs. Wilson"
+      ],
+      "role": "supporting",
+      "required": false
+    },
+    {
+      "canonical_name": "George Wilson",
+      "aliases": [
+        "Wilson"
+      ],
+      "role": "supporting",
+      "required": false
+    },
+    {
+      "canonical_name": "Meyer Wolfsheim",
+      "aliases": [
+        "Wolfsheim",
+        "Mr. Wolfsheim"
+      ],
+      "role": "supporting",
+      "required": false
+    },
+    {
+      "canonical_name": "Owl Eyes",
+      "aliases": [],
+      "role": "minor",
+      "required": false
+    },
+    {
+      "canonical_name": "Meyer Wolfshiem",
+      "aliases": [
+        "Wolfshiem"
+      ],
+      "role": "supporting",
+      "required": false
+    },
+    {
+      "canonical_name": "Michaelis",
+      "aliases": [],
+      "role": "supporting",
+      "required": false
+    },
+    {
+      "canonical_name": "Mr. McKee",
+      "aliases": [
+        "McKee"
+      ],
+      "role": "supporting",
+      "required": false
+    },
+    {
+      "canonical_name": "Catherine",
+      "aliases": [],
+      "role": "supporting",
+      "required": false
+    }
+  ],
+  "forbidden": []
+}

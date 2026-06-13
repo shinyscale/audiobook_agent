@@ -840,6 +840,9 @@ class OutputCharacterCorrector:
         # Infer gender early so downstream passes can use it for relationship corrections.
         self.infer_gender_from_title(characters)
         self.inject_narrator_appearance_final(characters, source_text)
+        # Reset LLM-attributed ages that never appear near the character's own
+        # name BEFORE the deterministic search, so it can refill them correctly.
+        self.ground_age_indications(characters, source_text)
         self.extract_deterministic_age(characters, source_text)
         self.clean_unknown_appearance(characters)
         self.clean_plot_summary_personality(characters, source_text)
@@ -1903,6 +1906,81 @@ class OutputCharacterCorrector:
             return True
         # Use strict pattern: written-number forms require "old" qualifier
         return bool(_strict_age_validate_pat.search(age))
+
+    def ground_age_indications(self, characters, source_text: str) -> None:
+        """Reset age_indication values that don't appear near the character in text.
+
+        LLM profilers attribute ages from unrelated context (e.g. another
+        character being "eight years younger"). A real age claim must have its
+        age token (digits or number word) within a window of one of the
+        character's own name occurrences in the source text. Ages that fail
+        grounding are reset to "unknown" so extract_deterministic_age or a
+        later pass can supply a correct value.
+        """
+        if not source_text:
+            return
+        window = 150
+        source_lower = source_text.lower()
+        for char in characters:
+            app = getattr(char, 'appearance', None)
+            if app is None:
+                continue
+            age = (app.get("age_indication", "") or "").strip()
+            if not age or age.lower() == "unknown":
+                continue
+            # Age tokens: digits ("22") or number-ish words ("eight", "thirties")
+            age_tokens = [t.lower() for t in re.findall(r"[a-zA-Z\d]+", age)]
+            age_tokens = [
+                t for t in age_tokens
+                if t.isdigit()
+                or t in {
+                    "one", "two", "three", "four", "five", "six", "seven", "eight",
+                    "nine", "ten", "eleven", "twelve", "thirteen", "fourteen",
+                    "fifteen", "sixteen", "seventeen", "eighteen", "nineteen",
+                    "twenty", "thirty", "forty", "fifty", "sixty", "seventy",
+                    "eighty", "ninety", "teens", "twenties", "thirties", "forties",
+                    "fifties", "sixties", "seventies", "eighties", "nineties",
+                    "teen", "teenage", "teenager", "child", "boy", "girl",
+                    "young", "old", "elderly", "middle-aged", "adult",
+                }
+            ]
+            if not age_tokens:
+                continue
+
+            names = [char.canonical_name] + list(getattr(char, 'aliases', None) or [])
+            name_positions = []
+            for name in names:
+                if not name or len(name) < 2:
+                    continue
+                for nm in re.finditer(re.escape(name.lower()), source_lower):
+                    name_positions.append(nm.start())
+            if not name_positions:
+                # Cannot ground a character we can't locate (e.g. unnamed narrator)
+                continue
+
+            grounded = False
+            for pos in name_positions:
+                ctx = source_lower[max(0, pos - window): pos + window]
+                for t in age_tokens:
+                    m = re.search(rf"\b{re.escape(t)}\b", ctx)
+                    if not m:
+                        continue
+                    # Relative-age phrases ("eight years younger/older/ago")
+                    # describe a difference, not this character's age.
+                    tail = ctx[m.end(): m.end() + 30]
+                    if re.match(r"\s*(years?|yrs?)\s+(younger|older|ago|earlier|later|before|after)", tail):
+                        continue
+                    grounded = True
+                    break
+                if grounded:
+                    break
+            if not grounded:
+                logger.info(
+                    f"Resetting ungrounded age_indication '{age}' for "
+                    f"'{char.canonical_name}': age token never appears within "
+                    f"{window} chars of the character's name"
+                )
+                app["age_indication"] = "unknown"
 
     def extract_deterministic_age(self, characters, source_text: str) -> None:
         """Extract explicit age mentions from text near character names.

@@ -1281,6 +1281,7 @@ class CharacterAgent(Agent):
         supporting_extractor = SupportingCastExtractor(
             context.text,
             min_mentions=supporting_min_mentions,
+            body_range=context.metadata.get("body_range"),
         )
         supporting_cast = supporting_extractor.extract(main_cast_names)
 
@@ -1472,7 +1473,7 @@ class CharacterAgent(Agent):
         # instead of "Milton Jennings" as a unit. The summary provides the authoritative name.
         logger.info("V2 Step 5.4.5: Merging cast fragments per summary character lists")
         main_cast, supporting_cast, crossref_merged_ids = self._merge_summary_name_fragments(
-            chapter_summaries, main_cast, supporting_cast
+            chapter_summaries, main_cast, supporting_cast, source_text=context.text or ""
         )
         if crossref_merged_ids:
             logger.info(
@@ -2699,6 +2700,77 @@ class CharacterAgent(Agent):
             main_cast = [c for c in main_cast if not _is_nonliving_entity_gg(c)]
             supporting_cast = [c for c in supporting_cast if not _is_nonliving_entity_gg(c)]
 
+        # FINAL DEFENSIVE SWEEP: strip aliases whose given name conflicts with
+        # the canonical's. A dozen merge steps run after verify_aliases, and a
+        # surname-only fold can attach a passing historical reference ("SSgt
+        # David Mitchell" from a news interlude) to a protagonist ("Mike
+        # Mitchell"). Re-apply the given-name conflict rule once, after ALL
+        # merges, so no path can bypass it.
+        try:
+            import re as _gnc_re
+
+            _gnc = MainCastExtractor.__new__(MainCastExtractor)
+            _gnc_text = (context.text or "").lower()
+
+            def _gnc_bigram_count(name: str) -> int:
+                """How often '<given> <surname>' literally occurs in the text."""
+                toks = _gnc._name_core_tokens(name)
+                if len(toks) < 2:
+                    return 0
+                return len(
+                    _gnc_re.findall(
+                        rf"\b{_gnc_re.escape(toks[0])}\s+{_gnc_re.escape(toks[-1])}\b",
+                        _gnc_text,
+                    )
+                )
+
+            for _c in main_cast + supporting_cast:
+                _bad = [
+                    a for a in (_c.aliases or [])
+                    if _gnc._given_name_conflict(_c.canonical_name, a)
+                    or _gnc._titled_surname_conflict(_c.canonical_name, a)
+                ]
+                if not _bad:
+                    continue
+                # The canonical's given name is not automatically the true one —
+                # the LLM sometimes names a merged group after a passing
+                # historical reference. Keep whichever given-name variant is
+                # best attested in the full text; evict the others.
+                _candidates = [_c.canonical_name] + _bad
+                _best = max(_candidates, key=_gnc_bigram_count)
+                if (
+                    _best != _c.canonical_name
+                    and _gnc_bigram_count(_best) > _gnc_bigram_count(_c.canonical_name)
+                ):
+                    logger.warning(
+                        f"Final sweep: renaming '{_c.canonical_name}' -> '{_best}' "
+                        f"(alias given name better attested in text: "
+                        f"{_gnc_bigram_count(_best)} vs "
+                        f"{_gnc_bigram_count(_c.canonical_name)})"
+                    )
+                    _old = _c.canonical_name
+                    _c.canonical_name = _best
+                    if _best in _c.aliases:
+                        _c.aliases.remove(_best)
+                    _bad = [_old] + [
+                        a for a in _bad
+                        if a != _best and _gnc._given_name_conflict(_best, a)
+                    ]
+                    # Keep formerly-conflicting aliases compatible with the new name
+                    for a in list(_c.aliases):
+                        if _gnc._given_name_conflict(_best, a) and a not in _bad:
+                            _bad.append(a)
+                for _a in _bad:
+                    if _a in _c.aliases:
+                        _c.aliases.remove(_a)
+                    logger.warning(
+                        f"Final sweep: removed alias '{_a}' from "
+                        f"'{_c.canonical_name}' (same surname, different given "
+                        f"name — different person)"
+                    )
+        except Exception as _gnc_e:
+            logger.warning(f"Final given-name sweep failed: {_gnc_e}")
+
         # Build final CharacterMap
         all_characters = self._convert_to_pipeline_characters(
             main_cast, supporting_cast, mention_results
@@ -3017,6 +3089,7 @@ class CharacterAgent(Agent):
         chapter_summaries: list[str],
         main_cast: list[Character],
         supporting_cast: list[Character],
+        source_text: str = "",
     ) -> tuple[list[Character], list[Character], set[str]]:
         """Merge single-word cast fragments when summaries list them under a multi-word name.
 
@@ -3116,6 +3189,24 @@ class CharacterAgent(Agent):
                         fragments.append(char)
                 if len(fragments) != 1:
                     continue
+
+                # Attestation gate: renaming a fragment to a multi-word name
+                # requires that full name to actually recur in the text. The
+                # summary may list a passing historical reference whose surname
+                # matches a real character's fragment ("<famous person> <surname>"
+                # from a news interlude) — one mention is not an identity.
+                if source_text:
+                    _fn_base = re.sub(r"\s*\(.*?\)\s*$", "", full_name).strip()
+                    _fn_count = len(
+                        re.findall(re.escape(_fn_base), source_text, re.IGNORECASE)
+                    )
+                    if _fn_count < 2:
+                        logger.info(
+                            f"V2 Step 5.4.5: Skipping partial-match rename to "
+                            f"'{full_name}' — name appears only {_fn_count}x in "
+                            f"text (insufficient attestation)"
+                        )
+                        continue
 
             # All fragments must be distinct characters (sanity check)
             if len({f.id for f in fragments}) < len(fragments):

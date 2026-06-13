@@ -1,0 +1,10 @@
+{
+  "book": "The Gift of the Magi",
+  "source_file": "Test_Texts/The Gift of the Magi - O_Henry.txt",
+  "narrator": null,
+  "characters": [
+    {"canonical_name": "Della", "aliases": ["Mrs. James Dillingham Young"], "role": "protagonist"},
+    {"canonical_name": "Jim", "aliases": ["James Dillingham Young", "Mr. James Dillingham Young"], "role": "main"}
+  ],
+  "forbidden": []
+}

@@ -147,7 +147,13 @@ Be precise with IPA. For phonetic spelling, use intuitive uppercase representati
 - "AN-der-son" for Anderson (compound surname)
 - "ZHAHN" for Jean (French pronunciation)
 
-Use hyphens to separate syllables and CAPS to indicate stressed syllables."""
+Use hyphens to separate syllables and CAPS to indicate stressed syllables.
+
+For ACRONYMS and initialisms (all-caps words like NVA, RTO):
+- Decide from context whether it is spoken letter-by-letter or as a word, and say which in the notes
+- Letter-by-letter IPA must use the letter NAMES (e.g. N = /ɛn/, V = /viː/, A = /eɪ/)
+- The IPA and the phonetic spelling MUST describe the same pronunciation
+  (e.g. "EN-VEE-AY" must pair with /ˌɛn viː ˈeɪ/, never with a different vowel sequence)"""
 
 
 ENRICHER_BATCH_PROMPT = """Generate pronunciation guidance for these words from a novel.

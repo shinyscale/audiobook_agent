@@ -1,0 +1,12 @@
+{
+  "book": "The Monkey's Paw",
+  "source_file": "Test_Texts/The_Monkey's_Paw.txt",
+  "narrator": null,
+  "characters": [
+    {"canonical_name": "Mr. White", "aliases": ["the old man", "father"], "role": "protagonist"},
+    {"canonical_name": "Mrs. White", "aliases": ["the old woman", "mother"], "role": "main"},
+    {"canonical_name": "Herbert White", "aliases": ["Herbert"], "role": "main"},
+    {"canonical_name": "Sergeant-Major Morris", "aliases": ["Morris", "the sergeant-major"], "role": "main"}
+  ],
+  "forbidden": []
+}

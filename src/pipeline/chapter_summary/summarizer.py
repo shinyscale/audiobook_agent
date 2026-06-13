@@ -951,7 +951,7 @@ class ChapterSummarizer:
                     else:
                         echo_mentioned.append(char)
 
-                logger.debug(
+                logger.info(
                     f"Echo scalpel reclassified chapter {chapter_index}: "
                     f"{len(echo_active)} active, {len(echo_mentioned)} mentioned"
                 )
@@ -962,6 +962,11 @@ class ChapterSummarizer:
 
         # CRF dialogue speaker attribution (after echo, uses raw chapter text)
         dialogue_speakers = []
+        if chapter_text and active_characters and not crf_available():
+            logger.info(
+                f"CRF dialogue attribution skipped for chapter {chapter_index}: "
+                f"model unavailable (models/attribution_crf or sklearn-crfsuite missing)"
+            )
         if chapter_text and active_characters and crf_available():
             try:
                 attributor = CRFDialogueAttributor()
@@ -969,7 +974,7 @@ class ChapterSummarizer:
                     chapter_text, active_characters, confidence_threshold=0.6,
                 )
                 if dialogue_speakers:
-                    logger.debug(
+                    logger.info(
                         f"CRF attributed {len(dialogue_speakers)} dialogue lines "
                         f"in chapter {chapter_index}"
                     )

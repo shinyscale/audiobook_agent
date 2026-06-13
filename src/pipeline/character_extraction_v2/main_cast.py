@@ -795,6 +795,40 @@ class MainCastExtractor:
         adjacency: dict[int, set[int]] = {i: {i} for i in range(n)}
         for (i, j), (label, confidence) in zip(pair_indices, results):
             if label == "same_person" and confidence >= 0.6:
+                name_i = initial_characters[i].canonical_name
+                name_j = initial_characters[j].canonical_name
+
+                # Deterministic vetoes — the scalpel sees only a 500-char
+                # context and cannot know these:
+                # (a) same surname + different given names is never the same
+                #     person (protagonist vs a historical namesake);
+                # (b) a titled surname ("Sergeant Otto") never aliases a name
+                #     lacking that surname ("Sergeant Baca").
+                if self._given_name_conflict(name_i, name_j) or self._titled_surname_conflict(name_i, name_j):
+                    logger.warning(
+                        f"Cluster merge VETOED: '{name_i}' vs '{name_j}' — "
+                        f"name evidence says different people"
+                    )
+                    continue
+
+                # Zero-name-overlap merges (pure nickname links like
+                # "Shooter" = "Sgt. Martin Sharpe") need stronger conviction:
+                # the rank-prefix similarity of "Sergeant X"/"Sergeant Y"
+                # style pairs drags borderline scores over 0.6.
+                core_i = set(self._name_core_tokens(name_i))
+                core_j = set(self._name_core_tokens(name_j))
+                has_overlap = bool(core_i & core_j) or any(
+                    len(a) >= 4 and len(b) >= 4 and a[:4] == b[:4]
+                    for a in core_i
+                    for b in core_j
+                )
+                if not has_overlap and confidence < 0.8:
+                    logger.info(
+                        f"Cluster merge skipped: '{name_i}' vs '{name_j}' — no "
+                        f"shared name tokens and confidence {confidence:.3f} < 0.8"
+                    )
+                    continue
+
                 adjacency[i].add(j)
                 adjacency[j].add(i)
                 logger.debug(
@@ -802,7 +836,7 @@ class MainCastExtractor:
                     f"{initial_characters[j].canonical_name} (conf={confidence:.3f})"
                 )
 
-        # Find connected components (union-find via BFS)
+        # Find connected components via BFS over the same-person edges
         visited = set()
         groups: list[list[int]] = []
         for start in range(n):
@@ -991,6 +1025,33 @@ class MainCastExtractor:
 
         return profiles
 
+    # Nouns that denote collections of people or unnamed role references.
+    # A "name" built on one of these (e.g. "<Place> personnel", "<Unit> Company",
+    # "massacre witnesses") is a group, not an individual character.
+    _GROUP_NOUNS = frozenset({
+        "personnel", "perps", "perpetrators", "witnesses", "soldiers", "troops",
+        "men", "women", "children", "villagers", "townsfolk", "guards", "crowd",
+        "mob", "company", "platoon", "squad", "battalion", "regiment", "brigade",
+        "crew", "team", "staff", "others", "people", "family", "group", "guests",
+        "servants", "officers", "attendees",
+    })
+
+    @classmethod
+    def _is_group_descriptor(cls, name: str) -> bool:
+        """True if a name denotes a group of people rather than an individual."""
+        words = [w.strip(",.()'\"").lower() for w in name.split()]
+        # Drop leading titles/articles so rank words that double as group nouns
+        # ("Staff Sergeant Ned X") don't false-positive.
+        while words and (words[0] in cls._TITLE_TOKENS or words[0] in cls._NAME_STOP_TOKENS):
+            words = words[1:]
+        if not words:
+            return False
+        if words[-1] in cls._GROUP_NOUNS:
+            return True
+        # Longer phrases containing a group noun ("<Unit> Company RTO") are
+        # unnamed role/group references, not individual characters.
+        return len(words) >= 3 and any(w in cls._GROUP_NOUNS for w in words)
+
     @staticmethod
     def _clean_canonical_name(name: str) -> str:
         """Strip parenthetical qualifiers from canonical names.
@@ -1038,6 +1099,13 @@ class MainCastExtractor:
             if not canonical:
                 continue
 
+            if self._is_group_descriptor(canonical):
+                logger.warning(
+                    f"Rejected Pass 1 character '{canonical}': group/role descriptor, "
+                    f"not an individual character"
+                )
+                continue
+
             profile = MainCastProfile(
                 canonical_name=canonical,
                 aliases=[],  # No aliases in Pass 1
@@ -1069,6 +1137,13 @@ class MainCastExtractor:
 
             canonical = self._clean_canonical_name(item.get("canonical_name", "").strip())
             if not canonical:
+                continue
+
+            if self._is_group_descriptor(canonical):
+                logger.warning(
+                    f"Rejected character '{canonical}': group/role descriptor, "
+                    f"not an individual character"
+                )
                 continue
 
             profile = MainCastProfile(
@@ -1112,7 +1187,7 @@ class MainCastExtractor:
             Updated profiles with invalid aliases removed
         """
         # Combine all summaries into searchable text
-        "\n".join(chapter_summaries).lower()
+        summaries_text = "\n".join(chapter_summaries).lower()
 
         # Reset the Rule 1 blocked-names buffer for this verification pass
         self._rule1_blocked_names = []
@@ -1129,7 +1204,37 @@ class MainCastExtractor:
             verified_aliases = []
 
             for alias in profile.aliases:
+                # RULE 0.0: Strip parenthetical qualifiers from aliases.
+                # LLMs emit annotations like "Reaper (former CO)" or "Billy (via letter)";
+                # the parenthetical is metadata, never part of a name variant.
+                if "(" in alias:
+                    stripped = self._clean_canonical_name(alias)
+                    if stripped != alias:
+                        logger.info(
+                            f"Stripped parenthetical from alias '{alias}' -> '{stripped}' "
+                            f"for '{profile.canonical_name}'"
+                        )
+                        alias = stripped
+
                 alias_lower = alias.lower()
+
+                # Drop aliases that are now empty, duplicate the canonical name, or
+                # duplicate an already-verified alias (e.g. after parenthetical stripping)
+                if (
+                    not alias_lower
+                    or alias_lower == profile.canonical_name.lower()
+                    or any(alias_lower == v.lower() for v in verified_aliases)
+                ):
+                    continue
+
+                # RULE 0.1: A group/role descriptor ("<X> personnel", "<Y> witnesses")
+                # is never an alias of an individual character.
+                if self._is_group_descriptor(alias):
+                    logger.warning(
+                        f"BLOCKED alias: '{alias}' is a group/role descriptor, "
+                        f"not a valid alias for '{profile.canonical_name}'"
+                    )
+                    continue
 
                 # region agent log
                 if any(k in canonical_lower for k in ("lacey", "old man")) or any(
@@ -1339,6 +1444,48 @@ class MainCastExtractor:
                             f"(_are_different_titled_people returned False)"
                         )
 
+                # RULE 1.5: Token grounding — every substantive word of an alias must
+                # actually appear somewhere in the summaries (or in the canonical name).
+                # LLMs hallucinate plausible full names for surname-only characters
+                # (e.g. inventing a famous first name for a character known only by
+                # surname); a name token that occurs nowhere in the text cannot have
+                # been observed and the alias is fabricated.
+                if summaries_text:
+                    grounded, missing_token = self._alias_tokens_grounded(
+                        alias, profile.canonical_name, summaries_text
+                    )
+                    if not grounded:
+                        logger.warning(
+                            f"BLOCKED alias: '{alias}' for '{profile.canonical_name}' — "
+                            f"token '{missing_token}' appears nowhere in the summaries "
+                            f"(hallucinated alias)"
+                        )
+                        continue
+
+                # RULE 1.6: Given-name conflict — same surname but clearly different
+                # given names means different people (spouses, siblings, namesakes,
+                # historical figures sharing a character's surname).
+                if self._given_name_conflict(profile.canonical_name, alias):
+                    logger.warning(
+                        f"BLOCKED alias: '{alias}' shares a surname with "
+                        f"'{profile.canonical_name}' but has a different given name "
+                        f"(different people) — saving as candidate character"
+                    )
+                    self._rule1_blocked_names.append(alias)
+                    continue
+
+                # RULE 1.7: Titled-surname conflict — "Sergeant Otto" can only
+                # refer to someone surnamed Otto; it is never an alias of a
+                # character whose names lack that surname.
+                if self._titled_surname_conflict(profile.canonical_name, alias):
+                    logger.warning(
+                        f"BLOCKED alias: '{alias}' carries a titled surname not "
+                        f"present in '{profile.canonical_name}' (different people) "
+                        f"— saving as candidate character"
+                    )
+                    self._rule1_blocked_names.append(alias)
+                    continue
+
                 # RULE 2: Co-occurrence check
                 # The alias should appear in summaries that also mention the canonical name
                 # Exception: If alias is a substring of canonical (e.g., "Gatsby" in "Jay Gatsby"),
@@ -1440,6 +1587,16 @@ class MainCastExtractor:
 
                 # Passed verification
                 verified_aliases.append(alias)
+
+            # RULE 2.5: Surname-conflict resolution across the verified aliases.
+            # Two aliases that share a surname but have different given names
+            # (e.g. "Jesse <surname>" and "Nate <surname>") cannot both belong to
+            # this character: keep the better-attested one, surface the other as
+            # a candidate separate character.
+            if len(verified_aliases) > 1:
+                verified_aliases = self._resolve_surname_conflicts(
+                    profile.canonical_name, verified_aliases, summaries_text
+                )
 
             # Update profile with verified aliases only
             if len(verified_aliases) < len(profile.aliases):
@@ -2004,6 +2161,182 @@ Return JSON:
                 return True
 
         return False
+
+    # Tokens that are honorifics/ranks, not name material. Used by alias
+    # grounding and given-name conflict checks so that "Staff Sergeant Nate X"
+    # and "Rev. Jesse X" compare on (given, surname) rather than on titles.
+    _TITLE_TOKENS = frozenset({
+        # courtesy / professional
+        "mr", "mrs", "ms", "miss", "m", "mlle", "mme", "madam", "madame",
+        "dr", "prof", "professor", "rev", "reverend", "sir", "lady", "lord",
+        # political / civic
+        "president", "senator", "governor", "mayor", "judge", "chancellor",
+        # military ranks and common abbreviations
+        "pvt", "private", "pfc", "cpl", "corporal", "spc", "spec", "specialist",
+        "sgt", "ssgt", "msgt", "sergeant", "lt", "ltc", "lieutenant",
+        "cpt", "capt", "captain", "maj", "major", "col", "colonel",
+        "gen", "general", "cmdr", "commander", "adm", "admiral", "ensign",
+        "officer", "chief", "staff", "master", "first", "second",
+        "1st", "2nd", "3rd", "4th",
+    })
+
+    # Connective/descriptive filler that may appear inside a name phrase
+    _NAME_STOP_TOKENS = frozenset({
+        "the", "a", "an", "of", "and", "de", "la", "le", "van", "von",
+        "del", "di", "da", "old", "young",
+    })
+
+    @classmethod
+    def _name_core_tokens(cls, name: str) -> list[str]:
+        """Lowercased name tokens with titles, stop words, and punctuation removed."""
+        tokens = []
+        for raw in name.replace(".", " ").split():
+            tok = raw.strip(",'\"()").lower()
+            if tok and tok not in cls._TITLE_TOKENS and tok not in cls._NAME_STOP_TOKENS:
+                tokens.append(tok)
+        return tokens
+
+    def _alias_tokens_grounded(
+        self, alias: str, canonical: str, summaries_text: str
+    ) -> tuple[bool, Optional[str]]:
+        """
+        Check that every substantive token of an alias appears in the summaries.
+
+        A token that occurs nowhere in the summaries (and is not part of the
+        canonical name, a title, or filler) cannot have been observed by the
+        LLM — the alias is fabricated. Returns (grounded, first_missing_token).
+        """
+        import re
+
+        canonical_tokens = {
+            t.strip(",.'\"()").lower() for t in canonical.split()
+        }
+        for raw in alias.split():
+            tok = raw.strip(",.'\"()").lower()
+            if not tok or len(tok) < 3:
+                continue
+            if (
+                tok in canonical_tokens
+                or tok in self._TITLE_TOKENS
+                or tok in self._NAME_STOP_TOKENS
+            ):
+                continue
+            # For hyphenated tokens (nicknames like "Wrong-Way"), any component
+            # appearing in the summaries counts as grounded.
+            candidates = [tok] + [p for p in tok.split("-") if p]
+            if not any(
+                re.search(rf"\b{re.escape(c)}\b", summaries_text) for c in candidates
+            ):
+                return False, raw
+        return True, None
+
+    def _given_name_conflict(self, name_a: str, name_b: str) -> bool:
+        """
+        True if two names share a surname but have clearly different given names.
+
+        "Tom <surname>" vs "Daisy <surname>" → different people (spouses/siblings/
+        namesakes). Conservative: skips single-word names, short or hyphenated
+        given tokens (nicknames), prefix pairs (Will/William), and known
+        nickname↔formal pairs (Jim/James).
+        """
+        tokens_a = self._name_core_tokens(name_a)
+        tokens_b = self._name_core_tokens(name_b)
+        if len(tokens_a) < 2 or len(tokens_b) < 2:
+            return False
+        surname_a, surname_b = tokens_a[-1], tokens_b[-1]
+        if surname_a != surname_b or len(surname_a) < 3:
+            return False
+        given_a, given_b = tokens_a[0], tokens_b[0]
+        if given_a == given_b or len(given_a) < 3 or len(given_b) < 3:
+            return False
+        if not (given_a.isalpha() and given_b.isalpha()):
+            return False  # hyphenated/odd tokens are nickname-ish; don't risk it
+        if given_a.startswith(given_b) or given_b.startswith(given_a):
+            return False  # Will / William
+        try:
+            from src.agents.characters import NICKNAME_TO_FORMAL
+
+            if (
+                NICKNAME_TO_FORMAL.get(given_a) == given_b
+                or NICKNAME_TO_FORMAL.get(given_b) == given_a
+            ):
+                return False
+        except Exception:
+            pass
+        return True
+
+    def _titled_surname_conflict(self, name_a: str, name_b: str) -> bool:
+        """
+        True if either name is a title+surname form ("Sergeant Otto") whose
+        surname does not appear in the other name.
+
+        A titled name can only refer to someone bearing that surname — it is
+        never a free-form nickname. Different ranks on the SAME surname are
+        fine ("Lt. Reaper" = "Lt. Col. Tony Reaper" — promotions/shorthand);
+        same rank on DIFFERENT surnames is two people ("Sergeant Otto" vs
+        "Sergeant Baca").
+        """
+        for titled, other in ((name_a, name_b), (name_b, name_a)):
+            raw_tokens = [
+                w.strip(",.()'\"").lower() for w in titled.replace(".", " ").split()
+            ]
+            if not any(t in self._TITLE_TOKENS for t in raw_tokens):
+                continue
+            core = self._name_core_tokens(titled)
+            if len(core) != 1:
+                continue  # full names handled by _given_name_conflict
+            surname = core[0]
+            if len(surname) < 3 or not surname.isalpha():
+                continue
+            other_core = self._name_core_tokens(other)
+            if not other_core:
+                continue  # descriptive handle ("the old man") — no surname claim
+            if not any(
+                t == surname
+                or (len(t) >= 4 and len(surname) >= 4 and t[:4] == surname[:4])
+                for t in other_core
+            ):
+                return True
+        return False
+
+    def _resolve_surname_conflicts(
+        self, canonical: str, aliases: list[str], summaries_text: str
+    ) -> list[str]:
+        """
+        Drop aliases that conflict with a better-attested alias on given name.
+
+        When two verified aliases share a surname but differ in given name,
+        only one can belong to this character. Keep the one whose given name
+        appears more often in the summaries; route the loser to the Rule 1
+        blocked-names buffer so it can become its own candidate character.
+        """
+        import re
+
+        kept = list(aliases)
+        for i, alias_a in enumerate(aliases):
+            for alias_b in aliases[i + 1:]:
+                if alias_a not in kept or alias_b not in kept:
+                    continue
+                if not self._given_name_conflict(alias_a, alias_b):
+                    continue
+
+                def _given_count(name: str) -> int:
+                    tokens = self._name_core_tokens(name)
+                    if not tokens:
+                        return 0
+                    return len(
+                        re.findall(rf"\b{re.escape(tokens[0])}\b", summaries_text)
+                    )
+
+                loser = alias_a if _given_count(alias_a) < _given_count(alias_b) else alias_b
+                kept.remove(loser)
+                self._rule1_blocked_names.append(loser)
+                logger.warning(
+                    f"BLOCKED alias: '{loser}' conflicts with another alias of "
+                    f"'{canonical}' (same surname, different given name) — "
+                    f"saving as candidate character"
+                )
+        return kept
 
     def _are_different_titled_people(self, name1: str, name2: str) -> bool:
         """

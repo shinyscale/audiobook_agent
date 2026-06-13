@@ -1,0 +1,14 @@
+{
+  "book": "I Have No Mouth, and I Must Scream",
+  "source_file": "Test_Texts/IHaveNoMouth.pdf",
+  "narrator": "Ted",
+  "characters": [
+    {"canonical_name": "AM", "aliases": ["the computer", "Allied Mastercomputer"], "role": "antagonist"},
+    {"canonical_name": "Ted", "aliases": ["the narrator"], "role": "protagonist"},
+    {"canonical_name": "Gorrister", "aliases": [], "role": "main"},
+    {"canonical_name": "Benny", "aliases": [], "role": "main"},
+    {"canonical_name": "Nimdok", "aliases": [], "role": "main"},
+    {"canonical_name": "Ellen", "aliases": [], "role": "main"}
+  ],
+  "forbidden": []
+}

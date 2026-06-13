@@ -137,6 +137,10 @@ class PronunciationEntry(BaseModel):
     context_examples: list[str] = Field(default_factory=list, max_length=3)
     confidence: ConfidenceLevel = ConfidenceLevel.MEDIUM
 
+    # Review priority (category weight x log frequency). Higher = review first.
+    # Ranking aid only — all entries are kept regardless of priority.
+    priority: float = 0.0
+
     # Pronunciation info (populated by Phase 2)
     ipa: Optional[str] = None
     phonetic_spelling: Optional[str] = None
@@ -202,6 +206,11 @@ class StructuralElement(BaseModel):
 
     # LLM-generated chapter summary for narrator prep
     summary: Optional[str] = None
+
+    # CRF dialogue attribution results for this chapter: one dict per attributed
+    # quote (speaker, quote, position, confidence). Empty when the CRF attributor
+    # is unavailable or found no attributable dialogue.
+    dialogue_speakers: list[dict] = Field(default_factory=list)
 
 
 class BookMetadata(BaseModel):

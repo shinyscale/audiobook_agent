@@ -134,12 +134,34 @@ BACK_MATTER_PATTERNS = [
     (re.compile(r"(?im)^\s*(excerpt|sneak\s+peek|preview)\s+from", re.MULTILINE), "excerpt", 0.95),
     (re.compile(r"(?im)^\s*(appendix|appendices)\s*(:|$)", re.MULTILINE), "appendix", 0.85),
     (re.compile(r"(?im)^\s*glossary(\s+of\s+.+|\s*:|\s*)$", re.MULTILINE), "glossary", 0.9),
+    # Glossary-style headings that don't use the word "glossary"
+    # (e.g. "<Topic> Lingo, Acronyms, Weapons and Terminology")
+    (
+        re.compile(
+            r"(?im)^\s*[^\n]{0,60}\b(acronyms|terminology|abbreviations)\b[^\n]{0,40}$",
+            re.MULTILINE,
+        ),
+        "glossary",
+        0.8,
+    ),
+    # Acknowledgments commonly appear at the back of modern books; names there
+    # are real people, not characters
+    (
+        re.compile(r"(?im)^\s*(acknowledgements?|acknowledgments?)\s*$", re.MULTILINE),
+        "acknowledgements",
+        0.9,
+    ),
     (re.compile(r"(?im)^\s*index\s*$", re.MULTILINE), "index", 0.9),
     (
-        re.compile(r"(?im)^\s*(notes|endnotes|references|bibliography)\s*$", re.MULTILINE),
+        re.compile(
+            r"(?im)^\s*(notes|endnotes|references|(annotated\s+)?bibliography)\s*$",
+            re.MULTILINE,
+        ),
         "endnotes",
         0.85,
     ),
+    # Afterword / afterward (author's closing note) — back matter, real people
+    (re.compile(r"(?im)^\s*after(word|ward)\s*$", re.MULTILINE), "afterword", 0.8),
 ]
 
 
@@ -153,6 +175,36 @@ class RegionDetector:
     def __init__(self):
         self.front_patterns = FRONT_MATTER_PATTERNS
         self.back_patterns = BACK_MATTER_PATTERNS
+
+    # Only look for back-matter headings in the latter portion of the text.
+    # Excludes a front-matter Table-of-Contents line ("Acknowledgements ... 459")
+    # and any early in-body section that happens to share a back-matter word.
+    BACK_MATTER_MIN_FRACTION = 0.55
+
+    def detect_back_matter_start(self, text: str) -> Optional[int]:
+        """Find where back matter begins, independent of chapter structure.
+
+        Scans the latter portion of the text for the EARLIEST standalone
+        back-matter heading (glossary, afterword, appendix, bibliography,
+        acknowledgements, index, about-the-author, also-by, notes). Returns its
+        absolute character offset, or None if no such heading is found.
+
+        Chapter-based detection misses back matter whenever the last detected
+        chapter runs to EOF (swallowing it); this is the chapter-independent
+        backstop.
+        """
+        if not text:
+            return None
+        window_start = int(len(text) * self.BACK_MATTER_MIN_FRACTION)
+        window = text[window_start:]
+        earliest: Optional[int] = None
+        for pattern, _label, _conf in self.back_patterns:
+            m = pattern.search(window)
+            if m:
+                pos = window_start + m.start()
+                if earliest is None or pos < earliest:
+                    earliest = pos
+        return earliest
 
     def detect_regions(
         self,
@@ -186,6 +238,17 @@ class RegionDetector:
         first_chapter_start = sorted_chapters[0].get("start_pos", 0)
         last_chapter_end = sorted_chapters[-1].get("end_pos", text_length)
 
+        # Chapter-independent back-matter boundary. The last detected chapter
+        # often runs to EOF (swallowing back matter), so the chapter gap alone
+        # cannot find it; detect the heading directly.
+        back_matter_start = self.detect_back_matter_start(text)
+        # The body ends at whichever comes first: the last chapter end or the
+        # back-matter heading. Only honor a heading that falls before the
+        # nominal chapter end (i.e. inside a chapter that over-extends).
+        effective_back_start = last_chapter_end
+        if back_matter_start is not None and back_matter_start < last_chapter_end:
+            effective_back_start = back_matter_start
+
         # Detect front matter (before first chapter)
         if first_chapter_start > 500:  # Meaningful front matter threshold
             front_text = text[:first_chapter_start]
@@ -210,23 +273,23 @@ class RegionDetector:
                     )
                 )
 
-        # Body is between first chapter start and last chapter end
+        # Body runs from the first chapter to the effective back-matter start.
         regions.append(
             DocumentRegion(
                 region_type=RegionType.BODY,
                 start_position=first_chapter_start,
-                end_position=last_chapter_end,
+                end_position=effective_back_start,
                 label="main_content",
                 confidence=1.0,
             )
         )
 
-        # Detect back matter (after last chapter)
-        if last_chapter_end < text_length - 500:
-            back_text = text[last_chapter_end:]
+        # Detect back matter (everything after the body ends)
+        if effective_back_start < text_length - 500:
+            back_text = text[effective_back_start:]
             back_regions = self._detect_in_section(
                 back_text,
-                offset=last_chapter_end,
+                offset=effective_back_start,
                 patterns=self.back_patterns,
                 region_type=RegionType.BACK_MATTER,
             )
@@ -234,11 +297,11 @@ class RegionDetector:
             if back_regions:
                 regions.extend(back_regions)
             else:
-                # Mark entire post-chapter section as back matter
+                # Mark entire post-body section as back matter
                 regions.append(
                     DocumentRegion(
                         region_type=RegionType.BACK_MATTER,
-                        start_position=last_chapter_end,
+                        start_position=effective_back_start,
                         end_position=text_length,
                         label="unclassified_back_matter",
                         confidence=0.7,

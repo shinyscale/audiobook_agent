@@ -20,6 +20,7 @@ class PronunciationFlag(str, Enum):
     HOMOGRAPH = "homograph"
     UNKNOWN = "unknown"  # Not in CMU dictionary
     CHARACTER = "character"  # Character name from extraction
+    ACRONYM = "acronym"  # All-caps initialism (spoken as letters or as a word)
 
 
 @dataclass
@@ -139,6 +140,10 @@ class PronunciationEntry:
     supporting_strategies: list[str] = field(default_factory=list)
     confidence: float = 0.5
     is_character_name: bool = False  # Flagged for priority
+
+    # Review priority for the narrator (category weight x frequency).
+    # Higher = review first. Used for ranking, never for dropping entries.
+    priority: float = 0.0
 
     def to_dict(self) -> dict:
         return {

@@ -140,18 +140,28 @@ class PronunciationConsolidator:
             PronunciationFlag.CHARACTER: 1,
             PronunciationFlag.HOMOGRAPH: 2,
             PronunciationFlag.FOREIGN: 3,
-            PronunciationFlag.PROPER_NOUN: 4,
-            PronunciationFlag.UNKNOWN: 5,
+            PronunciationFlag.ACRONYM: 4,
+            PronunciationFlag.PROPER_NOUN: 5,
+            PronunciationFlag.UNKNOWN: 6,
         }
         flag_reason = min(
             (p.flag_reason for p in proposals), key=lambda f: flag_priority.get(f, 99)
         )
 
-        # Upgrade UNKNOWN to PROPER_NOUN for words that appear capitalized in context.
-        # Capitalized words not in the CMU dictionary are almost always proper nouns
-        # (place names, character names not caught by the character proposer, titles).
-        if flag_reason == PronunciationFlag.UNKNOWN and canonical_word and canonical_word[0].isupper():
-            flag_reason = PronunciationFlag.PROPER_NOUN
+        # Classify capitalized UNKNOWN words.
+        # All-caps short words (NVA, RTO, TOC) are acronyms/initialisms — a
+        # distinct pronunciation challenge (letters vs spoken-as-word), not
+        # proper nouns. Other capitalized words not in the CMU dictionary are
+        # almost always proper nouns (place names, uncaught character names).
+        if flag_reason in (PronunciationFlag.UNKNOWN, PronunciationFlag.PROPER_NOUN):
+            if self._is_acronym(canonical_word):
+                flag_reason = PronunciationFlag.ACRONYM
+            elif (
+                flag_reason == PronunciationFlag.UNKNOWN
+                and canonical_word
+                and canonical_word[0].isupper()
+            ):
+                flag_reason = PronunciationFlag.PROPER_NOUN
 
         # Collect homograph options if any
         homograph_options = None
@@ -172,6 +182,24 @@ class PronunciationConsolidator:
         # Check if character name
         is_character = word_lower in char_name_words
 
+        # Review priority: category weight x log-scaled frequency. Character
+        # names and homographs matter most to a narrator; rare one-off unknowns
+        # least. Ranking only — entries are never dropped on priority.
+        import math
+
+        _category_weights = {
+            PronunciationFlag.CHARACTER: 3.0,
+            PronunciationFlag.HOMOGRAPH: 2.5,
+            PronunciationFlag.FOREIGN: 2.0,
+            PronunciationFlag.ACRONYM: 1.5,
+            PronunciationFlag.PROPER_NOUN: 1.2,
+            PronunciationFlag.UNKNOWN: 1.0,
+        }
+        _weight = _category_weights.get(flag_reason, 1.0)
+        if is_character:
+            _weight = max(_weight, _category_weights[PronunciationFlag.CHARACTER])
+        priority = round(_weight * (1.0 + math.log10(max(len(all_mentions), 1))), 3)
+
         # Build entry
         entry = PronunciationEntry(
             id=self._generate_id(word_lower),
@@ -185,6 +213,7 @@ class PronunciationConsolidator:
             supporting_strategies=list(set(p.strategy for p in proposals)),
             confidence=confidence,
             is_character_name=is_character,
+            priority=priority,
         )
 
         # Apply enrichment if available
@@ -194,6 +223,23 @@ class PronunciationConsolidator:
             entry.notes = enrichment.notes
 
         return entry
+
+    @staticmethod
+    def _is_acronym(word: str) -> bool:
+        """
+        True for all-caps initialisms/acronyms (NVA, RTO, TOC, PFC).
+
+        2-6 uppercase letters, optionally with digits or periods (M.P., B52).
+        Single letters and normal capitalized words are not acronyms.
+        """
+        if not word:
+            return False
+        core = word.replace(".", "")
+        if not (2 <= len(core) <= 6):
+            return False
+        if not any(c.isalpha() for c in core):
+            return False
+        return all(c.isupper() or c.isdigit() for c in core)
 
     def _select_context_examples(
         self,
@@ -240,11 +286,10 @@ class PronunciationConsolidator:
         unique_strategies = len(set(p.strategy for p in proposals))
         strategy_boost = min(0.1 * (unique_strategies - 1), 0.2)
 
-        # Boost for high occurrence count
-        total_mentions = sum(len(p.mentions) for p in proposals)
-        occurrence_boost = min(0.05 * (total_mentions // 5), 0.15)
-
-        return min(base_confidence + strategy_boost + occurrence_boost, 1.0)
+        # NOTE: no occurrence-count boost. How often a word appears says nothing
+        # about how certain its pronunciation is — frequency belongs in the
+        # priority score (what to review first), not in confidence.
+        return min(base_confidence + strategy_boost, 1.0)
 
     def _generate_id(self, word_lower: str) -> str:
         """Generate a unique ID for a word."""

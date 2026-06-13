@@ -43,6 +43,7 @@ class SupportingCastExtractor:
         self,
         full_text: str,
         min_mentions: int = 3,
+        body_range: Optional[tuple[int, int]] = None,
     ):
         """
         Initialize the extractor.
@@ -50,9 +51,13 @@ class SupportingCastExtractor:
         Args:
             full_text: Complete text of the book
             min_mentions: Minimum mentions for a character to be included
+            body_range: Optional (start, end) character offsets of the narrative
+                body. Entities outside this range (front/back matter such as
+                acknowledgments, appendices, glossaries) are ignored.
         """
         self.full_text = full_text
         self.min_mentions = min_mentions
+        self.body_range = body_range
         self._nlp = None
 
     def _get_nlp(self):
@@ -101,16 +106,39 @@ class SupportingCastExtractor:
         name_counts: dict[str, int] = {}
         name_positions: dict[str, int] = {}
 
+        # Votes for non-person labels, used to veto names that spaCy tags as
+        # places/orgs/events more often than as people (e.g. a hill or battle
+        # name that occasionally pattern-matches as PERSON).
+        non_person_votes: dict[str, int] = {}
+        _NON_PERSON_LABELS = {"GPE", "LOC", "FAC", "ORG", "EVENT", "NORP", "PRODUCT", "WORK_OF_ART"}
+
         for start in range(0, len(self.full_text), chunk_size):
             chunk = self.full_text[start : start + chunk_size]
             doc = nlp(chunk)
 
             for ent in doc.ents:
+                # Skip entities outside the narrative body (front/back matter:
+                # acknowledgments, appendices, glossaries). Names there are real
+                # people or definitions, not characters.
+                if self.body_range is not None:
+                    ent_pos = start + ent.start_char
+                    if not (self.body_range[0] <= ent_pos < self.body_range[1]):
+                        continue
+
                 # Accept PERSON entities only — supporting cast characters are individual people.
                 # ORG (organizations like "Red Cross", "The Army") are not characters.
                 # Important characters misclassified by spaCy are caught by the main cast pipeline
                 # (LLM-based extraction from summaries), which runs before supporting cast.
                 if ent.label_ != "PERSON":
+                    if ent.label_ in _NON_PERSON_LABELS:
+                        # Record a non-person vote for the full entity text AND each
+                        # capitalized component word, so "<Place> Hill" (LOC) also
+                        # votes against bare "Hill" being a person.
+                        ent_text = re.sub(r"\s+", " ", ent.text).strip()
+                        non_person_votes[ent_text] = non_person_votes.get(ent_text, 0) + 1
+                        for word in ent_text.split():
+                            if word[:1].isupper() and len(word) >= 3:
+                                non_person_votes[word] = non_person_votes.get(word, 0) + 1
                     continue
 
                 name = re.sub(r"\s+", " ", ent.text).strip()
@@ -139,6 +167,25 @@ class SupportingCastExtractor:
         # Filter by minimum mentions
         supporting = []
         for name, count in name_counts.items():
+            # Label-vote veto: if spaCy tagged this name as a place/org/event at
+            # least as often as it tagged it PERSON, it is not a character.
+            # OVERRIDE: in-book evidence beats spaCy's world-knowledge priors —
+            # a name that appears with an honorific/rank in THIS text
+            # ("Pfc. Nick <Name>") is a person even if spaCy associates the
+            # surname with a company or place.
+            np_votes = non_person_votes.get(name, 0)
+            if np_votes >= count:
+                if self._has_honorific_evidence(name):
+                    logger.info(
+                        f"Kept '{name}' despite {np_votes} non-person NER votes: "
+                        f"honorific evidence found in text"
+                    )
+                else:
+                    logger.info(
+                        f"Rejected '{name}' as supporting character: "
+                        f"{np_votes} non-person NER votes vs {count} person votes"
+                    )
+                    continue
             if count >= self.min_mentions:
                 supporting.append(
                     SupportingCharacter(
@@ -156,6 +203,22 @@ class SupportingCastExtractor:
 
         logger.info(f"Extracted {len(characters)} supporting characters via NER")
         return characters
+
+    _HONORIFIC_PATTERN = (
+        r"(?:mr|mrs|ms|miss|dr|doc|rev|father|sister|prof|professor|"
+        r"pvt|private|pfc|cpl|corporal|spc[-\s]?\d?|sp[-\s]?\d|spec[-\s]?\d?|specialist|"
+        r"sgt|ssg|ssgt|msgt|sergeant|lt|ltc|lieutenant|cpt|capt|captain|"
+        r"maj|major|col|colonel|gen|general|chief|officer)"
+    )
+
+    def _has_honorific_evidence(self, name: str) -> bool:
+        """True if the name ever appears with an honorific/rank in the text,
+        optionally with one given name between ("Pfc. Nick Beckman")."""
+        pattern = re.compile(
+            rf"\b{self._HONORIFIC_PATTERN}\.?\s+(?:[A-Z][a-z]+\s+)?{re.escape(name)}\b",
+            re.IGNORECASE,
+        )
+        return bool(pattern.search(self.full_text))
 
     def _normalize_name(self, name: str) -> str:
         """Normalize a name for comparison."""
@@ -200,6 +263,19 @@ class SupportingCastExtractor:
             "dear",
         }
         if name.lower() in skip_terms:
+            return False
+
+        # Skip bare titles/ranks with no surname ("Sgt", "Dr.", "Lieutenant").
+        # A title alone is a form of address, not a character name.
+        bare_titles = {
+            "mr", "mrs", "ms", "miss", "dr", "prof", "professor", "rev", "reverend",
+            "pvt", "private", "pfc", "cpl", "corporal", "spc", "specialist",
+            "sgt", "ssgt", "msgt", "sergeant", "lt", "ltc", "lieutenant",
+            "cpt", "capt", "captain", "maj", "major", "col", "colonel",
+            "gen", "general", "cmdr", "commander", "adm", "admiral",
+            "president", "senator", "governor", "mayor", "judge", "chief",
+        }
+        if name.lower().rstrip(".") in bare_titles:
             return False
 
         # Skip wine types and alcoholic beverages (common false positives)

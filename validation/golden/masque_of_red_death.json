@@ -1,0 +1,10 @@
+{
+  "book": "The Masque of the Red Death",
+  "source_file": "Test_Texts/Masque of the Red Death - Poe.txt",
+  "narrator": null,
+  "characters": [
+    {"canonical_name": "Prince Prospero", "aliases": ["Prospero"], "role": "protagonist"},
+    {"canonical_name": "the Red Death", "aliases": ["Red Death"], "role": "antagonist"}
+  ],
+  "forbidden": []
+}

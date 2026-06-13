@@ -169,3 +169,28 @@ class TestIntegration:
         flagged_words = [p.word.lower() for p in result.pronunciations]
         print(f"Sample flagged words: {flagged_words[:10]}")
         assert any("frankenstein" in w for w in flagged_words), f"Frankenstein should be flagged. Words: {flagged_words[:20]}"
+
+
+class TestAcronymClassification:
+    """Acronyms get their own flag instead of a blind proper_noun upgrade."""
+
+    def test_is_acronym(self):
+        from src.pipeline.pronunciation_guide.consolidator import (
+            PronunciationConsolidator,
+        )
+
+        is_acronym = PronunciationConsolidator._is_acronym
+        for word in ["NVA", "VC", "RTO", "TOC", "PFC", "M.P.", "B52"]:
+            assert is_acronym(word) is True, word
+        for word in ["Hill", "Gatsby", "A", "STRANGELY", "dinks", ""]:
+            assert is_acronym(word) is False, word
+
+    def test_acronym_flag_exists_and_maps(self):
+        from src.pipeline.pronunciation_guide.models import (
+            PronunciationFlag as PipelineFlag,
+        )
+        from src.models import PronunciationFlag as ModelFlag
+
+        assert PipelineFlag.ACRONYM.value == "acronym"
+        # Output enum must have a rendering bucket for acronyms
+        assert ModelFlag.TECHNICAL is not None

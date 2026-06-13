@@ -1180,8 +1180,10 @@ class TestV2Integration:
         # post-split creature synonym alias recovery (_recover_creature_synonym_aliases),
         # vocative narrator name resolution (_find_narrator_name_from_vocative + Step 4.5/5.2c),
         # plural group noun filter in _is_valid_alias,
-        # and formal-name alias merge for nickname main cast + NICKNAME_TO_FORMAL table (Step 5.5a)
-        assert total_lines < 10000, f"V2 code is {total_lines} lines (should be <10000)"
+        # formal-name alias merge for nickname main cast + NICKNAME_TO_FORMAL table (Step 5.5a),
+        # and alias hallucination guards (Rule 1.5 token grounding, Rule 1.6/2.5 given-name
+        # conflict detection, Rule 0.0 parenthetical stripping)
+        assert total_lines < 10500, f"V2 code is {total_lines} lines (should be <10500)"
 
     def test_no_complex_merge_heuristics(self):
         """Verify no complex merge heuristics exist in V2 code."""
@@ -1208,3 +1210,178 @@ class TestV2Integration:
                         assert pattern not in content, (
                             f"Found forbidden pattern '{pattern}' in {filename}"
                         )
+
+
+class TestAliasHallucinationGuards:
+    """Rules 0.0/1.5/1.6/2.5: parenthetical stripping, token grounding,
+    and given-name conflict detection in verify_aliases."""
+
+    SUMMARIES = [
+        "Sergeant Marsh briefed the platoon. Calder gave a speech.",
+        "Staff Sergeant Ned Voss arrived at the base. Marsh handed out mail.",
+        "On the news, Rev. Earl Voss spoke about the war. Voss the medic helped.",
+        "Renner called in the strike. Toby Quill and Alma Quill were mentioned "
+        "in letters. Quill laughed. Toby told a story.",
+        "Lt. Jack Bramley and Jack discussed the patrol with Colonel Renner.",
+    ]
+
+    def _extractor(self, mock_llm):
+        extractor = MainCastExtractor(mock_llm)
+        extractor._rule1_blocked_names = []
+        return extractor
+
+    def test_hallucinated_alias_token_blocked(self, mock_llm):
+        """An alias whose given name appears nowhere in summaries is dropped."""
+        extractor = self._extractor(mock_llm)
+        profiles = [
+            MainCastProfile(
+                canonical_name="Marsh",
+                aliases=["Sergeant Marsh", "Dudley Marsh"],  # "Dudley" never occurs
+            )
+        ]
+        out = extractor.verify_aliases(profiles, self.SUMMARIES)
+        assert out[0].aliases == ["Sergeant Marsh"]
+
+    def test_grounded_aliases_kept(self, mock_llm):
+        """Normal title/nickname aliases survive all new rules."""
+        extractor = self._extractor(mock_llm)
+        profiles = [
+            MainCastProfile(
+                canonical_name="Jack Bramley",
+                aliases=["Lt. Jack Bramley", "Jack"],
+            )
+        ]
+        out = extractor.verify_aliases(profiles, self.SUMMARIES)
+        assert out[0].aliases == ["Lt. Jack Bramley", "Jack"]
+
+    def test_given_name_conflict_between_aliases(self, mock_llm):
+        """Two same-surname aliases with different given names cannot both
+        belong to one character; the loser becomes a candidate character."""
+        extractor = self._extractor(mock_llm)
+        profiles = [
+            MainCastProfile(
+                canonical_name="Voss",
+                aliases=["Staff Sergeant Ned Voss", "Rev. Earl Voss"],
+            )
+        ]
+        out = extractor.verify_aliases(profiles, self.SUMMARIES)
+        assert len(out[0].aliases) == 1
+        assert len(extractor._rule1_blocked_names) == 1
+
+    def test_given_name_conflict_with_canonical(self, mock_llm):
+        """An alias whose given name differs from the canonical's is blocked."""
+        extractor = self._extractor(mock_llm)
+        profiles = [
+            MainCastProfile(
+                canonical_name="Toby Quill",
+                aliases=["Alma Quill"],
+            )
+        ]
+        out = extractor.verify_aliases(profiles, self.SUMMARIES)
+        assert out[0].aliases == []
+        assert "Alma Quill" in extractor._rule1_blocked_names
+
+    def test_parenthetical_alias_stripped(self, mock_llm):
+        """Parenthetical qualifiers are stripped; redundant results dropped."""
+        extractor = self._extractor(mock_llm)
+        profiles = [
+            MainCastProfile(
+                canonical_name="Renner",
+                aliases=["Renner (former CO)", "Colonel Renner"],
+            )
+        ]
+        out = extractor.verify_aliases(profiles, self.SUMMARIES)
+        assert out[0].aliases == ["Colonel Renner"]
+
+    def test_nickname_formal_pair_not_split(self, mock_llm):
+        """Known nickname/formal pairs (Jim/James) are not given-name conflicts."""
+        extractor = self._extractor(mock_llm)
+        assert extractor._given_name_conflict("Jim Holt", "James Holt") is False
+
+    def test_prefix_given_names_not_split(self, mock_llm):
+        """Prefix pairs (Will/William) are not given-name conflicts."""
+        extractor = self._extractor(mock_llm)
+        assert extractor._given_name_conflict("Will Granger", "William Granger") is False
+
+    def test_spouse_names_are_conflict(self, mock_llm):
+        """Different given names sharing a surname are different people."""
+        extractor = self._extractor(mock_llm)
+        assert extractor._given_name_conflict("Tom Buchan", "Daisy Buchan") is True
+
+
+class TestGroupDescriptorGate:
+    """_is_group_descriptor: group/role phrases are not individual characters."""
+
+    def test_group_phrases_rejected(self, mock_llm):
+        extractor = MainCastExtractor(mock_llm)
+        for name in [
+            "San Juan Hill personnel",
+            "Bravo Company",
+            "massacre witnesses",
+            "Charlie Company RTO",
+            "the villagers",
+        ]:
+            assert extractor._is_group_descriptor(name) is True, name
+
+    def test_individual_names_kept(self, mock_llm):
+        extractor = MainCastExtractor(mock_llm)
+        for name in [
+            "Staff Sergeant Ned Voss",  # "staff" is a rank word here, not a group
+            "Jay Gatsby",
+            "the creature",
+            "Master Sergeant Garcia",
+            "Tom",
+        ]:
+            assert extractor._is_group_descriptor(name) is False, name
+
+    def test_pass1_rejects_group_canonical(self, mock_llm):
+        extractor = MainCastExtractor(mock_llm)
+        profiles = extractor._parse_pass1_results(
+            [
+                {"canonical_name": "Hilltop personnel", "role": "supporting"},
+                {"canonical_name": "Vance", "role": "supporting"},
+            ]
+        )
+        assert [p.canonical_name for p in profiles] == ["Vance"]
+
+
+class TestTitledSurnameConflict:
+    """A titled surname ("Sergeant Otto") can only refer to that surname."""
+
+    def _ex(self, mock_llm):
+        return MainCastExtractor(mock_llm)
+
+    def test_different_sergeants_conflict(self, mock_llm):
+        ex = self._ex(mock_llm)
+        assert ex._titled_surname_conflict("Sergeant Otto", "Sergeant Baca") is True
+        assert ex._titled_surname_conflict("Sergeant Mitchell", "Sergeant Otto") is True
+        assert ex._titled_surname_conflict("Lieutenant Bailey", "Lt. Williams") is True
+
+    def test_rank_changes_same_surname_ok(self, mock_llm):
+        ex = self._ex(mock_llm)
+        assert ex._titled_surname_conflict("Lt. Reaper", "Lt. Col. Tony Reaper") is False
+        assert ex._titled_surname_conflict("Sgt. Huffman", "Sgt. Jamie Huffman") is False
+        assert ex._titled_surname_conflict("Sergeant Huffman", "Huffman") is False
+
+    def test_nicknames_and_descriptors_exempt(self, mock_llm):
+        ex = self._ex(mock_llm)
+        # untitled nickname never triggers the rule
+        assert ex._titled_surname_conflict("Shooter", "Sgt. Martin Sharpe") is False
+        # descriptive handle has no surname claim
+        assert ex._titled_surname_conflict("Sergeant-Major Morris", "the old soldier") is False
+        # courtesy titles with same surname stay mergeable
+        assert ex._titled_surname_conflict("Mr. Gatsby", "Jay Gatsby") is False
+
+    def test_verify_aliases_blocks_cross_sergeant(self, mock_llm):
+        ex = self._ex(mock_llm)
+        ex._rule1_blocked_names = []
+        profiles = [
+            MainCastProfile(
+                canonical_name="Sergeant Mitchell",
+                aliases=["Sergeant Otto", "Staff Sergeant Mitchell"],
+            )
+        ]
+        summaries = ["Sergeant Mitchell and Sergeant Otto walked the perimeter."]
+        out = ex.verify_aliases(profiles, summaries)
+        assert out[0].aliases == ["Staff Sergeant Mitchell"]
+        assert "Sergeant Otto" in ex._rule1_blocked_names

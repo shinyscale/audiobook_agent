@@ -1,0 +1,10 @@
+{
+  "book": "Berenice",
+  "source_file": "Test_Texts/Berenice - Poe.txt",
+  "narrator": "Egaeus",
+  "characters": [
+    {"canonical_name": "Egaeus", "aliases": ["the narrator"], "role": "protagonist"},
+    {"canonical_name": "Berenice", "aliases": [], "role": "main"}
+  ],
+  "forbidden": ["Mad'selle Salle"]
+}

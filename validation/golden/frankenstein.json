@@ -1,0 +1,116 @@
+{
+  "book": "Frankenstein; or, The Modern Prometheus",
+  "source_file": "Test_Texts/Frankenstein_ebook.txt",
+  "narrator": "Robert Walton",
+  "characters": [
+    {
+      "canonical_name": "Victor Frankenstein",
+      "aliases": [
+        "Victor",
+        "Frankenstein"
+      ],
+      "role": "protagonist"
+    },
+    {
+      "canonical_name": "The Creature",
+      "aliases": [
+        "Monster",
+        "Creature",
+        "Fiend",
+        "Daemon",
+        "Wretch",
+        "Devil",
+        "Being"
+      ],
+      "role": "antagonist"
+    },
+    {
+      "canonical_name": "Robert Walton",
+      "aliases": [
+        "Walton",
+        "Captain Walton"
+      ],
+      "role": "frame_narrator"
+    },
+    {
+      "canonical_name": "Elizabeth Lavenza",
+      "aliases": [
+        "Elizabeth"
+      ],
+      "role": "main"
+    },
+    {
+      "canonical_name": "Henry Clerval",
+      "aliases": [
+        "Henry",
+        "Clerval"
+      ],
+      "role": "main"
+    },
+    {
+      "canonical_name": "Alphonse Frankenstein",
+      "aliases": [
+        "Alphonse"
+      ],
+      "role": "supporting",
+      "required": false
+    },
+    {
+      "canonical_name": "William Frankenstein",
+      "aliases": [
+        "William"
+      ],
+      "role": "supporting",
+      "required": false
+    },
+    {
+      "canonical_name": "Justine Moritz",
+      "aliases": [
+        "Justine"
+      ],
+      "role": "supporting",
+      "required": false
+    },
+    {
+      "canonical_name": "Margaret Saville",
+      "aliases": [
+        "Margaret",
+        "Mrs. Saville"
+      ],
+      "role": "minor",
+      "required": false
+    },
+    {
+      "canonical_name": "De Lacey",
+      "aliases": [
+        "Old De Lacey",
+        "the old man"
+      ],
+      "role": "supporting",
+      "required": false
+    },
+    {
+      "canonical_name": "Felix De Lacey",
+      "aliases": [
+        "Felix"
+      ],
+      "role": "minor",
+      "required": false
+    },
+    {
+      "canonical_name": "Agatha De Lacey",
+      "aliases": [
+        "Agatha"
+      ],
+      "role": "minor",
+      "required": false
+    },
+    {
+      "canonical_name": "Safie",
+      "aliases": [],
+      "role": "minor",
+      "required": false
+    }
+  ],
+  "forbidden": []
+}
